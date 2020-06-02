@@ -1,0 +1,149 @@
+#include "fly_stereo/mavlink_reader.h"
+
+
+#include <unistd.h>
+#include <termios.h>
+#include <fcntl.h>
+#include <errno.h>
+#include <string>
+#include <chrono>
+#include <iostream>
+
+MavlinkReader::MavlinkReader() {}
+
+MavlinkReader::~MavlinkReader() {
+  is_running_.store(false);
+
+  if (reader_thread_.joinable()) {
+    reader_thread_.join();
+  }
+
+  if (serial_dev_ > 0) {
+    close(serial_dev_);
+  }
+}
+
+int MavlinkReader::Init(YAML::Node input_params) {
+  // Open the device
+  serial_dev_ = open(input_params["device"].as<std::string>().c_str(),
+    O_RDWR | O_NOCTTY | O_NDELAY);
+  if(serial_dev_ == -1) {
+    std::cerr << "Failed to open the serial device" << std::endl;
+    return -1;
+  }
+
+  struct termios  config;
+  //
+  // Get the current configuration of the serial interface
+  //
+  if(tcgetattr(serial_dev_, &config) < 0) {
+    std::cerr << "Failed to get the serial device attributes" << std::endl;
+    return -1;
+  }
+
+  fcntl(serial_dev_, F_SETFL, fcntl(serial_dev_, F_GETFL) & ~O_NONBLOCK);
+
+  // Set the serial device configs
+  config.c_iflag &= ~(IGNBRK | BRKINT | ICRNL | INLCR | PARMRK | INPCK | ISTRIP
+    | IXON);
+  config.c_oflag = 0;
+  config.c_lflag &= ~(ECHO | ECHONL | ICANON | IEXTEN | ISIG);
+  config.c_cflag &= ~(CSIZE | PARENB);
+  config.c_cflag |= CS8;
+  //
+  // One input byte is enough to return from read()
+  // Inter-character timer off
+  //
+  config.c_cc[VMIN]  = 0;
+  config.c_cc[VTIME] = 0;
+
+  //
+  // Communication speed (simple version, using the predefined
+  // constants)
+  //
+  if(cfsetispeed(&config, B115200) < 0 || cfsetospeed(&config, B115200) < 0) {
+    std::cerr << "Failed to set the baudrate on the serial port!" << std::endl;
+    return -1;
+  }
+
+  //
+  // Finally, apply the configuration
+  //
+  if(tcsetattr(serial_dev_, TCSAFLUSH, &config) < 0) { 
+    std::cerr << "Failed to set the baudrate on the serial port!" << std::endl;
+    return -1;
+  }
+
+  is_running_.store(true);
+  reader_thread_ = std::thread(&MavlinkReader::SerialReadThread, this);
+
+  return 0;
+}
+
+
+void MavlinkReader::SerialReadThread() {
+  unsigned char buf[1024];
+  size_t buf_size = 1024;
+  std::chrono::time_point<std::chrono::system_clock> time_end;
+  while (is_running_.load()) {
+    ssize_t ret = read(serial_dev_, buf, buf_size);
+
+    if (ret < 0) {
+      std::cerr << "Error on read(), errno: " << strerror(errno) << std::endl;
+    } else if (ret == 0) {
+      continue;
+    }
+
+    for (int i = 0; i < ret; i++) {
+      mavlink_status_t mav_status;
+      mavlink_message_t mav_message;
+      uint8_t msg_received = mavlink_parse_char(MAVLINK_COMM_1, buf[i],
+        &mav_message, &mav_status);
+    
+      if (msg_received) {
+        switch(mav_message.msgid) {
+          case MAVLINK_MSG_ID_ATTITUDE: {
+            mavlink_attitude_t attitude_msg;
+            mavlink_msg_attitude_decode(&mav_message, &attitude_msg);
+
+            // Push the message to our output queue
+            std::lock_guard<std::mutex> lock(queue_mutex_);
+            output_queue_.push(attitude_msg);
+            cond_var_.notify_one();
+            break;
+          }
+          default:
+            std::cerr << "Unrecognized message with ID:" << static_cast<int>(
+              mav_message.msgid) << std::endl;
+        }
+      }
+    }
+
+    // Sleep so we don't overload the CPU. This isn't an ideal method, but if
+    // use a blocking call on read(), we can't break out of it on the 
+    // destruction of this object. It will hang forever until bytes are read
+    std::this_thread::sleep_for(std::chrono::microseconds(100));
+  }
+}
+
+bool MavlinkReader::GetAttitudeMsg(mavlink_attitude_t* attitude, bool block) {
+  std::unique_lock<std::mutex> lock(queue_mutex_);
+
+  if (block) {
+    while(output_queue_.empty()) {
+      std::cv_status ret = cond_var_.wait_for(lock, std::chrono::seconds(1));
+      
+      // Return false if we have hit our timeout
+      if (ret == std::cv_status::timeout)
+        return false;
+    }
+  }
+
+  if (output_queue_.empty()) {
+    return false; 
+  } else {
+    *attitude = output_queue_.front();
+    output_queue_.pop();
+    return true;
+  }
+}

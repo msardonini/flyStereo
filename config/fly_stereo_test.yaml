@@ -1,0 +1,120 @@
+fly_stereo:
+  mavlink_reader:
+    device: /dev/ttyTHS1
+  image_processor:
+    src_pipeline_cam0: "v4l2src device=/dev/video0 ! nvvidconv flip-method=0 ! video/x-raw, format=(string)GRAY8 ! appsink max-buffers=1 drop=true"
+    src_pipeline_cam1: "v4l2src device=/dev/video1 ! nvvidconv flip-method=0 ! video/x-raw, format=(string)GRAY8 ! appsink max-buffers=1 drop=true"
+
+    sink_pipeline_cam0: "appsrc ! nvvidconv ! nvv4l2h264enc insert-sps-pps=true ! h264parse ! rtph264pay pt=96 ! udpsink host=192.168.104.2 port=8002 sync=false "
+    sink_pipeline_cam1: "appsrc ! nvvidconv ! nvv4l2h264enc insert-sps-pps=true ! h264parse ! rtph264pay pt=96 ! udpsink host=192.168.104.2 port=8001 sync=false "
+
+    framerate: 20
+    max_error_counter: 20
+    stereo_threshold: 25
+    ransac_threshold: 3
+
+    goodFeaturesToTrack:
+      max_corners: 100
+      quality_level: 0.3
+      min_dist: 10.0
+
+    calcOpticalFlowPyrLK:
+      window_size: 21
+      max_pyramid_level: 5
+
+
+    stereo_calibration:
+      K1: !!opencv-matrix
+         rows: 3
+         cols: 3
+         dt: d
+         data: [ 1.2943360820235644e+03, 0., 6.7848267672542738e+02, 0.,
+             1.2913637565881440e+03, 3.1923498889287629e+02, 0., 0., 1. ]
+      K2: !!opencv-matrix
+         rows: 3
+         cols: 3
+         dt: d
+         data: [ 1.2927256632600618e+03, 0., 7.0133452874263207e+02, 0.,
+             1.2931903746663440e+03, 3.3109641803657570e+02, 0., 0., 1. ]
+      D1: !!opencv-matrix
+         rows: 1
+         cols: 5
+         dt: d
+         data: [ 2.0348772148428843e-01, -4.8731032511466099e-01,
+             -1.3702094815893538e-02, 8.1657290197088370e-03,
+             4.6983123923995063e-01 ]
+      D2: !!opencv-matrix
+         rows: 1
+         cols: 5
+         dt: d
+         data: [ 2.0642340537728715e-01, -6.0485575714341810e-01,
+             -6.5290476658964635e-03, 9.8953742820986866e-03,
+             7.0871580256017963e-01 ]
+      R: !!opencv-matrix
+         rows: 3
+         cols: 3
+         dt: d
+         data: [ 9.9910025944826375e-01, 3.8848762592312687e-02,
+             1.7013089533012921e-02, -3.8638509164968152e-02,
+             9.9917484803703982e-01, -1.2517534088916253e-02,
+             -1.7485341858850204e-02, 1.1848911140043000e-02,
+             9.9977690817745657e-01 ]
+      T: [ 3.2413783213608563e-02, -9.4679699206505453e-04,
+          -1.8128974579509024e-03 ]
+      E: !!opencv-matrix
+         rows: 3
+         cols: 3
+         dt: d
+         data: [ -5.3492585966994845e-05, 1.8001830286281900e-03,
+             -9.6927877512812614e-04, -1.2445002401632386e-03,
+             -4.5449685995880705e-04, -3.2437394950402203e-02,
+             -3.0647513935327356e-04, 3.2423818808330743e-02,
+             -3.8963269433149649e-04 ]
+      F: !!opencv-matrix
+         rows: 3
+         cols: 3
+         dt: d
+         data: [ -5.1826726790763877e-08, 1.7481363988760618e-06,
+             -1.7384055258660590e-03, -1.2053108876669202e-06,
+             -4.4119791024560869e-07, -3.9704156768749700e-02,
+             5.1571756720385116e-05, 3.9623309955838251e-02, 1. ]
+
+      R1: !!opencv-matrix
+         rows: 3
+         cols: 3
+         dt: d
+         data: [ 9.1014514554755976e-01, 4.0845652655314757e-01,
+             6.9275392112561174e-02, -3.9971740255202654e-01,
+             8.2180934070324863e-01, 4.0602389785572085e-01,
+             1.0891194669673482e-01, -3.9723125940568871e-01,
+             9.1123296385594932e-01 ]
+      R2: !!opencv-matrix
+         rows: 3
+         cols: 3
+         dt: d
+         data: [ 9.8267537184007792e-01, 1.8478604982010047e-01,
+             -1.4255853915079426e-02, -1.7702558931978835e-01,
+             9.1306216567983700e-01, -3.6739545768834375e-01,
+             -5.4873074498759056e-02, 3.6355411893682249e-01,
+             9.2995556254001954e-01 ]
+      P1: !!opencv-matrix
+         rows: 3
+         cols: 4
+         dt: d
+         data: [ 1.2400209461643367e+03, 0., 6.3296669769287109e+02, 0., 0.,
+             1.2400209461643367e+03, 3.6927997589111328e+02, 0., 0., 0., 1.,
+             0. ]
+      P2: !!opencv-matrix
+         rows: 3
+         cols: 4
+         dt: d
+         data: [ 1.2400209461643367e+03, 0., 6.3296669769287109e+02, 0., 0.,
+             1.2400209461643367e+03, 3.6927997589111328e+02,
+             -9.8787865714487884e+02, 0., 0., 1., 0. ]
+      Q: !!opencv-matrix
+         rows: 4
+         cols: 4
+         dt: d
+         data: [ 1., 0., 0., -6.3296669769287109e+02, 0., 1., 0.,
+             -3.6927997589111328e+02, 0., 0., 0., 1.2400209461643367e+03, 0.,
+             0., 1.2552360932143101e+00, 0. ]
