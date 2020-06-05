@@ -10,20 +10,6 @@
 
 
 ImageProcessor::ImageProcessor(const YAML::Node &input_params) {
-  // Parse the gstreamer pipeline for camera 0. Sink pipeline is optional
-  src_pipeline_cam0_ = input_params["src_pipeline_cam0"].as<std::string>();
-  if (input_params["sink_pipeline_cam0"]) {
-    sink_pipeline_cam0_ = input_params["sink_pipeline_cam0"].as<
-      std::string>();
-  }
-
-  // Same for camera 1
-  src_pipeline_cam1_ = input_params["src_pipeline_cam1"].as<std::string>();
-  if (input_params["sink_pipeline_cam1"]) {
-    sink_pipeline_cam1_ = input_params["sink_pipeline_cam1"].as<
-      std::string>();
-  }
-
   // Params for OpenCV function goodFeaturesToTrack
   YAML::Node features_params = input_params["goodFeaturesToTrack"];
   max_corners_ = features_params["max_corners"].as<int>();
@@ -36,7 +22,6 @@ ImageProcessor::ImageProcessor(const YAML::Node &input_params) {
   max_pyramid_level_ = features_params["max_corners"].as<int>();
   
   max_error_counter_ = input_params["max_error_counter"].as<int>();
-  framerate_ = input_params["framerate"].as<int>();
   stereo_threshold_ = input_params["stereo_threshold"].as<double>();
   ransac_threshold_ = input_params["ransac_threshold"].as<double>();
 
@@ -83,6 +68,9 @@ ImageProcessor::ImageProcessor(const YAML::Node &input_params) {
 
   interface_vec = stereo_calibration["Q"]["data"].as<std::vector<double>>();
   Q_ = cv::Matx44d(interface_vec.data());
+
+  // Make a copy of our configuration for later use
+  input_params_ = input_params;
 }
 
 ImageProcessor::~ImageProcessor() {
@@ -93,19 +81,26 @@ ImageProcessor::~ImageProcessor() {
 }
 
 int ImageProcessor::Init() {
-  reader_cam0_ = std::make_unique<cv::VideoCapture> (src_pipeline_cam0_);
-  if (!reader_cam0_->isOpened()) {
-    std::cerr << "Error! VideoCapture on cam0 did not open" << std::endl;
-    is_running_.store(false);
+  cam0_ = std::make_unique<Camera> (input_params_["Camera0"]);
+  if(cam0_->Init()) {
+    return -1;
+  }
+  cam1_ = std::make_unique<Camera> (input_params_["Camera1"]);
+  if (cam1_->Init()) {
+    return -1;
+  }
+  trigger_ = std::make_unique<CameraTrigger> (input_params_["CameraTrigger"]);
+
+  if (trigger_->Init()) {
     return -1;
   }
 
-  reader_cam1_ = std::make_unique<cv::VideoCapture> (src_pipeline_cam1_);
-  if (!reader_cam1_->isOpened()) {
-    std::cerr << "Error! VideoCapture on cam1 did not open" << std::endl;
-    is_running_.store(false);
-    return -1;
-  }
+  // // Trigger the first image
+  trigger_->TriggerCamera();
+  // std::this_thread::sleep_for(std::chrono::microseconds(30000));
+  // trigger_->TriggerCamera();
+  // std::this_thread::sleep_for(std::chrono::microseconds(30000));
+  // trigger_->TriggerCamera();
 
   is_running_.store(true);
   image_processor_thread_ = std::thread(&ImageProcessor::ProcessThread, this);
@@ -124,27 +119,6 @@ int ImageProcessor::InitFirstFrame(const cv::Mat &frame_cam0_t0,
     quality_level_, min_dist_);
   cv::buildOpticalFlowPyramid(frame_cam1_t0, pyramid_cam1_t0_,
     cv::Size(window_size_, window_size_), max_pyramid_level_);
-
-  // If configured, create the image sinks here, we wait to do it here
-  // because we require the frame size
-  if (!sink_pipeline_cam0_.empty()) {
-    writer_cam0_ = std::make_unique<cv::VideoWriter> (sink_pipeline_cam0_, 0,
-      framerate_, frame_cam0_t0.size(), false);
-    if (!writer_cam0_->isOpened()) {
-      std::cerr << "Error! VideoWriter on cam1 did not open" << std::endl;
-      is_running_.store(false);
-      return -1;
-    }
-  }
-  if (!sink_pipeline_cam1_.empty()) {
-    writer_cam1_ = std::make_unique<cv::VideoWriter> (sink_pipeline_cam1_, 0,
-      framerate_, frame_cam1_t0.size(), false);
-    if (!writer_cam1_->isOpened()) {
-      std::cerr << "Error! VideoWriter on cam1 did not open" << std::endl;
-      is_running_.store(false);
-      return -1;
-    }
-  }
 }
 
 void ImageProcessor::DrawPoints(const std::vector<cv::Point2f> &mypoints,
@@ -201,11 +175,12 @@ int ImageProcessor::ProcessThread() {
   std::chrono::time_point<std::chrono::system_clock> time_end;
   cv::Ptr<cv::Feature2D> detector_ptr = cv::FastFeatureDetector::create(50,
     true);
-
+  
+  // trigger_->TriggerCamera();
+  
   while (is_running_.load()) {
     // Read the frame and check for errors
-    if (!reader_cam0_->read(frame_cam0_t1) ||
-        !reader_cam1_->read(frame_cam1_t1)) {
+    if (cam0_->GetFrame(frame_cam0_t1) || cam1_->GetFrame(frame_cam1_t1)) {
       if (++error_counter >= max_error_counter_) {
         std::cerr << "Error! Failed to read more than " << max_error_counter_
           << " frames" << std::endl;
@@ -215,6 +190,8 @@ int ImageProcessor::ProcessThread() {
         continue;
       }
     }
+    // TODO: Find a better place to do this
+    trigger_->TriggerCamera();
 
     cv::flip(frame_cam0_t1, frame_cam0_t1, 0);
     cv::flip(frame_cam1_t1, frame_cam1_t1, 0);
@@ -282,15 +259,16 @@ int ImageProcessor::ProcessThread() {
     std::cout << "num points: cam0 " << corners_cam0_t1_.size()
       << " cam1 " << corners_cam1_t1_.size() << std::endl;
 
-    if (writer_cam0_) {
+    //TODO fix
+    if (1) {
       cv::Mat show_frame = frame_cam0_t1.clone();
       DrawPoints(corners_cam0_t1_, show_frame);
-      writer_cam0_->write(show_frame);
+      cam0_->SendFrame(show_frame);
     }
-    if (writer_cam1_) {
+    if (1) {
       cv::Mat show_frame = frame_cam1_t1.clone();
       DrawPoints(corners_cam1_t1_, show_frame);
-      writer_cam1_->write(show_frame);
+      cam1_->SendFrame(show_frame);
     }
 
     // Set the current t1 values to t0

@@ -8,9 +8,10 @@
 #include <thread>
 #include <mutex>
 
+#include "fly_stereo/camera.h"
+#include "fly_stereo/camera_trigger.h"
 #include "yaml-cpp/yaml.h"
 #include "opencv2/core.hpp"
-#include "opencv2/videoio.hpp"
 #include "opencv2/features2d.hpp"
 
 
@@ -57,19 +58,18 @@ class ImageProcessor {
     const double& success_probability,
     std::vector<uchar>& inlier_markers);
 
+  // Local version of input params
+  YAML::Node input_params_;
+
   // Thread mgmt
   std::atomic <bool> is_running_;
   std::thread image_processor_thread_;
   
   // Video I/O
-  std::string src_pipeline_cam0_;
-  std::string sink_pipeline_cam0_;
-  std::unique_ptr<cv::VideoCapture> reader_cam0_;
-  std::unique_ptr<cv::VideoWriter> writer_cam0_;
-  std::string src_pipeline_cam1_;
-  std::string sink_pipeline_cam1_;
-  std::unique_ptr<cv::VideoCapture> reader_cam1_;
-  std::unique_ptr<cv::VideoWriter> writer_cam1_;
+  std::unique_ptr<Camera> cam0_;
+  std::unique_ptr<Camera> cam1_;
+  std::unique_ptr<CameraTrigger> trigger_;
+
 
   // OpenCV
   std::vector<cv::Mat> pyramid_cam0_t0_;
@@ -92,7 +92,6 @@ class ImageProcessor {
 
   // Running config params
   int max_error_counter_;
-  int framerate_;
   double stereo_threshold_;
 
   // Config Params for RANSAC

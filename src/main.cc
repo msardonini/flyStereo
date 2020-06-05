@@ -9,6 +9,7 @@
 #include "yaml-cpp/yaml.h"
 #include "fly_stereo/image_processor.h"
 #include "fly_stereo/mavlink_reader.h"
+#include "fly_stereo/camera_trigger.h"
 
 std::atomic<bool> is_running(true);
 
