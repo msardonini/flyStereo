@@ -76,6 +76,8 @@ ImageProcessor::ImageProcessor(const YAML::Node &input_params) {
 ImageProcessor::~ImageProcessor() {
   is_running_.store(false);
 
+  trigger_->TriggerCamera();
+
   if (image_processor_thread_.joinable())
     image_processor_thread_.join();
 }
@@ -94,13 +96,6 @@ int ImageProcessor::Init() {
   if (trigger_->Init()) {
     return -1;
   }
-
-  // // Trigger the first image
-  trigger_->TriggerCamera();
-  // std::this_thread::sleep_for(std::chrono::microseconds(30000));
-  // trigger_->TriggerCamera();
-  // std::this_thread::sleep_for(std::chrono::microseconds(30000));
-  // trigger_->TriggerCamera();
 
   is_running_.store(true);
   image_processor_thread_ = std::thread(&ImageProcessor::ProcessThread, this);
@@ -176,8 +171,6 @@ int ImageProcessor::ProcessThread() {
   cv::Ptr<cv::Feature2D> detector_ptr = cv::FastFeatureDetector::create(50,
     true);
   
-  // trigger_->TriggerCamera();
-  
   while (is_running_.load()) {
     // Read the frame and check for errors
     if (cam0_->GetFrame(frame_cam0_t1) || cam1_->GetFrame(frame_cam1_t1)) {
@@ -190,11 +183,6 @@ int ImageProcessor::ProcessThread() {
         continue;
       }
     }
-    // TODO: Find a better place to do this
-    trigger_->TriggerCamera();
-
-    cv::flip(frame_cam0_t1, frame_cam0_t1, 0);
-    cv::flip(frame_cam1_t1, frame_cam1_t1, 0);
 
     // Initialize some values if this is our first frame
     if (counter++ == 0) {

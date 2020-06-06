@@ -51,6 +51,7 @@ int Camera::Init() {
       return -1;
     }
   }
+  return 0;
 }
 
 int Camera::GetFrame(cv::Mat &frame) {
