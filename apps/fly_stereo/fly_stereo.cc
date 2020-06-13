@@ -60,16 +60,16 @@ int main(int argc, char* argv[]) {
   ImageProcessor image_processor(fly_stereo_params["image_processor"]);
   image_processor.Init();
 
-  std::thread imu_thread_obj(imu_thread, fly_stereo_params["mavlink_reader"]);
+  // std::thread imu_thread_obj(imu_thread, fly_stereo_params["mavlink_reader"]);
 
   while (is_running.load()) {
     std::this_thread::sleep_for(std::chrono::seconds(1));
   }
 
   // Clean up the imu thread
-  if (imu_thread_obj.joinable()) {
-    imu_thread_obj.join();
-  }
+  // if (imu_thread_obj.joinable()) {
+  //   imu_thread_obj.join();
+  // }
 
   std::cout << "Shutting down main " << std::endl;
   return 0;

@@ -38,17 +38,19 @@ char get_user_input(int timeout_s, int timout_us) {
   }
 }
 
-
-
 int main(int argc, char *argv[]) {
   // Argument params
   std::string config_file;
+  int image_counter = 0;
 
   int opt;
-  while((opt = getopt(argc, argv, "c:")) != -1) {
+  while((opt = getopt(argc, argv, "c:n:")) != -1) {
     switch(opt) {
       case 'c':
         config_file = std::string(optarg);
+        break;
+      case 'n':
+        image_counter = std::stoi(optarg);
         break;
       case '?':
         printf("unknown option: %c\n", optopt);
@@ -81,7 +83,6 @@ int main(int argc, char *argv[]) {
   // }
 
   cv::Mat frame_cam0, frame_cam1;
-  int image_counter = 0;
   std::experimental::filesystem::path save_dir(params["save_dir"].as<std::
     string>());
   std::experimental::filesystem::create_directory(save_dir);

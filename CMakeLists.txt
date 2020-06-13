@@ -11,4 +11,3 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 add_subdirectory(lib)
 
 add_subdirectory(apps)
-

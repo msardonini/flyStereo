@@ -1,5 +1,5 @@
 acquire_calib_images:
-  save_dir: calibration_images
+  save_dir: calibration_images_again
   CameraTrigger:
     chip_num: 0
     pin_num: 79
@@ -14,8 +14,8 @@ acquire_calib_images:
     height: 720
     flip_method: 0
     hardware_trigger_mode: true
-    gain: 3
-    exposure_time: 1050
+    gain: 4
+    exposure_time: 1550
   Camera1:
     device_num: 1
     src_pipeline: "v4l2src device=/dev/video1 ! video/x-raw,width=1280,height=720 ! nvvidconv flip-method=0 ! video/x-raw, format=(string)GRAY8 ! appsink max-buffers=1 drop=true"
@@ -24,6 +24,6 @@ acquire_calib_images:
     height: 720
     flip_method: 0
     hardware_trigger_mode: true
-    gain: 3
-    exposure_time: 1050
+    gain: 4
+    exposure_time: 1550
     sink_pipeline: "appsrc ! nvvidconv ! nvv4l2h264enc insert-sps-pps=true ! h264parse ! rtph264pay pt=96 ! udpsink host=192.168.104.2 port=8001 sync=false "

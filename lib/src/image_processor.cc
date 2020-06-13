@@ -6,6 +6,7 @@
 #include "opencv2/video/tracking.hpp"
 #include "opencv2/imgproc.hpp"
 #include "opencv2/calib3d.hpp"
+#include "opencv2/core/cuda.hpp"
 #include "Eigen/Dense"
 
 
@@ -20,11 +21,10 @@ ImageProcessor::ImageProcessor(const YAML::Node &input_params) {
   YAML::Node opticall_flow_params = input_params["calcOpticalFlowPyrLK"];
   window_size_ = features_params["max_corners"].as<int>();
   max_pyramid_level_ = features_params["max_corners"].as<int>();
-  
+
   max_error_counter_ = input_params["max_error_counter"].as<int>();
   stereo_threshold_ = input_params["stereo_threshold"].as<double>();
   ransac_threshold_ = input_params["ransac_threshold"].as<double>();
-
 
   // Load the stereo calibration
   YAML::Node stereo_calibration = input_params["stereo_calibration"];
@@ -32,7 +32,7 @@ ImageProcessor::ImageProcessor(const YAML::Node &input_params) {
   std::vector<double> interface_vec = stereo_calibration["K1"]["data"].as<
     std::vector<double>>();
   K_cam0_ = cv::Matx33d(interface_vec.data());
-  
+
   interface_vec = stereo_calibration["K2"]["data"].as<std::vector<double>>();
   K_cam1_ = cv::Matx33d(interface_vec.data());
 
@@ -43,16 +43,19 @@ ImageProcessor::ImageProcessor(const YAML::Node &input_params) {
   D_cam1_ = cv::Vec4d(interface_vec.data());
 
   interface_vec = stereo_calibration["R"]["data"].as<std::vector<double>>();
-  R_cam1_cam0_ = cv::Matx33d(interface_vec.data());
+  R_cam0_cam1_ = cv::Matx33d(interface_vec.data());
 
   interface_vec = stereo_calibration["T"].as<std::vector<double>>();
-  T_cam1_cam0_ = cv::Vec3d(interface_vec.data());
+  T_cam0_cam1_ = cv::Vec3d(interface_vec.data());
 
-  interface_vec = stereo_calibration["E"]["data"].as<std::vector<double>>();
-  E_ = cv::Matx33d(interface_vec.data());
+  // Calculate the essential matrix and fundamental matrix
+  const cv::Matx33d T_cross_mat(
+    0.0, -T_cam0_cam1_[2], T_cam0_cam1_[1],
+    T_cam0_cam1_[2], 0.0, -T_cam0_cam1_[0],
+    -T_cam0_cam1_[1], T_cam0_cam1_[0], 0.0);
 
-  interface_vec = stereo_calibration["F"]["data"].as<std::vector<double>>();
-  F_ = cv::Matx33d(interface_vec.data());
+  E_ = T_cross_mat * R_cam0_cam1_;
+  F_ = K_cam0_.inv().t() * E_ * K_cam0_.inv();
 
   interface_vec = stereo_calibration["R1"]["data"].as<std::vector<double>>();
   R_cam0_ = cv::Matx33d(interface_vec.data());
@@ -101,21 +104,6 @@ int ImageProcessor::Init() {
   image_processor_thread_ = std::thread(&ImageProcessor::ProcessThread, this);
 }
 
-int ImageProcessor::InitFirstFrame(const cv::Mat &frame_cam0_t0,
-    const cv::Mat &frame_cam1_t0) {
-  // Find features in cam0 for tracking
-  cv::goodFeaturesToTrack(frame_cam0_t0, corners_cam0_t0_, max_corners_,
-    quality_level_, min_dist_);
-  cv::buildOpticalFlowPyramid(frame_cam0_t0, pyramid_cam0_t0_,
-    cv::Size(window_size_, window_size_), max_pyramid_level_);
-
-  // Find features in the cam1 for tracking
-  cv::goodFeaturesToTrack(frame_cam1_t0, corners_cam1_t0_, max_corners_,
-    quality_level_, min_dist_);
-  cv::buildOpticalFlowPyramid(frame_cam1_t0, pyramid_cam1_t0_,
-    cv::Size(window_size_, window_size_), max_pyramid_level_);
-}
-
 void ImageProcessor::DrawPoints(const std::vector<cv::Point2f> &mypoints,
     cv::Mat &myimage) {
   int myradius=5;
@@ -151,29 +139,98 @@ int ImageProcessor::RemoveOutliers(const cv::Size framesize,
       points.erase(points.begin() + i);
     }
   }
+  return 0;
+}
+
+cv::cuda::GpuMat ImageProcessor::AppendGpuMatColwise(
+  const cv::cuda::GpuMat &mat1, const cv::cuda::GpuMat &mat2) {
+  // Handle edge cases where one of the input mats is empty
+  if (mat1.cols == 0) {
+    if (mat2.cols == 0) {
+      return cv::cuda::GpuMat();
+    } else {
+      return mat2.clone();
+    }
+  } else if (mat2.cols == 0) {
+    return mat1.clone();
+  }
+
+  // Verify the two mats are the same data type
+  if (mat1.type() != mat2.type()) {
+    std::cerr << "Error! [AppendGpuMat] Mats are not the same type" <<
+      std::endl;
+    return cv::cuda::GpuMat();
+  } else if (mat1.rows != mat2.rows) {
+    std::cerr << "Error! [AppendGpuMat] Mats do not have the same amount of"
+      " rows" << std::endl;
+    return cv::cuda::GpuMat();
+  }
+
+  cv::Range range_rows(0, mat1.rows);
+  cv::Range range_cols1(0, mat1.cols);
+  cv::Range range_cols2(mat1.cols, mat1.cols + mat2.cols);
+
+  cv::cuda::GpuMat return_mat(mat1.rows, mat1.cols + mat2.cols, mat1.type());
+
+  mat1.copyTo(return_mat(range_rows, range_cols1));
+  mat2.copyTo(return_mat(range_rows, range_cols2));
+
+  return std::move(return_mat);
+}
+
+int ImageProcessor::RemoveOutliers(const cv::Size framesize,
+  cv::cuda::GpuMat &d_status, cv::cuda::GpuMat &d_points) {
+  std::vector<cv::Point2f> points;
+  std::vector<unsigned char> status;
+  d_points.download(points);
+  d_status.download(status);
+
+  if (RemoveOutliers(framesize, status, points)) {
+    return -1;
+  }
+
+  d_points.upload(points);
+  d_status.upload(status);
+  return 0;
 }
 
 int ImageProcessor::ProcessThread() {
   // Frames of the left and right camera
-  cv::Mat frame_cam0_t1, frame_cam1_t1;
-  cv::Mat frame_cam0_t0, frame_cam1_t0;
+  cv::cuda::GpuMat d_frame_cam0_t1, d_frame_cam1_t1;
+  cv::cuda::GpuMat d_frame_cam0_t0, d_frame_cam1_t0;
+  
+  // Arrays of points for tracking, cpu and gpu
+  cv::cuda::GpuMat d_tracked_pts_cam0_t0, d_tracked_pts_cam0_t1; 
+  cv::cuda::GpuMat d_tracked_pts_cam1_t0, d_tracked_pts_cam1_t1; 
+  std::vector<cv::Point2f> tracked_pts_cam0_t1;
+  std::vector<cv::Point2f> tracked_pts_cam1_t1;
 
-  std::vector<cv::Point2f> prev_cam0_stereo;
-  std::vector<cv::Point2f> prev_cam1_stereo;
+  // Arrays of detected points for potential tracking, cpu and gpu
+  cv::cuda::GpuMat d_keypoints_cam0_t0, d_keypoints_cam0_t1; 
+  cv::cuda::GpuMat d_keypoints_cam1_t0, d_keypoints_cam1_t1; 
+  std::vector<cv::Point2f> keypoints_cam0_t0, keypoints_cam0_t1;
+  std::vector<cv::Point2f> keypoints_cam1_t0, keypoints_cam1_t1;
 
   // Outputs for the calcOpticalFlowPyrLK call
   std::vector<unsigned char> status;
-  std::vector<float> err;
+  cv::cuda::GpuMat d_status;
 
   int counter = 0;
   int error_counter = 0;
-  std::chrono::time_point<std::chrono::system_clock> time_end;
-  cv::Ptr<cv::Feature2D> detector_ptr = cv::FastFeatureDetector::create(50,
-    true);
-  
+  std::chrono::time_point<std::chrono::system_clock> time_end = std::chrono::
+    system_clock::now();
+
+  cv::Ptr<cv::cuda::CornersDetector> detector_ptr = cv::cuda::
+    createGoodFeaturesToTrackDetector(CV_8U, 1000, 0.5, 15);
+
+  cv::Ptr<cv::cuda::SparsePyrLKOpticalFlow> d_opt_flow_cam0 = cv::cuda::
+    SparsePyrLKOpticalFlow::create();
+  cv::Ptr<cv::cuda::SparsePyrLKOpticalFlow> d_opt_flow_cam1 = cv::cuda::
+    SparsePyrLKOpticalFlow::create();
+
   while (is_running_.load()) {
     // Read the frame and check for errors
-    if (cam0_->GetFrame(frame_cam0_t1) || cam1_->GetFrame(frame_cam1_t1)) {
+    if (cam0_->GetFrame(d_frame_cam0_t1) || cam1_->GetFrame(d_frame_cam1_t1)) {
       if (++error_counter >= max_error_counter_) {
         std::cerr << "Error! Failed to read more than " << max_error_counter_
           << " frames" << std::endl;
@@ -184,189 +241,229 @@ int ImageProcessor::ProcessThread() {
       }
     }
 
-    // Initialize some values if this is our first frame
-    if (counter++ == 0) {
-      InitFirstFrame(frame_cam0_t1, frame_cam1_t1);
-      frame_cam0_t0 = frame_cam0_t1;
-      frame_cam1_t0 = frame_cam1_t1;
-      continue;
-    } else if (counter % 100 == 0) {
-      DetectNewFeatures(frame_cam0_t0, detector_ptr);
+    std::cout << counter << std::endl;
+
+    // TODO: Add in the imu based translation here
+    // corners_cam0_t1_ = corners_cam0_t0_;
+    // std::cout << "before " << d_tracked_pts_cam0_t0.size() << " " << d_keypoints_cam0_t0.size() << ", ";
+    d_tracked_pts_cam0_t0 = AppendGpuMatColwise(d_tracked_pts_cam0_t0,
+      d_keypoints_cam0_t0);
+    // std::cout << "after " << d_tracked_pts_cam0_t0.size() << std::endl;
+    if (counter++ != 0 && d_tracked_pts_cam0_t0.rows > 0) {
+
+      // std::cout << "t0 " << d_tracked_pts_cam0_t0.size() << " t1 " <<
+        // d_tracked_pts_cam0_t1.size() << std::endl;
+      d_opt_flow_cam0->calc(d_frame_cam0_t0, d_frame_cam0_t1,
+        d_tracked_pts_cam0_t0, d_tracked_pts_cam0_t1, d_status);
+      // cv::calcOpticalFlowPyrLK(pyramid_cam0_t0_, pyramid_cam0_t1_,
+      //   corners_cam0_t0_, corners_cam0_t1_, status, err,
+      //   cv::Size(window_size_, window_size_), max_pyramid_level_,
+      //   cv::TermCriteria(cv::TermCriteria::COUNT +
+      // cv::TermCriteria::EPS, 30, 0.01), cv::OPTFLOW_USE_INITIAL_FLOW);
+ 
+      if (RemoveOutliers(d_frame_cam0_t1.size(), d_status,
+        d_tracked_pts_cam0_t1)) {
+        std::cout << "RemoveOutliers failed\n" << std::endl;
+        return -1;
+      }
+      
+      StereoMatch(d_opt_flow_cam1, d_frame_cam0_t1, d_frame_cam1_t1,
+        d_tracked_pts_cam0_t1, d_tracked_pts_cam1_t1, d_status);
+
+      if (RemoveOutliers(d_frame_cam0_t1.size(), d_status,
+        d_tracked_pts_cam0_t1)) {
+        std::cout << "RemoveOutliers failed\n" << std::endl;
+        return -1;
+      }
+      if (RemoveOutliers(d_frame_cam1_t1.size(), d_status,
+        d_tracked_pts_cam1_t1)) {
+        std::cout << "RemoveOutliers failed\n" << std::endl;
+        return -1;
+      }
+
+
 
     }
 
-    cv::buildOpticalFlowPyramid(frame_cam0_t1, pyramid_cam0_t1_, cv::Size(
-      window_size_, window_size_), max_pyramid_level_);
-    if (corners_cam0_t0_.size() > 0) {
-      cv::calcOpticalFlowPyrLK(pyramid_cam0_t0_, pyramid_cam0_t1_,
-        corners_cam0_t0_, corners_cam0_t1_, status, err);
-    }
-
-    RemoveOutliers(frame_cam0_t1.size(), status, corners_cam0_t1_);
+    DetectNewFeatures(d_frame_cam0_t1, d_tracked_pts_cam0_t1,
+      d_keypoints_cam0_t1, detector_ptr);
 
     // Vector showing which points are matched between both cameras
-    std::vector<unsigned char> stereo_points_status;
-    StereoMatch(frame_cam1_t1, stereo_points_status);
+    // std::vector<unsigned char> stereo_points_status;
+    // StereoMatch(frame_cam1_t1, stereo_points_status);
 
-    RemoveOutliers(frame_cam0_t1.size(), stereo_points_status,
-      corners_cam0_t1_);
-    RemoveOutliers(frame_cam1_t1.size(), stereo_points_status,
-      corners_cam1_t1_);
+    // RemoveOutliers(frame_cam0_t1.size(), stereo_points_status,
+    //   corners_cam0_t1_);
+    // RemoveOutliers(frame_cam1_t1.size(), stereo_points_status,
+    //   corners_cam1_t1_);
 
+    // prev_cam0_stereo = corners_cam0_t1_;
+    // prev_cam1_stereo = corners_cam1_t1_;
 
-    if (!prev_cam0_stereo.empty() && !prev_cam1_stereo.empty()) {
-      std::vector<uchar> cam0_ransac_inliers(0);
-      int ret1 = twoPointRansac(prev_cam0_stereo, corners_cam0_t0_,
-          cv::Matx33f::eye(), K_cam0_, D_cam0_,
-          ransac_threshold_,
-          0.99, cam0_ransac_inliers);
+    // if (!prev_cam0_stereo.empty() && !prev_cam1_stereo.empty()) {
+    //   std::vector<uchar> cam0_ransac_inliers(0);
+    //   int ret1 = twoPointRansac(prev_cam0_stereo, corners_cam0_t0_,
+    //       cv::Matx33f::eye(), K_cam0_, D_cam0_,
+    //       ransac_threshold_,
+    //       0.99, cam0_ransac_inliers);
 
-      std::vector<uchar> cam1_ransac_inliers(0);
-      int ret2 = twoPointRansac(prev_cam1_stereo, corners_cam1_t1_,
-          cv::Matx33f::eye(), K_cam1_, D_cam1_,
-          ransac_threshold_,
-          0.99, cam1_ransac_inliers);
-  
-      prev_cam0_stereo = corners_cam0_t1_;
-      prev_cam1_stereo = corners_cam1_t1_;
-
-      if (ret1 == 0 && ret2 == 0) {
-        std::cout <<" before RANSAC " << corners_cam1_t1_.size();
-        RemoveOutliers(frame_cam0_t1.size(), cam0_ransac_inliers,
-          corners_cam0_t1_);
-        RemoveOutliers(frame_cam1_t1.size(), cam1_ransac_inliers,
-          corners_cam1_t1_);
-        std::cout <<" after RANSAC " << corners_cam1_t1_.size() << std::endl;
-      }
-    } else {
-      prev_cam0_stereo = corners_cam0_t1_;
-      prev_cam1_stereo = corners_cam1_t1_;
-    }
+    //   std::vector<uchar> cam1_ransac_inliers(0);
+    //   int ret2 = twoPointRansac(prev_cam1_stereo, corners_cam1_t1_,
+    //       cv::Matx33f::eye(), K_cam1_, D_cam1_,
+    //       ransac_threshold_,
+    //       0.99, cam1_ransac_inliers);
 
 
-    std::cout << "num points: cam0 " << corners_cam0_t1_.size()
-      << " cam1 " << corners_cam1_t1_.size() << std::endl;
+    //   if (ret1 == 0 && ret2 == 0) {
+    //     std::cout <<" before RANSAC " << corners_cam1_t1_.size();
+    //     RemoveOutliers(frame_cam0_t1.size(), cam0_ransac_inliers,
+    //       corners_cam0_t1_);
+    //     RemoveOutliers(frame_cam1_t1.size(), cam1_ransac_inliers,
+    //       corners_cam1_t1_);
+    //     std::cout <<" after RANSAC " << corners_cam1_t1_.size() << std::endl;
+    //   }
+    // } else {
+    //   prev_cam0_stereo = corners_cam0_t1_;
+    //   prev_cam1_stereo = corners_cam1_t1_;
+    // }
+
+    if (d_tracked_pts_cam0_t1.cols > 0)
+      d_tracked_pts_cam0_t1.download(tracked_pts_cam0_t1);
+    else 
+      tracked_pts_cam0_t1.clear();
+    if (d_tracked_pts_cam1_t1.cols > 0)
+      d_tracked_pts_cam1_t1.download(tracked_pts_cam1_t1);
+    else 
+      tracked_pts_cam1_t1.clear();
+
+    std::cout << "num points: cam0 " << d_tracked_pts_cam0_t1.size()
+      << " cam1 " << tracked_pts_cam1_t1.size() << std::endl;
 
     //TODO fix
-    if (1) {
-      cv::Mat show_frame = frame_cam0_t1.clone();
-      DrawPoints(corners_cam0_t1_, show_frame);
+    if (cam0_->OutputEnabled()) {
+      cv::Mat show_frame;
+      d_frame_cam0_t1.download(show_frame);
+      DrawPoints(tracked_pts_cam0_t1, show_frame);
       cam0_->SendFrame(show_frame);
     }
-    if (1) {
-      cv::Mat show_frame = frame_cam1_t1.clone();
-      DrawPoints(corners_cam1_t1_, show_frame);
+    if (cam1_->OutputEnabled()) {
+      cv::Mat show_frame;
+      d_frame_cam1_t1.download(show_frame);
+      DrawPoints(tracked_pts_cam1_t1, show_frame);
       cam1_->SendFrame(show_frame);
     }
-
-    // Set the current t1 values to t0
-    pyramid_cam0_t0_.swap(pyramid_cam0_t1_);
-    corners_cam0_t0_.swap(corners_cam0_t1_);
-    frame_cam0_t0 = frame_cam0_t1;
-    frame_cam1_t0 = frame_cam1_t1;
+    
+    // Set the current t1 values to t0 for the next iteration
+    d_frame_cam0_t0 = d_frame_cam0_t1.clone();
+    d_frame_cam1_t0 = d_frame_cam1_t1.clone();
+    d_tracked_pts_cam0_t0 = d_tracked_pts_cam0_t1.clone();
+    d_keypoints_cam0_t0 = d_keypoints_cam0_t1.clone();
 
     std::cout << "fps " << 1.0 / static_cast<std::chrono::duration<double> >
       ((std::chrono::system_clock::now() - time_end)).count() << std::endl;
     time_end = std::chrono::system_clock::now();
-  
-    counter++;
   }
 }
 
-int ImageProcessor::StereoMatch(cv::Mat frame_cam1_t1, std::vector<
-  unsigned char> &status) {
+int ImageProcessor::StereoMatch(cv::Ptr<cv::cuda::SparsePyrLKOpticalFlow> opt,
+  const cv::cuda::GpuMat &d_frame_cam0,
+  const cv::cuda::GpuMat &d_frame_cam1, 
+  const cv::cuda::GpuMat &d_tracked_pts_cam0,
+  cv::cuda::GpuMat &d_tracked_pts_cam1,
+  cv::cuda::GpuMat &d_status) {
 
-  if (corners_cam0_t1_.size() == 0)
+  if (d_tracked_pts_cam0.cols == 0)
     return 0;
 
-  if (corners_cam1_t1_.size() != corners_cam0_t1_.size()) {  
-    cv::undistortPoints(corners_cam0_t1_, corners_cam1_t1_, K_cam0_, D_cam0_, R_cam1_cam0_.t());
+  std::vector<cv::Point2f> tracked_pts_cam0_t1;
+  std::vector<cv::Point2f> tracked_pts_cam1_t1;
+  d_tracked_pts_cam0.download(tracked_pts_cam0_t1);
 
-    std::vector<cv::Point3f> homogenous_pts;
-    cv::convertPointsToHomogeneous(corners_cam1_t1_, homogenous_pts);
-    cv::projectPoints(homogenous_pts, cv::Vec3d::zeros(), cv::Vec3d::zeros(),
-      K_cam1_, D_cam1_, corners_cam1_t1_);
-  }
+  cv::fisheye::undistortPoints(tracked_pts_cam0_t1, tracked_pts_cam1_t1,
+    K_cam0_, D_cam0_, R_cam0_cam1_);
 
-  // Outputs for the calcOpticalFlowPyrLK call
-  std::vector<float> err;
+  std::vector<cv::Point3f> homogenous_pts;
+  cv::convertPointsToHomogeneous(tracked_pts_cam1_t1, homogenous_pts);
+  // cv::projectPoints(homogenous_pts, cv::Vec3d::zeros(), cv::Vec3d::zeros(),
+  //   K_cam1_, D_cam1_, corners_cam1_t1_);
 
-  cv::buildOpticalFlowPyramid(frame_cam1_t1, pyramid_cam1_t1_, cv::Size(
-    window_size_, window_size_), max_pyramid_level_);
-  calcOpticalFlowPyrLK(pyramid_cam0_t1_, pyramid_cam1_t1_, corners_cam0_t1_,
-    corners_cam1_t1_, status, err, cv::Size(window_size_, window_size_),
-    max_pyramid_level_, cv::TermCriteria(cv::TermCriteria::COUNT +
-      cv::TermCriteria::EPS, 30, 0.01), cv::OPTFLOW_USE_INITIAL_FLOW);
+  cv::fisheye::projectPoints(homogenous_pts, tracked_pts_cam1_t1,
+    cv::Vec3d::zeros(), cv::Vec3d::zeros(), K_cam1_, D_cam1_);
 
-  // Filter outliers based on the distance between a point and its
-  // corresponding epipolar line
-  std::vector<cv::Point2f> corners_cam0_t1_undistorted(0);
-  std::vector<cv::Point2f> corners_cam1_t1_undistorted(0);
-  cv::undistortPoints(corners_cam0_t1_, corners_cam0_t1_undistorted, K_cam0_,
-    D_cam0_, cv::Mat(), P_cam0_);
-  cv::undistortPoints(corners_cam1_t1_, corners_cam1_t1_undistorted, K_cam1_,
-    D_cam1_, cv::Mat(), P_cam1_);
+
+  d_tracked_pts_cam1.upload(tracked_pts_cam1_t1);
+
+  opt->calc(d_frame_cam0, d_frame_cam1, d_tracked_pts_cam0,
+    d_tracked_pts_cam1, d_status);
+
+  std::vector<cv::Point2f> tracked_pts_cam0_t1_undistorted(0);
+  std::vector<cv::Point2f> tracked_pts_cam1_t1_undistorted(0);
+  cv::fisheye::undistortPoints(tracked_pts_cam0_t1,
+    tracked_pts_cam0_t1_undistorted, K_cam0_, D_cam0_, cv::Mat(), P_cam0_);
+  cv::fisheye::undistortPoints(tracked_pts_cam1_t1,
+    tracked_pts_cam1_t1_undistorted, K_cam1_, D_cam1_, cv::Mat(), P_cam1_);
 
   std::vector<cv::Vec3f> epilines;
-  cv::computeCorrespondEpilines(corners_cam0_t1_undistorted, 1, F_, epilines);
+  cv::computeCorrespondEpilines(tracked_pts_cam0_t1_undistorted, 1, F_,
+    epilines);
 
-  for (int i=0; i < epilines.size(); i++) {
-    cv::Vec3f pt0(corners_cam0_t1_undistorted[i].x,
-      corners_cam0_t1_undistorted[i].y, 1.0);
+  std::vector<unsigned char> status;
+  d_status.download(status);
+  for (int i = 0; i < epilines.size(); i++) {
+    if (status[i] == 0) {
+      continue;
+    }
+    cv::Vec3f pt0(tracked_pts_cam0_t1_undistorted[i].x,
+      tracked_pts_cam0_t1_undistorted[i].y, 1.0);
 
-    cv::Vec3f pt1(corners_cam1_t1_undistorted[i].x,
-      corners_cam1_t1_undistorted[i].y, 1.0);
+    cv::Vec3f pt1(tracked_pts_cam1_t1_undistorted[i].x,
+      tracked_pts_cam1_t1_undistorted[i].y, 1.0);
 
     // Calculates the distance from the point to the epipolar line (in pixels)
     double error = fabs(pt1.dot(epilines[i]));
     if (error > stereo_threshold_)
       status[i] = 0;
   }
-
+  d_status.upload(status);
   return 0;
 }
 
-int ImageProcessor::DetectNewFeatures(cv::Mat frame_cam0_t0,
-  cv::Ptr<cv::Feature2D> detector_ptr) {
-  double mask_box_size = 15.0;
+int ImageProcessor::DetectNewFeatures(cv::cuda::GpuMat &d_frame,
+  const cv::cuda::GpuMat &d_input_corners,
+  cv::cuda::GpuMat &d_output,
+  cv::Ptr<cv::cuda::CornersDetector> &detector_ptr) {
   // Create a mask to avoid redetecting existing features.
-  cv::Mat mask(frame_cam0_t0.rows, frame_cam0_t0.cols, CV_8U, cv::Scalar(1));
+  double mask_box_size = 15.0;
+  cv::Mat mask_host(d_frame.rows, d_frame.cols, CV_8U,
+    cv::Scalar(1));
 
-  for (const auto& point : corners_cam0_t0_) {
-    const int x = static_cast<int>(point.x);
-    const int y = static_cast<int>(point.y);
+  if (d_input_corners.cols > 0) {      
+    std::vector<cv::Point2f> corners;
+    d_input_corners.download(corners);
+    for (const auto& point : corners) {
+      const int x = static_cast<int>(point.x);
+      const int y = static_cast<int>(point.y);
 
-    int up_lim = y - floor(mask_box_size/2);
-    int bottom_lim = y + ceil(mask_box_size/2);
-    int left_lim = x - floor(mask_box_size/2);
-    int right_lim = x + ceil(mask_box_size/2);
-    if (up_lim < 0) up_lim = 0;
-    if (bottom_lim > frame_cam0_t0.rows) bottom_lim = frame_cam0_t0.rows;
-    if (left_lim < 0) left_lim = 0;
-    if (right_lim > frame_cam0_t0.cols) right_lim = frame_cam0_t0.cols;
+      int up_lim = y - floor(mask_box_size/2);
+      int bottom_lim = y + ceil(mask_box_size/2);
+      int left_lim = x - floor(mask_box_size/2);
+      int right_lim = x + ceil(mask_box_size/2);
+      if (up_lim < 0) up_lim = 0;
+      if (bottom_lim > d_frame.rows) bottom_lim = d_frame.rows;
+      if (left_lim < 0) left_lim = 0;
+      if (right_lim > d_frame.cols) right_lim = d_frame.cols;
 
-    cv::Range row_range(up_lim, bottom_lim);
-    cv::Range col_range(left_lim, right_lim);
-    mask(row_range, col_range) = 0;
+      cv::Range row_range(up_lim, bottom_lim);
+      cv::Range col_range(left_lim, right_lim);
+      mask_host(row_range, col_range) = 0;
+    }
   }
 
-
   // Find features in the cam1 for tracking
-  // cv::goodFeaturesToTrack(frame_cam0_t0, corners_cam0_t0_, max_corners_,
-  //   quality_level_, min_dist_);
-  std::vector<cv::Mat> tmp_frame_vec; 
-  tmp_frame_vec.push_back(frame_cam0_t0);
-  std::vector<cv::KeyPoint> keypoints;
-  std::vector<cv::Point2f> tmp_frame_vec_pt; 
-  detector_ptr->detect(frame_cam0_t0, keypoints, mask);
+  cv::cuda::GpuMat d_mask(mask_host);
 
-  cv::KeyPoint::convert(keypoints, tmp_frame_vec_pt); 
-  std::cout << "detected: " << keypoints.size() << std::endl;
 
-  // Append the features we just detected to our existing vector
-  corners_cam0_t0_.insert(corners_cam0_t0_.end(), tmp_frame_vec_pt.begin(),
-    tmp_frame_vec_pt.end());
-
+  detector_ptr->detect(d_frame, d_output, d_mask);
 }
 
 void ImageProcessor::rescalePoints(
@@ -513,7 +610,7 @@ int ImageProcessor::twoPointRansac(
     // Randomly select two point pairs.
     // Although this is a weird way of selecting two pairs, but it
     // is able to efficiently avoid selecting repetitive pairs.
-    int select_idx1 = distribution0(generator); 
+    int select_idx1 = distribution0(generator);
     int select_idx_diff = distribution1(generator);
     int select_idx2 = select_idx1+select_idx_diff<raw_inlier_idx.size() ?
       select_idx1+select_idx_diff :

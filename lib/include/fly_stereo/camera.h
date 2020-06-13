@@ -21,7 +21,11 @@ class Camera {
 
   int GetFrame(cv::Mat &frame);
   int SendFrame(cv::Mat &frame);
+  int GetFrame(cv::cuda::GpuMat &frame);
 
+  bool OutputEnabled() {
+    return static_cast<bool>(cam_sink_);
+  }
 
  private:
   int flip_method_;

@@ -2,6 +2,8 @@
 
 #include <iostream>
 
+#include <opencv2/cudaarithm.hpp>
+
 Camera::Camera(YAML::Node input_params) {
   flip_method_ = input_params["flip_method"].as<int>();
   hardware_trigger_mode_ = input_params["hardware_trigger_mode"].as<bool>();
@@ -62,6 +64,17 @@ int Camera::GetFrame(cv::Mat &frame) {
   cv::flip(frame, frame, flip_method_);
   return 0;
 }
+
+int Camera::GetFrame(cv::cuda::GpuMat &frame) {
+  cv::Mat host_frame;
+  if (GetFrame(host_frame)) {
+    return -1;
+  }
+  frame.upload(host_frame);
+  return 0;
+}
+
+
 
 int Camera::SendFrame(cv::Mat &frame) {
   if (cam_sink_) {

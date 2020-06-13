@@ -13,7 +13,9 @@
 #include "yaml-cpp/yaml.h"
 #include "opencv2/core.hpp"
 #include "opencv2/features2d.hpp"
-
+#include "opencv2/cudafeatures2d.hpp"
+#include "opencv2/cudaimgproc.hpp"
+#include "opencv2/cudaoptflow.hpp"
 
 class ImageProcessor {
  public:
@@ -31,20 +33,31 @@ class ImageProcessor {
   bool IsRunning() {return is_running_.load();}
 
  private:
-  int InitFirstFrame(const cv::Mat &frame_cam0_t0,
-                     const cv::Mat &frame_cam1_t0);
+  cv::cuda::GpuMat AppendGpuMatColwise(const cv::cuda::GpuMat &mat1,
+                                       const cv::cuda::GpuMat &mat2);
 
   int ProcessThread();
 
   void DrawPoints(const std::vector<cv::Point2f> &mypoints, cv::Mat &myimage);
 
-  int StereoMatch(cv::Mat frame_cam1_t1, std::vector<unsigned char> &status);
+  int StereoMatch(cv::Ptr<cv::cuda::SparsePyrLKOpticalFlow> opt,
+  const cv::cuda::GpuMat &d_frame_cam0,
+  const cv::cuda::GpuMat &d_frame_cam1, 
+  const cv::cuda::GpuMat &d_tracked_pts_cam0,
+  cv::cuda::GpuMat &d_tracked_pts_cam1,
+  cv::cuda::GpuMat &d_status);
 
   int RemoveOutliers(const cv::Size framesize, std::vector<uchar> &status,
     std::vector<cv::Point2f> &points);
 
-  int DetectNewFeatures(cv::Mat frame_cam0_t0, cv::Ptr<cv::Feature2D>
-    detector_ptr);
+  // Overloaded constructor for the GPU implementation
+  int RemoveOutliers(const cv::Size framesize, cv::cuda::GpuMat &d_status,
+    cv::cuda::GpuMat &d_points);
+
+  int DetectNewFeatures(cv::cuda::GpuMat &frame_cam0_t0,
+  const cv::cuda::GpuMat &d_input_corners,
+  cv::cuda::GpuMat &d_corners,
+  cv::Ptr<cv::cuda::CornersDetector> &detector_ptr);
 
 
   void rescalePoints(std::vector<cv::Point2f>& pts1, std::vector<cv::Point2f>& pts2,
@@ -70,17 +83,6 @@ class ImageProcessor {
   std::unique_ptr<Camera> cam1_;
   std::unique_ptr<CameraTrigger> trigger_;
 
-
-  // OpenCV
-  std::vector<cv::Mat> pyramid_cam0_t0_;
-  std::vector<cv::Mat> pyramid_cam0_t1_;
-  std::vector<cv::Mat> pyramid_cam1_t0_;
-  std::vector<cv::Mat> pyramid_cam1_t1_;
-  std::vector<cv::Point2f> corners_cam0_t0_;
-  std::vector<cv::Point2f> corners_cam0_t1_;
-  std::vector<cv::Point2f> corners_cam1_t0_;
-  std::vector<cv::Point2f> corners_cam1_t1_;
-
   // config params for LK optical flow
   int window_size_;
   int max_pyramid_level_;
@@ -102,8 +104,8 @@ class ImageProcessor {
   cv::Matx33d K_cam1_;
   cv::Vec4d D_cam0_;
   cv::Vec4d D_cam1_;
-  cv::Matx33f R_cam1_cam0_;
-  cv::Vec3f T_cam1_cam0_;
+  cv::Matx33d R_cam0_cam1_;
+  cv::Vec3f T_cam0_cam1_;
   cv::Matx33d E_;
   cv::Matx33d F_;
   cv::Matx33d R_cam0_;
