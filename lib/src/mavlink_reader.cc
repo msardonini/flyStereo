@@ -90,8 +90,6 @@ void MavlinkReader::SerialReadThread() {
 
     if (ret < 0) {
       std::cerr << "Error on read(), errno: " << strerror(errno) << std::endl;
-    } else if (ret == 0) {
-      continue;
     }
 
     for (int i = 0; i < ret; i++) {
@@ -102,7 +100,7 @@ void MavlinkReader::SerialReadThread() {
     
       if (msg_received) {
         switch(mav_message.msgid) {
-          case MAVLINK_MSG_ID_ATTITUDE: {
+          case MAVLINK_MSG_ID_attitude: {
             mavlink_attitude_t attitude_msg;
             mavlink_msg_attitude_decode(&mav_message, &attitude_msg);
 

@@ -2,7 +2,9 @@
 #define INCLUDE_FLY_STEREO_CAMERA_TRIGGER_H_
 
 #include <thread>
+#include <mutex>
 #include <atomic>
+#include <queue>
 
 #include "yaml-cpp/yaml.h"
 
@@ -17,6 +19,7 @@ class CameraTrigger {
 
   int Init();
   int TriggerCamera();
+  std::queue<std::pair<uint32_t, uint64_t> > GetTriggerCount();
 
  private:
   void TriggerThread();
@@ -34,6 +37,10 @@ class CameraTrigger {
   
   bool auto_trigger_async_ = false;
   double auto_trigger_async_rate_hz_ = 0.0;
+
+  unsigned int trigger_count_ = 0;
+  std::queue<std::pair<uint32_t, uint64_t> > time_counter_queue_;  
+  std::mutex trigger_count_mutex_;
 };
 
 

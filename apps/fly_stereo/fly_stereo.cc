@@ -19,7 +19,7 @@ void SignalHandler(int signal_num) {
 }
 
 // Thread to collect the imu data and disperse it to all objects that need it
-void imu_thread(YAML::Node imu_reader_params) {
+void imu_thread(YAML::Node imu_reader_params, ImageProcessor *image_processor) {
   MavlinkReader mavlink_reader;
   mavlink_reader.Init(imu_reader_params);
 
@@ -27,7 +27,9 @@ void imu_thread(YAML::Node imu_reader_params) {
     mavlink_attitude_t attitude;
     // Get the next attitude message, block until we have one
     if(mavlink_reader.GetAttitudeMsg(&attitude, true)) {
-      std::cout << "got message, pitch: " << attitude.pitch << std::endl;
+
+      // Send the imu message to the image processor
+      image_processor->ReceiveImu(attitude);
     }
   }
 }
@@ -60,16 +62,16 @@ int main(int argc, char* argv[]) {
   ImageProcessor image_processor(fly_stereo_params["image_processor"]);
   image_processor.Init();
 
-  // std::thread imu_thread_obj(imu_thread, fly_stereo_params["mavlink_reader"]);
+  std::thread imu_thread_obj(imu_thread, fly_stereo_params["mavlink_reader"], &image_processor);
 
   while (is_running.load()) {
     std::this_thread::sleep_for(std::chrono::seconds(1));
   }
 
   // Clean up the imu thread
-  // if (imu_thread_obj.joinable()) {
-  //   imu_thread_obj.join();
-  // }
+  if (imu_thread_obj.joinable()) {
+    imu_thread_obj.join();
+  }
 
   std::cout << "Shutting down main " << std::endl;
   return 0;

@@ -78,6 +78,12 @@ void CameraTrigger::TriggerThread() {
   }
 }
 
+std::queue<std::pair<uint32_t, uint64_t> > CameraTrigger::GetTriggerCount() {
+  std::lock_guard<std::mutex> lock(trigger_count_mutex_);
+  return std::move(time_counter_queue_);
+}
+
+
 int CameraTrigger::TriggerCamera() {
   // The cameras get triggered by receiving a pulse 1us to 1ms width
   // We set the value to high, wait 2us, then set it low again
@@ -97,5 +103,13 @@ int CameraTrigger::TriggerCamera() {
     perror("ERROR in rc_gpio_set_value");
     return -1;
   }
+
+  // Update our trigger counter
+  std::lock_guard<std::mutex> lock(trigger_count_mutex_);
+  
+  uint64_t timestamp_us = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::
+    steady_clock::now().time_since_epoch()).count();
+  std::pair<uint32_t, uint64_t> time_counter(trigger_count_++, timestamp_us);
+  time_counter_queue_.push(time_counter);
   return 0;
 }
