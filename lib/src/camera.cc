@@ -11,7 +11,9 @@ Camera::Camera(YAML::Node input_params) {
   exposure_time_ = input_params["exposure_time"].as<int>();
   device_num_ = input_params["device_num"].as<int>();
   src_pipeline_ = input_params["src_pipeline"].as<std::string>();
-  sink_pipeline_ = input_params["sink_pipeline"].as<std::string>();
+  if (input_params["sink_pipeline"]) {
+    sink_pipeline_ = input_params["sink_pipeline"].as<std::string>();
+  }
   height_ = input_params["height"].as<int>();
   width_ = input_params["width"].as<int>();
   framerate_ = input_params["framerate"].as<int>();
@@ -46,7 +48,7 @@ int Camera::Init() {
   // If configured, create the image sinks
   if (!sink_pipeline_.empty()) {
     cam_sink_ = std::make_unique<cv::VideoWriter> (sink_pipeline_, 0,
-      framerate_, cv::Size(width_,height_), false);
+      framerate_, cv::Size(width_,height_), true);
     if (!cam_sink_->isOpened()) {
       std::cerr << "Error! VideoWriter on cam" << device_num_ <<
         " did not open" << std::endl;
@@ -78,6 +80,10 @@ int Camera::GetFrame(cv::cuda::GpuMat &frame) {
 
 int Camera::SendFrame(cv::Mat &frame) {
   if (cam_sink_) {
+    std::cout << "size: " << frame.size() << std::endl;
+    std::cout << "type: " << frame.type() << std::endl;
+    std::cout << "channels: " << frame.channels() << std::endl;
+    std::cout << "depth: " << frame.depth() << std::endl;
     cam_sink_->write(frame);
   }
 }

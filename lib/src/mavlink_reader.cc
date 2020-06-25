@@ -74,10 +74,28 @@ int MavlinkReader::Init(YAML::Node input_params) {
     return -1;
   }
 
+
+  // Now that our serial port is intialized, send the signal to reset the trigger counters
+  // in case the flight program has been running already
+  SendCounterReset();
+  
   is_running_.store(true);
   reader_thread_ = std::thread(&MavlinkReader::SerialReadThread, this);
 
   return 0;
+}
+
+void MavlinkReader::SendCounterReset() {
+  mavlink_message_t msg;
+  mavlink_reset_counters_t reset_msg;
+  uint8_t buf[1024];
+  reset_msg.timestamp_us = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::
+    system_clock::now().time_since_epoch()).count();
+
+  mavlink_msg_reset_counters_encode(1, 200, &msg, &reset_msg);
+  uint16_t len = mavlink_msg_to_send_buffer(buf, &msg);
+
+  write(serial_dev_, buf, len);
 }
 
 
@@ -100,7 +118,7 @@ void MavlinkReader::SerialReadThread() {
     
       if (msg_received) {
         switch(mav_message.msgid) {
-          case MAVLINK_MSG_ID_attitude: {
+          case MAVLINK_MSG_ID_ATTITUDE: {
             mavlink_attitude_t attitude_msg;
             mavlink_msg_attitude_decode(&mav_message, &attitude_msg);
 
@@ -116,10 +134,10 @@ void MavlinkReader::SerialReadThread() {
         }
       }
     }
-
     // Sleep so we don't overload the CPU. This isn't an ideal method, but if
     // use a blocking call on read(), we can't break out of it on the 
-    // destruction of this object. It will hang forever until bytes are read
+    // destruction of this object. It will hang forever until bytes are read,
+    // which is not always the case
     std::this_thread::sleep_for(std::chrono::microseconds(100));
   }
 }

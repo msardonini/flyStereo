@@ -94,6 +94,8 @@ class ImageProcessor {
   int GenerateImuXform(int image_counter, cv::Matx33f &rotation_t0_t1_cam0,
     cv::Matx33f &rotation_t0_t1_cam1);
 
+  int ProcessPoints(std::vector<cv::Point2f> pts_cam0, std::vector<cv::Point2f> pts_cam1);
+
   // Local version of input params
   YAML::Node input_params_;
 

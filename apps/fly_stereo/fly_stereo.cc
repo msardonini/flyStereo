@@ -1,5 +1,6 @@
 
 #include <getopt.h>
+#include <unistd.h>
 #include <iostream>
 #include <chrono>
 #include <thread>
@@ -35,6 +36,7 @@ void imu_thread(YAML::Node imu_reader_params, ImageProcessor *image_processor) {
 }
 
 int main(int argc, char* argv[]) {
+  std::cout << "PID of this process: " << getpid() << std::endl;
   signal(SIGINT, SignalHandler);
 
   // Argument params

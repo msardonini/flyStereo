@@ -127,9 +127,9 @@ void ImageProcessor::DrawPoints(const std::vector<cv::Point2f> &mypoints,
   for (int i = 0; i < mypoints.size(); i++) {
     cv::Scalar color;
     if (i == 0) {
-      color = CV_RGB(127, 127, 127);
+      color = CV_RGB(0, 0, 255);
     } else {
-      color = CV_RGB(255, 0, 0);
+      color = CV_RGB(0, 0, 0);
     }
     circle(myimage, cv::Point(mypoints[i].x, mypoints[i].y), myradius, color,
       -1, 8, 0);
@@ -293,6 +293,46 @@ int ImageProcessor::UpdatePointsViaImu(const cv::cuda::GpuMat &d_current_pts,
   return ret;
 }
 
+int ImageProcessor::ProcessPoints(std::vector<cv::Point2f> pts_cam0,
+  std::vector<cv::Point2f> pts_cam1) {
+
+  if (pts_cam0.size() != pts_cam1.size()) {
+    std::cerr << "Error! points are not the same size!" << std::endl;
+    return -1;
+  } else if (pts_cam0.size() == 0) {
+    return -1;
+  }
+
+  // Cast all of our paramters to floating points for this function
+  cv::Matx33f K_cam0 = static_cast<cv::Matx33f>(K_cam0_);
+  cv::Matx33f K_cam1 = static_cast<cv::Matx33f>(K_cam1_);
+  cv::Matx34f P_cam0 = static_cast<cv::Matx34f>(P_cam0_);
+  cv::Matx34f P_cam1 = static_cast<cv::Matx34f>(P_cam1_);
+  cv::Vec4f D_cam0 = static_cast<cv::Vec4f>(D_cam0_);
+  cv::Vec4f D_cam1 = static_cast<cv::Vec4f>(D_cam1_);
+
+  cv::Mat tmp_cam0(pts_cam0);
+  cv::Mat tmp_cam1(pts_cam1);
+  cv::Mat output;
+
+  cv::fisheye::undistortPoints(pts_cam0, pts_cam0, K_cam0, D_cam0, R_cam0_, P_cam0);
+  cv::fisheye::undistortPoints(pts_cam1, pts_cam1, K_cam1, D_cam1, R_cam1_, P_cam1);
+
+
+  cv::triangulatePoints(P_cam0, P_cam1, tmp_cam0, tmp_cam1, output);
+
+  std::vector<cv::Vec3f> vec;
+  cv::convertPointsFromHomogeneous(output.t(), vec);
+
+  std::cout << "size of vec: " << vec.size() << std::endl;
+  if (vec.size() > 0) {
+    std::cout << "point 0 X,Y,Z: " << vec[0] << std::endl;
+  }
+
+  return 0;
+}
+
+
 int ImageProcessor::ProcessThread() {
   // Frames of the left and right camera
   cv::cuda::GpuMat d_frame_cam0_t1, d_frame_cam1_t1;
@@ -320,7 +360,7 @@ int ImageProcessor::ProcessThread() {
     system_clock::now();
 
   cv::Ptr<cv::cuda::CornersDetector> detector_ptr = cv::cuda::
-    createGoodFeaturesToTrackDetector(CV_8U, 1000, 0.5, 15);
+    createGoodFeaturesToTrackDetector(CV_8U, 1000, 0.2, 15);
 
   cv::Ptr<cv::cuda::SparsePyrLKOpticalFlow> d_opt_flow_cam0 = cv::cuda::
     SparsePyrLKOpticalFlow::create();
@@ -399,6 +439,8 @@ int ImageProcessor::ProcessThread() {
  
       if (RemovePointsOutOfFrame(d_frame_cam0_t1.size(), d_tracked_pts_cam0_t1, d_status)) {
         std::cout << "RemovePointsOutOfFrame failed 1\n" << std::endl;
+        std::cout << "status size:" << d_status.size() << std::endl;
+        std::cout << "points size:" << d_tracked_pts_cam0_t1.size() << std::endl;
         return -1;
       }      
 
@@ -443,8 +485,15 @@ int ImageProcessor::ProcessThread() {
 
       if (ret1 == 0 && ret2 == 0) {
         // std::cout <<" before RANSAC " << tracked_pts_cam0_t1.size() << std::endl;
-        if (RemoveOutliers(cam0_ransac_inliers, tracked_pts_cam0_t1) ||
-            RemoveOutliers(cam1_ransac_inliers, tracked_pts_cam1_t1)) {
+        std::vector<unsigned char> status;
+        status.reserve(cam0_ransac_inliers.size());
+        
+        for (int i = 0; i < cam0_ransac_inliers.size(); i++ ) {
+          status.push_back(cam0_ransac_inliers[i] && cam1_ransac_inliers[i]);
+        }
+
+        if (RemoveOutliers(status, tracked_pts_cam0_t1) ||
+            RemoveOutliers(status, tracked_pts_cam1_t1)) {
           std::cout << "RemoveOutliers failed after Ransac\n" << std::endl;
         }
         // std::cout <<" after RANSAC " << tracked_pts_cam0_t1.size() << std::endl;
@@ -483,22 +532,24 @@ int ImageProcessor::ProcessThread() {
     std::cout << "num points: cam0 " << d_tracked_pts_cam0_t1.cols << " cam1 " <<
       d_tracked_pts_cam1_t1.cols << std::endl;
 
-  //   d_debug_pts.download(debug_pts);
-  // std::cout << "debug_pts " << debug_pts.size() << "x,y: " << debug_pts[0].x << ", " << debug_pts[0].y << std::endl;
+
+    ProcessPoints(tracked_pts_cam0_t1, tracked_pts_cam1_t1);
 
     //TODO fix
     if (cam0_->OutputEnabled()) {
-      cv::Mat show_frame;
+      cv::Mat show_frame, show_frame_color;
       d_frame_cam0_t1.download(show_frame);
-      DrawPoints(tracked_pts_cam0_t1, show_frame);
+      cv::cvtColor(show_frame, show_frame_color, cv::COLOR_GRAY2BGR);
+      DrawPoints(tracked_pts_cam0_t1, show_frame_color);
       // DrawPoints(debug_pts, show_frame);
-      cam0_->SendFrame(show_frame);
+      cam0_->SendFrame(show_frame_color);
     }
     if (cam1_->OutputEnabled()) {
-      cv::Mat show_frame;
+      cv::Mat show_frame, show_frame_color;
       d_frame_cam1_t1.download(show_frame);
-      DrawPoints(tracked_pts_cam1_t1, show_frame);
-      cam1_->SendFrame(show_frame);
+      cv::cvtColor(show_frame, show_frame_color, cv::COLOR_GRAY2BGR);
+      DrawPoints(tracked_pts_cam1_t1, show_frame_color);
+      cam1_->SendFrame(show_frame_color);
     }
     
     // Set the current t1 values to t0 for the next iteration
@@ -671,6 +722,7 @@ int ImageProcessor::twoPointRansac(
   // Undistort all the points.
   std::vector<cv::Point2f> pts1_undistorted(pts1.size());
   std::vector<cv::Point2f> pts2_undistorted(pts2.size());
+  // TODO: make this fisheye
   cv::undistortPoints(pts1, pts1_undistorted, intrinsics, distortion_coeffs);
   cv::undistortPoints(pts2, pts2_undistorted, intrinsics, distortion_coeffs);
 

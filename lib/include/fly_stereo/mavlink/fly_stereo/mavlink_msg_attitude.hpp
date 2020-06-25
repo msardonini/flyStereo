@@ -1,4 +1,4 @@
-// MESSAGE attitude support class
+// MESSAGE ATTITUDE support class
 
 #pragma once
 
@@ -7,16 +7,16 @@ namespace fly_stereo {
 namespace msg {
 
 /**
- * @brief attitude message
+ * @brief ATTITUDE message
  *
  * Test all field types
  */
-struct attitude : mavlink::Message {
+struct ATTITUDE : mavlink::Message {
     static constexpr msgid_t MSG_ID = 0;
     static constexpr size_t LENGTH = 36;
     static constexpr size_t MIN_LENGTH = 36;
-    static constexpr uint8_t CRC_EXTRA = 78;
-    static constexpr auto NAME = "attitude";
+    static constexpr uint8_t CRC_EXTRA = 170;
+    static constexpr auto NAME = "ATTITUDE";
 
 
     uint64_t timestamp_us; /*< [us] timestamp since linux epoch */

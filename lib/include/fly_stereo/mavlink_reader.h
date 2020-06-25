@@ -19,7 +19,7 @@ class MavlinkReader {
   int Init(YAML::Node input_params);
 
   bool GetAttitudeMsg(mavlink_attitude_t* attitude, bool block = false);
-
+  void SendCounterReset();
  private:
   void SerialReadThread();
   std::atomic<bool> is_running_;
