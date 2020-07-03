@@ -1,4 +1,4 @@
-// MESSAGE ATTITUDE support class
+// MESSAGE IMU support class
 
 #pragma once
 
@@ -7,16 +7,16 @@ namespace fly_stereo {
 namespace msg {
 
 /**
- * @brief ATTITUDE message
+ * @brief IMU message
  *
  * Test all field types
  */
-struct ATTITUDE : mavlink::Message {
+struct IMU : mavlink::Message {
     static constexpr msgid_t MSG_ID = 0;
-    static constexpr size_t LENGTH = 36;
-    static constexpr size_t MIN_LENGTH = 36;
-    static constexpr uint8_t CRC_EXTRA = 170;
-    static constexpr auto NAME = "ATTITUDE";
+    static constexpr size_t LENGTH = 48;
+    static constexpr size_t MIN_LENGTH = 48;
+    static constexpr uint8_t CRC_EXTRA = 32;
+    static constexpr auto NAME = "IMU";
 
 
     uint64_t timestamp_us; /*< [us] timestamp since linux epoch */
@@ -24,9 +24,8 @@ struct ATTITUDE : mavlink::Message {
     float roll; /*< [rad] Roll angle (-pi..+pi) */
     float pitch; /*< [rad] Pitch angle (-pi..+pi) */
     float yaw; /*< [rad] Yaw angle (-pi..+pi) */
-    float rollspeed; /*< [rad/s] Roll angular speed */
-    float pitchspeed; /*< [rad/s] Pitch angular speed */
-    float yawspeed; /*< [rad/s] Yaw angular speed */
+    std::array<float, 3> gyroXYZ; /*< [rad/s] Gyro output XYZ */
+    std::array<float, 3> accelXYZ; /*< [rad/s] Acel output XYZ */
 
 
     inline std::string get_name(void) const override
@@ -49,9 +48,8 @@ struct ATTITUDE : mavlink::Message {
         ss << "  roll: " << roll << std::endl;
         ss << "  pitch: " << pitch << std::endl;
         ss << "  yaw: " << yaw << std::endl;
-        ss << "  rollspeed: " << rollspeed << std::endl;
-        ss << "  pitchspeed: " << pitchspeed << std::endl;
-        ss << "  yawspeed: " << yawspeed << std::endl;
+        ss << "  gyroXYZ: [" << to_string(gyroXYZ) << "]" << std::endl;
+        ss << "  accelXYZ: [" << to_string(accelXYZ) << "]" << std::endl;
 
         return ss.str();
     }
@@ -65,9 +63,8 @@ struct ATTITUDE : mavlink::Message {
         map << roll;                          // offset: 12
         map << pitch;                         // offset: 16
         map << yaw;                           // offset: 20
-        map << rollspeed;                     // offset: 24
-        map << pitchspeed;                    // offset: 28
-        map << yawspeed;                      // offset: 32
+        map << gyroXYZ;                       // offset: 24
+        map << accelXYZ;                      // offset: 36
     }
 
     inline void deserialize(mavlink::MsgMap &map) override
@@ -77,9 +74,8 @@ struct ATTITUDE : mavlink::Message {
         map >> roll;                          // offset: 12
         map >> pitch;                         // offset: 16
         map >> yaw;                           // offset: 20
-        map >> rollspeed;                     // offset: 24
-        map >> pitchspeed;                    // offset: 28
-        map >> yawspeed;                      // offset: 32
+        map >> gyroXYZ;                       // offset: 24
+        map >> accelXYZ;                      // offset: 36
     }
 };
 

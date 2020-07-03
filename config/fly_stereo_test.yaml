@@ -1,4 +1,45 @@
 fly_stereo:
+  msckf_vio:
+    fixed_frame_id: "world"
+    child_frame_id: "robot"
+    publish_tf: false
+    frame_rate: 20
+    position_std_threshold: 8.0  
+    rotation_threshold: 0.2618
+    translation_threshold: 0.4
+    tracking_rate_threshold: 0.5
+    feature_translation_threshold: 0.2
+    max_cam_state_size: 30
+
+    noise:
+      gyro: 0.001
+      acc: 0.01
+      gyro_bias: 0.001
+      acc_bias: 0.01
+      feature: 0.01
+
+    initial_velocity: [0.0, 0.0, 0.0]
+
+    initial_covariance:
+      velocity: 0.25
+      gyro_bias: 0.0001
+      acc_bias: 0.01
+      extrinsic_rotation_cov: 0.00030462
+      extrinsic_translation_cov: 0.0001
+    
+    R_imu_cam0_euler: [0, 0, 4.71238898038]
+    T_imu_cam0: [0, 0, 0]
+
+    R_cam0_cam1: [ 9.9995094893828418e-01, 9.0814081573217936e-03,
+             3.9531940636981407e-03, -9.0542745605519358e-03,
+             9.9993569490162326e-01, -6.8283360923398128e-03,
+             -4.0149507602548606e-03, 6.7922078507608756e-03,
+             9.9996887255699352e-01 ]
+    T_cam0_cam1: [ 2.9274478422131663e-02, -1.8842573615682340e-01,
+          1.6592818394838118e-03 ]
+
+
+
   mavlink_reader:
     device: /dev/ttyTHS1
   image_processor:
@@ -17,8 +58,8 @@ fly_stereo:
       height: 720
       flip_method: 0
       hardware_trigger_mode: true
-      gain: 0
-      exposure_time: 1500
+      gain: 5
+      exposure_time: 4500
     Camera1:
       device_num: 1
       src_pipeline: "v4l2src device=/dev/video1 ! video/x-raw,width=1280,height=720 ! nvvidconv flip-method=0 ! video/x-raw, format=(string)GRAY8 ! appsink max-buffers=1 drop=true"
@@ -27,8 +68,8 @@ fly_stereo:
       height: 720
       flip_method: 0
       hardware_trigger_mode: true
-      gain: 0
-      exposure_time: 1500
+      gain: 5
+      exposure_time: 4500
       # sink_pipeline: "appsrc ! nvvidconv ! nvv4l2h264enc insert-sps-pps=true ! h264parse ! rtph264pay pt=96 ! udpsink host=192.168.104.2 port=8001 sync=false "
       # sink_pipeline: "appsrc ! videoconvert ! x264enc ! h264parse ! rtph264pay pt=96 ! udpsink host=192.168.104.2 port=8001 sync=false "
 

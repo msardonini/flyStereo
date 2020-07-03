@@ -76,15 +76,8 @@ int Camera::GetFrame(cv::cuda::GpuMat &frame) {
   return 0;
 }
 
-
-
 int Camera::SendFrame(cv::Mat &frame) {
   if (cam_sink_) {
-    std::cout << "size: " << frame.size() << std::endl;
-    std::cout << "type: " << frame.type() << std::endl;
-    std::cout << "channels: " << frame.channels() << std::endl;
-    std::cout << "depth: " << frame.depth() << std::endl;
     cam_sink_->write(frame);
   }
 }
-

@@ -118,9 +118,9 @@ void MavlinkReader::SerialReadThread() {
     
       if (msg_received) {
         switch(mav_message.msgid) {
-          case MAVLINK_MSG_ID_ATTITUDE: {
-            mavlink_attitude_t attitude_msg;
-            mavlink_msg_attitude_decode(&mav_message, &attitude_msg);
+          case MAVLINK_MSG_ID_IMU: {
+            mavlink_imu_t attitude_msg;
+            mavlink_msg_imu_decode(&mav_message, &attitude_msg);
 
             // Push the message to our output queue
             std::lock_guard<std::mutex> lock(queue_mutex_);
@@ -142,7 +142,7 @@ void MavlinkReader::SerialReadThread() {
   }
 }
 
-bool MavlinkReader::GetAttitudeMsg(mavlink_attitude_t* attitude, bool block) {
+bool MavlinkReader::GetAttitudeMsg(mavlink_imu_t* attitude, bool block) {
   std::unique_lock<std::mutex> lock(queue_mutex_);
 
   if (block) {

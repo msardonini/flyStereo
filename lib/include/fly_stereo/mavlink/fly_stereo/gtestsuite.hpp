@@ -15,24 +15,23 @@ using namespace mavlink;
 #endif
 
 
-TEST(fly_stereo, ATTITUDE)
+TEST(fly_stereo, IMU)
 {
     mavlink::mavlink_message_t msg;
     mavlink::MsgMap map1(msg);
     mavlink::MsgMap map2(msg);
 
-    mavlink::fly_stereo::msg::ATTITUDE packet_in{};
+    mavlink::fly_stereo::msg::IMU packet_in{};
     packet_in.timestamp_us = 93372036854775807ULL;
     packet_in.trigger_count = 963497880;
     packet_in.roll = 101.0;
     packet_in.pitch = 129.0;
     packet_in.yaw = 157.0;
-    packet_in.rollspeed = 185.0;
-    packet_in.pitchspeed = 213.0;
-    packet_in.yawspeed = 241.0;
+    packet_in.gyroXYZ = {{ 185.0, 186.0, 187.0 }};
+    packet_in.accelXYZ = {{ 269.0, 270.0, 271.0 }};
 
-    mavlink::fly_stereo::msg::ATTITUDE packet1{};
-    mavlink::fly_stereo::msg::ATTITUDE packet2{};
+    mavlink::fly_stereo::msg::IMU packet1{};
+    mavlink::fly_stereo::msg::IMU packet2{};
 
     packet1 = packet_in;
 
@@ -49,36 +48,34 @@ TEST(fly_stereo, ATTITUDE)
     EXPECT_EQ(packet1.roll, packet2.roll);
     EXPECT_EQ(packet1.pitch, packet2.pitch);
     EXPECT_EQ(packet1.yaw, packet2.yaw);
-    EXPECT_EQ(packet1.rollspeed, packet2.rollspeed);
-    EXPECT_EQ(packet1.pitchspeed, packet2.pitchspeed);
-    EXPECT_EQ(packet1.yawspeed, packet2.yawspeed);
+    EXPECT_EQ(packet1.gyroXYZ, packet2.gyroXYZ);
+    EXPECT_EQ(packet1.accelXYZ, packet2.accelXYZ);
 }
 
 #ifdef TEST_INTEROP
-TEST(fly_stereo_interop, ATTITUDE)
+TEST(fly_stereo_interop, IMU)
 {
     mavlink_message_t msg;
 
     // to get nice print
     memset(&msg, 0, sizeof(msg));
 
-    mavlink_attitude_t packet_c {
-         93372036854775807ULL, 963497880, 101.0, 129.0, 157.0, 185.0, 213.0, 241.0
+    mavlink_imu_t packet_c {
+         93372036854775807ULL, 963497880, 101.0, 129.0, 157.0, { 185.0, 186.0, 187.0 }, { 269.0, 270.0, 271.0 }
     };
 
-    mavlink::fly_stereo::msg::ATTITUDE packet_in{};
+    mavlink::fly_stereo::msg::IMU packet_in{};
     packet_in.timestamp_us = 93372036854775807ULL;
     packet_in.trigger_count = 963497880;
     packet_in.roll = 101.0;
     packet_in.pitch = 129.0;
     packet_in.yaw = 157.0;
-    packet_in.rollspeed = 185.0;
-    packet_in.pitchspeed = 213.0;
-    packet_in.yawspeed = 241.0;
+    packet_in.gyroXYZ = {{ 185.0, 186.0, 187.0 }};
+    packet_in.accelXYZ = {{ 269.0, 270.0, 271.0 }};
 
-    mavlink::fly_stereo::msg::ATTITUDE packet2{};
+    mavlink::fly_stereo::msg::IMU packet2{};
 
-    mavlink_msg_attitude_encode(1, 1, &msg, &packet_c);
+    mavlink_msg_imu_encode(1, 1, &msg, &packet_c);
 
     // simulate message-handling callback
     [&packet2](const mavlink_message_t *cmsg) {
@@ -92,9 +89,8 @@ TEST(fly_stereo_interop, ATTITUDE)
     EXPECT_EQ(packet_in.roll, packet2.roll);
     EXPECT_EQ(packet_in.pitch, packet2.pitch);
     EXPECT_EQ(packet_in.yaw, packet2.yaw);
-    EXPECT_EQ(packet_in.rollspeed, packet2.rollspeed);
-    EXPECT_EQ(packet_in.pitchspeed, packet2.pitchspeed);
-    EXPECT_EQ(packet_in.yawspeed, packet2.yawspeed);
+    EXPECT_EQ(packet_in.gyroXYZ, packet2.gyroXYZ);
+    EXPECT_EQ(packet_in.accelXYZ, packet2.accelXYZ);
 
 #ifdef PRINT_MSG
     PRINT_MSG(msg);

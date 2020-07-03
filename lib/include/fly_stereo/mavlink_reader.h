@@ -18,7 +18,7 @@ class MavlinkReader {
 
   int Init(YAML::Node input_params);
 
-  bool GetAttitudeMsg(mavlink_attitude_t* attitude, bool block = false);
+  bool GetAttitudeMsg(mavlink_imu_t* attitude, bool block = false);
   void SendCounterReset();
  private:
   void SerialReadThread();
@@ -26,7 +26,7 @@ class MavlinkReader {
   std::thread reader_thread_;
   std::mutex queue_mutex_;
   int serial_dev_ = 0;
-  std::queue<mavlink_attitude_t> output_queue_;
+  std::queue<mavlink_imu_t> output_queue_;
   std::condition_variable cond_var_;
 
 };

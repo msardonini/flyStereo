@@ -21,7 +21,7 @@ namespace fly_stereo {
 /**
  * Array of msg_entry needed for @p mavlink_parse_char() (trought @p mavlink_get_msg_entry())
  */
-constexpr std::array<mavlink_msg_entry_t, 2> MESSAGE_ENTRIES {{ {0, 170, 36, 36, 0, 0, 0}, {1, 68, 8, 8, 0, 0, 0} }};
+constexpr std::array<mavlink_msg_entry_t, 2> MESSAGE_ENTRIES {{ {0, 32, 48, 48, 0, 0, 0}, {1, 68, 8, 8, 0, 0, 0} }};
 
 //! MAVLINK VERSION
 constexpr auto MAVLINK_VERSION = 3;
@@ -36,7 +36,7 @@ constexpr auto MAVLINK_VERSION = 3;
 } // namespace mavlink
 
 // MESSAGE DEFINITIONS
-#include "./mavlink_msg_attitude.hpp"
+#include "./mavlink_msg_imu.hpp"
 #include "./mavlink_msg_reset_counters.hpp"
 
 // base include
