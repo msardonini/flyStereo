@@ -413,6 +413,12 @@ int ImageProcessor::ProcessThread() {
   std::vector<unsigned char> status;
   cv::cuda::GpuMat d_status;
 
+  // Flag telling if we should draw points to the ouput image frame
+  bool draw_points_to_frame = true;
+  if (input_params_["draw_points_to_frame"]) {
+    draw_points_to_frame = input_params_["draw_points_to_frame"].as<bool>();
+  }
+
   int counter = 0;
   int error_counter = 0;
   std::chrono::time_point<std::chrono::system_clock> time_end = std::chrono::
@@ -495,16 +501,23 @@ int ImageProcessor::ProcessThread() {
       // Apply the optical flow from the previous frame to the current frame
       d_opt_flow_cam0->calc(d_frame_cam0_t0, d_frame_cam0_t1, d_tracked_pts_cam0_t0,
         d_tracked_pts_cam0_t1, d_status);
- 
+
+      // Check if we have zero tracked points, this is a corner case and these variables need
+      // to be reset to prevent errors in sizing, calc() does not return all zero length vectors
+      if (d_tracked_pts_cam0_t1.cols == 0) {
+        d_tracked_pts_cam0_t1.release();
+        d_tracked_pts_cam0_t0.release();
+        d_status.release();
+      }
       if (RemovePointsOutOfFrame(d_frame_cam0_t1.size(), d_tracked_pts_cam0_t1, d_status)) {
-        std::cout << "RemovePointsOutOfFrame failed 1\n" << std::endl;
+        std::cout << "RemovePointsOutOfFrame failed after tracking\n" << std::endl;
         std::cout << "status size:" << d_status.size() << std::endl;
         std::cout << "points size:" << d_tracked_pts_cam0_t1.size() << std::endl;
         return -1;
       }      
-
+      // TODO: Make this function accept a vector (non gpu) for first arg and templated vector as
+      // the second argument
       d_status.download(status);
-
       if (RemoveOutliers(d_status, d_tracked_pts_cam0_t0) || 
           RemoveOutliers(d_status, d_tracked_pts_cam0_t1) ||
           RemoveOutliers(d_status, d_tracked_pts_cam1_t0) || 
@@ -512,14 +525,14 @@ int ImageProcessor::ProcessThread() {
         std::cout << "RemoveOutliers failed after Tracking\n" << std::endl;
         return -1;
       }
+
       StereoMatch(d_opt_flow_cam1, d_frame_cam0_t1, d_frame_cam1_t1, d_tracked_pts_cam0_t1,
         d_tracked_pts_cam1_t1, d_status);
 
       if (RemovePointsOutOfFrame(d_frame_cam1_t1.size(), d_tracked_pts_cam1_t1, d_status)) {
-        std::cout << "RemovePointsOutOfFrame failed 1\n" << std::endl;
+        std::cout << "RemovePointsOutOfFrame failed after StereoMatch\n" << std::endl;
         return -1;
       }
-
       d_status.download(status);
       if (RemoveOutliers(d_status, d_tracked_pts_cam0_t0) ||
           RemoveOutliers(d_status, d_tracked_pts_cam0_t1) || 
@@ -531,8 +544,19 @@ int ImageProcessor::ProcessThread() {
       }
     }
 
+    // Perform a check to make sure that all of our tracked vectors are the same length,
+    // otherwise something is wrong
+    int tracked_pts = d_tracked_pts_cam0_t0.cols;
+    if (tracked_pts != d_tracked_pts_cam0_t1.cols ||
+        tracked_pts != d_tracked_pts_cam1_t0.cols ||
+        tracked_pts != d_tracked_pts_cam1_t1.cols) {
+      std::cerr << "ERROR! There are differences in the numbers of tracked points " << counter
+        << std::endl;
+      return -1;
+    }
+
     // Run the Two Point RANSAC algorithm to find more outliers
-    if (d_tracked_pts_cam0_t0.cols != 0 && d_tracked_pts_cam1_t0.cols != 0) {
+    if (d_tracked_pts_cam0_t0.cols > 1 && d_tracked_pts_cam1_t0.cols > 1) {
       d_tracked_pts_cam0_t0.download(tracked_pts_cam0_t0);
       d_tracked_pts_cam0_t1.download(tracked_pts_cam0_t1);
 
@@ -602,24 +626,33 @@ int ImageProcessor::ProcessThread() {
       d_tracked_pts_cam1_t1.cols << std::endl;
 
 
-    // ProcessPoints(tracked_pts_cam0_t1, tracked_pts_cam1_t1);
-    OuputTrackedPoints(tracked_pts_cam0_t1, tracked_pts_cam1_t1, ids_tracked_t1);
-
+    // Signal this loop has finished and output the tracked points
+    if (tracked_pts_cam0_t1.size() > 1 && tracked_pts_cam1_t1.size() > 1) {
+      OuputTrackedPoints(tracked_pts_cam0_t1, tracked_pts_cam1_t1, ids_tracked_t1);
+    }
 
     // If requested, output the video stream to the configured gstreamer pipeline
     if (cam0_->OutputEnabled()) {
       cv::Mat show_frame, show_frame_color;
       d_frame_cam0_t1.download(show_frame);
-      cv::cvtColor(show_frame, show_frame_color, cv::COLOR_GRAY2BGR);
-      DrawPoints(tracked_pts_cam0_t1, show_frame_color);
+      if (draw_points_to_frame) {
+        cv::cvtColor(show_frame, show_frame_color, cv::COLOR_GRAY2BGR);
+        DrawPoints(tracked_pts_cam0_t1, show_frame_color);
+      } else {
+        show_frame_color = show_frame;
+      }
       // DrawPoints(debug_pts, show_frame);
       cam0_->SendFrame(show_frame_color);
     }
     if (cam1_->OutputEnabled()) {
       cv::Mat show_frame, show_frame_color;
       d_frame_cam1_t1.download(show_frame);
-      cv::cvtColor(show_frame, show_frame_color, cv::COLOR_GRAY2BGR);
-      DrawPoints(tracked_pts_cam1_t1, show_frame_color);
+      if (draw_points_to_frame) {
+        cv::cvtColor(show_frame, show_frame_color, cv::COLOR_GRAY2BGR);
+        DrawPoints(tracked_pts_cam0_t1, show_frame_color);
+      } else {
+        show_frame_color = show_frame;
+      }
       cam1_->SendFrame(show_frame_color);
     }
     
@@ -644,7 +677,7 @@ int ImageProcessor::ProcessThread() {
 int ImageProcessor::StereoMatch(cv::Ptr<cv::cuda::SparsePyrLKOpticalFlow> opt,
   const cv::cuda::GpuMat &d_frame_cam0,
   const cv::cuda::GpuMat &d_frame_cam1, 
-  const cv::cuda::GpuMat &d_tracked_pts_cam0,
+  cv::cuda::GpuMat &d_tracked_pts_cam0,
   cv::cuda::GpuMat &d_tracked_pts_cam1,
   cv::cuda::GpuMat &d_status) {
 
@@ -668,8 +701,17 @@ int ImageProcessor::StereoMatch(cv::Ptr<cv::cuda::SparsePyrLKOpticalFlow> opt,
 
   d_tracked_pts_cam1.upload(tracked_pts_cam1_t1);
 
-  opt->calc(d_frame_cam0, d_frame_cam1, d_tracked_pts_cam0,
-    d_tracked_pts_cam1, d_status);
+  opt->calc(d_frame_cam0, d_frame_cam1, d_tracked_pts_cam0, d_tracked_pts_cam1, d_status);
+  
+  // Check if we have zero tracked points, this is a corner case and these variables need
+  // to be reset to prevent errors in sizing, calc() does not return all zero length vectors
+  if (d_tracked_pts_cam1.cols == 0) {
+    d_tracked_pts_cam0.release();
+    d_tracked_pts_cam1.release();
+    d_status.release();
+    return 0;
+  }
+
 
   d_tracked_pts_cam1.download(tracked_pts_cam1_t1);
 
@@ -1023,6 +1065,13 @@ void ImageProcessor::ReceiveImu(const mavlink_imu_t &msg) {
 
 int ImageProcessor::GenerateImuXform(int image_counter, cv::Matx33f &rotation_t0_t1_cam0,
   cv::Matx33f &rotation_t0_t1_cam1) {
+
+  // The first image will not have relvant imu data
+  if (image_counter == 0) {
+    rotation_t0_t1_cam0 = cv::Matx33f::eye();
+    rotation_t0_t1_cam1 = cv::Matx33f::eye();
+    return 0;
+  }
 
   if (imu_queue_.size() == 0) {
     std::cerr << "Imu queue empty!" << std::endl;

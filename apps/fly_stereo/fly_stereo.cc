@@ -30,7 +30,6 @@ void imu_thread(YAML::Node imu_reader_params, ImageProcessor *image_processor,
     mavlink_imu_t attitude;
     // Get the next attitude message, block until we have one
     if(mavlink_reader.GetAttitudeMsg(&attitude, true)) {
-
       // Send the imu message to the image processor
       image_processor->ReceiveImu(attitude);
 

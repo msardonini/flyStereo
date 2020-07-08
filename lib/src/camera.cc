@@ -44,19 +44,25 @@ int Camera::Init() {
   std::string exposure_cmd("v4l2-ctl -d " + std::to_string(device_num_) +
     " -c exposure=" + std::to_string(exposure_time_));
   system(exposure_cmd.c_str());
+  return 0;
+}
 
+int Camera::InitSink(bool is_color) {
   // If configured, create the image sinks
   if (!sink_pipeline_.empty()) {
-    cam_sink_ = std::make_unique<cv::VideoWriter> (sink_pipeline_, 0,
-      framerate_, cv::Size(width_,height_), true);
+    cam_sink_ = std::make_unique<cv::VideoWriter> (sink_pipeline_, 0, framerate_, cv::Size(width_,
+      height_), is_color);
     if (!cam_sink_->isOpened()) {
-      std::cerr << "Error! VideoWriter on cam" << device_num_ <<
-        " did not open" << std::endl;
+      std::cerr << "Error! VideoWriter on cam" << device_num_ << " did not open" << std::endl;
       return -1;
     }
+  } else {
+    std::cerr << "Error! Called GetFrame without defining the sink pipeline" << std::endl;
+    return -1;
   }
   return 0;
 }
+
 
 int Camera::GetFrame(cv::Mat &frame) {
   if (!cam_src_->read(frame)) {
@@ -79,5 +85,12 @@ int Camera::GetFrame(cv::cuda::GpuMat &frame) {
 int Camera::SendFrame(cv::Mat &frame) {
   if (cam_sink_) {
     cam_sink_->write(frame);
+  } else {
+    bool is_color = frame.channels() > 1;
+    if(InitSink(is_color)) {
+      return -1;
+    }
+    cam_sink_->write(frame);
   }
+  return 0;
 }

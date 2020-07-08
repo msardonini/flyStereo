@@ -29,6 +29,8 @@ class MavlinkReader {
   std::queue<mavlink_imu_t> output_queue_;
   std::condition_variable cond_var_;
 
+  int replay_file_fd_ = 0;
+
 };
 
 #endif  // INCLUDE_FLY_STEREO_MAVLINK_READER_H_

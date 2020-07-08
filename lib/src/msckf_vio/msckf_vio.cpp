@@ -396,7 +396,8 @@ void MsckfVio::featureCallback(const struct ImagePoints& msg) {
     std::lock_guard<std::mutex> lock(imu_mutex_);
     if (imu_msg_buffer.size() == 0) return;
 
-    state_server.imu_state.time = static_cast<double>(imu_msg_buffer[0].timestamp_us) / 1.0E6;
+    state_server.imu_state.time = 0.0;
+    start_time_ = imu_msg_buffer[0].timestamp_us;
   }
 
   static double max_processing_time = 0.0;
@@ -538,11 +539,10 @@ void MsckfVio::batchImuProcessing(const double& time_bound) {
   //   }
   //   if (imu_time > time_bound) break;
 
-    double imu_time = static_cast<double>(imu_msg.timestamp_us) / 1.0E6;
-    std::cout << "imu_time: " << imu_time << std::endl;
+    double imu_time = static_cast<double>(imu_msg.timestamp_us - start_time_) / 1.0E6;
 
-    if (fabs(imu_time - state_server.imu_state.time) < 0.00000000001);
-      continue;
+    // if (fabs(imu_time - state_server.imu_state.time) < 0.00000000001);
+    //   continue;
 
     // Convert the msgs.
     Vector3d m_gyro, m_acc;

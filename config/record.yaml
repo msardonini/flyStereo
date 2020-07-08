@@ -45,7 +45,7 @@ fly_stereo:
     replay_mode: false
     # device: /tmp/imu.dat
     # replay_mode: true
-    # replay_imu_data_file: /tmp/imu.dat
+    replay_imu_data_file: /tmp/imu.dat
   image_processor:
     CameraTrigger:
       chip_num: 0
@@ -55,7 +55,7 @@ fly_stereo:
     Camera0:
       device_num: 0
       src_pipeline: "v4l2src device=/dev/video0 ! video/x-raw,width=1280,height=720 ! nvvidconv flip-method=0 ! video/x-raw, format=(string)GRAY8 ! appsink max-buffers=1 drop=true"
-      sink_pipeline: "appsrc ! videoconvert ! nvvidconv ! nvv4l2h264enc insert-sps-pps=true ! h264parse ! rtph264pay pt=96 ! udpsink host=192.168.104.2 port=8000 sync=false "
+      sink_pipeline: "appsrc do-timestamp=true ! nvvidconv ! nvv4l2h264enc maxperf-enable=true insert-sps-pps=true ! h264parse ! qtmux ! filesink location=/tmp/cam0.mp4 "
       framerate: 20
       width: 1280
       height: 720
@@ -66,7 +66,6 @@ fly_stereo:
     Camera1:
       device_num: 1
       src_pipeline: "v4l2src device=/dev/video1 ! video/x-raw,width=1280,height=720 ! nvvidconv flip-method=0 ! video/x-raw, format=(string)GRAY8 ! appsink max-buffers=1 drop=true"
-      sink_pipeline: "appsrc ! videoconvert ! nvvidconv ! nvv4l2h264enc insert-sps-pps=true ! h264parse ! rtph264pay pt=96 ! udpsink host=192.168.104.2 port=8001 sync=false "
       framerate: 20
       width: 1280
       height: 720
@@ -74,7 +73,8 @@ fly_stereo:
       hardware_trigger_mode: true
       gain: 3
       exposure_time: 1500
-    draw_points_to_frame: true
+      sink_pipeline: "appsrc do-timestamp=true ! nvvidconv ! nvv4l2h264enc maxperf-enable=true insert-sps-pps=true ! h264parse ! qtmux ! filesink location=/tmp/cam1.mp4 "
+    draw_points_to_frame: false
     max_error_counter: 2
     stereo_threshold: 15
     ransac_threshold: 5

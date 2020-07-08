@@ -60,7 +60,7 @@ class ImageProcessor {
   int StereoMatch(cv::Ptr<cv::cuda::SparsePyrLKOpticalFlow> opt,
     const cv::cuda::GpuMat &d_frame_cam0,
     const cv::cuda::GpuMat &d_frame_cam1, 
-    const cv::cuda::GpuMat &d_tracked_pts_cam0,
+    cv::cuda::GpuMat &d_tracked_pts_cam0,
     cv::cuda::GpuMat &d_tracked_pts_cam1,
     cv::cuda::GpuMat &d_status);
 

@@ -24,10 +24,13 @@ class Camera {
   int GetFrame(cv::cuda::GpuMat &frame);
 
   bool OutputEnabled() {
-    return static_cast<bool>(cam_sink_);
+    return static_cast<bool>(!sink_pipeline_.empty());
   }
 
  private:
+  // Initialize the image sink object
+  int InitSink(bool is_color);
+
   int flip_method_;
   bool hardware_trigger_mode_;
   int gain_;

@@ -241,6 +241,7 @@ class MsckfVio {
 
     double GetTimeSec() const;
     YAML::Node input_params_;
+    uint64_t start_time_;
 };
 
 typedef MsckfVio::Ptr MsckfVioPtr;
