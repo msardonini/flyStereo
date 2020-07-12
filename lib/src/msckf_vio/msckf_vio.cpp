@@ -98,9 +98,7 @@ bool MsckfVio::loadParameters(const YAML::Node &input_params) {
   // TODO: is it reasonable to set the initial bias to 0?
   std::vector<double> vec = input_params["initial_velocity"].as<std::vector<double> >();
   // Default 0.0, 0.0, 0.0
-  for (int i; i < 3; i++) {
-    state_server.imu_state.velocity(i) = vec[i];
-  }
+  state_server.imu_state.velocity << vec[0], vec[1], vec[2];
 
 
 

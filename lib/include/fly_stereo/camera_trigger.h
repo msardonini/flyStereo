@@ -23,6 +23,7 @@ class CameraTrigger {
 
  private:
   void TriggerThread();
+  int UpdateCounter();
 
   std::atomic<bool> is_running_;
   std::thread trigger_thread_;
@@ -36,9 +37,10 @@ class CameraTrigger {
   int chip_num_;
   
   bool auto_trigger_async_ = false;
+  bool replay_mode_ = false;
   double auto_trigger_async_rate_hz_ = 0.0;
 
-  unsigned int trigger_count_ = 0;
+  uint32_t trigger_count_ = 0;
   std::queue<std::pair<uint32_t, uint64_t> > time_counter_queue_;  
   std::mutex trigger_count_mutex_;
 };

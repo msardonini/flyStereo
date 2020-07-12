@@ -15,9 +15,11 @@ constexpr unsigned long output_pin = 1UL << 1;
 
 CameraTrigger::CameraTrigger(YAML::Node input_params) {
   is_running_.store(false);
+  trigger_count_ = 0;
   chip_num_ = input_params["chip_num"].as<int>();
   pin_num_ = input_params["pin_num"].as<int>();
   auto_trigger_async_ = input_params["auto_trigger_async"].as<bool>();
+  replay_mode_ = input_params["replay_mode"].as<bool>();
   if (auto_trigger_async_) {
     auto_trigger_async_rate_hz_ = input_params["auto_trigger_async_rate_hz"].as<
       double>();
@@ -35,6 +37,10 @@ CameraTrigger::~CameraTrigger() {
 }
 
 int CameraTrigger::Init() {
+  if (replay_mode_) {
+    return 0;
+  }
+
   std::string chip_dev("/dev/gpiochip" + std::to_string(chip_num_));
   chip_fd_ = open(chip_dev.c_str(), O_RDWR);
   if (chip_fd_ <= 0) {
@@ -79,12 +85,22 @@ void CameraTrigger::TriggerThread() {
 }
 
 std::queue<std::pair<uint32_t, uint64_t> > CameraTrigger::GetTriggerCount() {
+
   std::lock_guard<std::mutex> lock(trigger_count_mutex_);
-  return std::move(time_counter_queue_);
+
+  std::cout << "counter " << std::get<0>(time_counter_queue_.front()) << std::endl;
+  std::queue<std::pair<uint32_t, uint64_t> > temp;
+  std::swap(temp, time_counter_queue_);
+  return temp;
 }
 
 
 int CameraTrigger::TriggerCamera() {
+  // If we are in replay mode, don't mess with the hardware and just update the counters
+  if (replay_mode_) {
+    return UpdateCounter();
+  }
+
   // The cameras get triggered by receiving a pulse 1us to 1ms width
   // We set the value to high, wait 2us, then set it low again
   struct gpiohandle_data data;
@@ -104,9 +120,13 @@ int CameraTrigger::TriggerCamera() {
     return -1;
   }
 
+  return UpdateCounter();
+}
+
+int CameraTrigger::UpdateCounter() {
   // Update our trigger counter
   std::lock_guard<std::mutex> lock(trigger_count_mutex_);
-  
+
   uint64_t timestamp_us = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::
     steady_clock::now().time_since_epoch()).count();
   std::pair<uint32_t, uint64_t> time_counter(trigger_count_++, timestamp_us);
