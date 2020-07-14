@@ -18,15 +18,16 @@ Camera::Camera(YAML::Node input_params) {
   width_ = input_params["width"].as<int>();
   framerate_ = input_params["framerate"].as<int>();
   if (input_params["auto_exposure"]) {
+    YAML::Node auto_exposure_node = input_params["auto_exposure"]; 
     auto_exposure_ = true;
     std::vector<unsigned int> tmp_vec;
-    tmp_vec = input_params["pixel_range_limits"].as<std::vector<unsigned int> >();
+    tmp_vec = auto_exposure_node["pixel_range_limits"].as<std::vector<unsigned int> >();
     pixel_range_limits_[0] = tmp_vec[0];
     pixel_range_limits_[1] = tmp_vec[1];
-    tmp_vec = input_params["exposure_limits"].as<std::vector<unsigned int> >();
+    tmp_vec = auto_exposure_node["exposure_limits"].as<std::vector<unsigned int> >();
     exposure_limits_[0] = tmp_vec[0];
     exposure_limits_[1] = tmp_vec[1];
-    num_frames_to_calc_ = input_params["num_frames_to_calc"].as<int>();
+    num_frames_to_calc_ = auto_exposure_node["num_frames_to_calc"].as<int>();
   } else {
     auto_exposure_ = false;
   }
