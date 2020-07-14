@@ -1,4 +1,4 @@
-#include "fly_stereo/camera.h"
+#include "fly_stereo/sensor_io/camera.h"
 
 #include <iostream>
 

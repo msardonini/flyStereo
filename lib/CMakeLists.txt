@@ -9,10 +9,10 @@ find_package(SPQR)
 
 add_library(fly_stereo_lib
   src/image_processor.cc
-  src/mavlink_reader.cc
-  src/camera_trigger.cc
-  src/camera.cc
-  src/msckf_vio/msckf_vio.cpp
+  src/sensor_io/sensor_interface.cc
+  src/sensor_io/mavlink_reader.cc
+  src/sensor_io/camera_trigger.cc
+  src/sensor_io/camera.cc
 )
 
 target_include_directories(fly_stereo_lib

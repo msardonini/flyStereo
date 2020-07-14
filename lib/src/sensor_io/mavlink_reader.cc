@@ -1,4 +1,4 @@
-#include "fly_stereo/mavlink_reader.h"
+#include "fly_stereo/sensor_io/mavlink_reader.h"
 
 
 #include <sys/stat.h>

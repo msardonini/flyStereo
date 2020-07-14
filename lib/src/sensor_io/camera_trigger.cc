@@ -1,5 +1,5 @@
 
-#include "fly_stereo/camera_trigger.h"
+#include "fly_stereo/sensor_io/camera_trigger.h"
 
 #include <errno.h>
 #include <unistd.h>

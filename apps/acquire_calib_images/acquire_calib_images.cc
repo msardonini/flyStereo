@@ -9,8 +9,8 @@
 #include "opencv2/core.hpp"
 #include "opencv2/highgui.hpp"
 #include "yaml-cpp/yaml.h"
-#include "fly_stereo/camera.h"
-#include "fly_stereo/camera_trigger.h"
+#include "fly_stereo/sensor_io/camera.h"
+#include "fly_stereo/sensor_io/camera_trigger.h"
 
 char get_user_input(int timeout_s, int timout_us) {
   fd_set fdset;

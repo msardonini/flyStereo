@@ -6,7 +6,7 @@
 #include <condition_variable>
 
 #include "yaml-cpp/yaml.h"
-#include "fly_stereo/mavlink/fly_stereo/mavlink.h"
+#include "fly_stereo/sensor_io/mavlink/fly_stereo/mavlink.h"
 
 #ifndef INCLUDE_FLY_STEREO_MAVLINK_READER_H_
 #define INCLUDE_FLY_STEREO_MAVLINK_READER_H_

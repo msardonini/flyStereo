@@ -87,54 +87,19 @@ ImageProcessor::ImageProcessor(const YAML::Node &input_params) {
 ImageProcessor::~ImageProcessor() {
   is_running_.store(false);
 
-  trigger_->TriggerCamera();
-
   if (image_processor_thread_.joinable()) {
-    // If we have started this thread, sometimes we can hang on read().
-    // Reset the camera trigger to send pulsues async to get through this
-    YAML::Node trigger_node = input_params_["CameraTrigger"];
-    trigger_node["auto_trigger_async"] = true;
-    trigger_node["auto_trigger_async_rate"] = "20";
-    trigger_.reset();
-    trigger_ = std::make_unique<CameraTrigger>(trigger_node);
-
     image_processor_thread_.join();
   }
 }
 
 int ImageProcessor::Init() {
-  cam0_ = std::make_unique<Camera> (input_params_["Camera0"]);
-  if(cam0_->Init()) {
-    return -1;
-  }
-  cam1_ = std::make_unique<Camera> (input_params_["Camera1"]);
-  if (cam1_->Init()) {
-    return -1;
-  }
-  trigger_ = std::make_unique<CameraTrigger> (input_params_["CameraTrigger"]);
-
-  if (trigger_->Init()) {
-    return -1;
-  }
+  sensor_interface_ = std::make_unique<SensorInterface>();
+  sensor_interface_->Init(input_params_);
 
   is_running_.store(true);
   image_processor_thread_ = std::thread(&ImageProcessor::ProcessThread, this);
 }
 
-void ImageProcessor::DrawPoints(const std::vector<cv::Point2f> &mypoints,
-    cv::Mat &myimage) {
-  int myradius=5;
-  for (int i = 0; i < mypoints.size(); i++) {
-    cv::Scalar color;
-    if (i == 0) {
-      color = CV_RGB(0, 0, 255);
-    } else {
-      color = CV_RGB(0, 0, 0);
-    }
-    circle(myimage, cv::Point(mypoints[i].x, mypoints[i].y), myradius, color,
-      -1, 8, 0);
-  }
-}
 
 int ImageProcessor::RemoveOutliers(const std::vector<uchar> &status,
   std::vector<cv::Point2f> &points) {
@@ -352,6 +317,7 @@ int ImageProcessor::ProcessPoints(std::vector<cv::Point2f> pts_cam0,
   // Calculate the deltas from the last set of points to the current
   unsigned int counter = 0;
   cv::Vec3f diffs(0, 0.0, 0.0);
+  std::vector<cv::Vec3d> diffs_vec; diffs_vec.reserve(points_3d_[curr_pts_index_].size());
   for (std::map<unsigned int, cv::Vec3f>::iterator it = points_3d_[curr_pts_index_].begin();
     it != points_3d_[curr_pts_index_].end(); it++ ) {
 
@@ -361,16 +327,38 @@ int ImageProcessor::ProcessPoints(std::vector<cv::Point2f> pts_cam0,
       diffs += (it->second - it_prev->second);
       counter++;
       std::cout << "diffs " << (it->second - it_prev->second) << std::endl;
+      diffs_vec.push_back(it->second - it_prev->second);
     }
   }
 
-  if (counter != 0) {
-    diffs /= static_cast<float>(counter);
-    vio_sum_ += diffs;
-
-  }
   // std::cout << "size of vec: " << vec.size() << std::endl;
   if (vec.size() > 0) {
+
+    if (diffs_vec.size() > 0) {
+      cv::Vec3d mean, std_dev;
+      cv::Mat mat_diffs(diffs_vec.size(), 1, CV_64FC3, diffs_vec.data());
+      cv::meanStdDev(mat_diffs, mean, std_dev);
+
+      // Delete points that are not within 2 standard deviations of the mean
+      for (int i = diffs_vec.size() - 1; i >= 0; i--) {
+        if (diffs_vec[i][0] < mean(0) - 2 * std_dev(0) || 
+            diffs_vec[i][0] > mean(0) + 2 * std_dev(0) ||
+            diffs_vec[i][1] < mean(1) - 2 * std_dev(1) ||
+            diffs_vec[i][1] > mean(1) + 2 * std_dev(1) ||
+            diffs_vec[i][2] < mean(2) - 2 * std_dev(2) ||
+            diffs_vec[i][2] > mean(2) + 2 * std_dev(2)) {
+          diffs_vec.erase(diffs_vec.begin() + i);
+        }
+      }
+
+    }
+    if (diffs_vec.size() > 0) {
+      cv::Vec3d mean2, std_dev;
+      cv::Mat mat_diffs2(diffs_vec.size(), 1, CV_64FC3, diffs_vec.data());
+      cv::meanStdDev(mat_diffs2, mean2, std_dev);
+      vio_sum_ += mean2;
+    }
+
     std::cout << "vio X,Y,Z: " << vio_sum_ << std::endl;
   }
 
@@ -400,14 +388,6 @@ int ImageProcessor::OuputTrackedPoints(std::vector<cv::Point2f> pts_cam0,
     output_points_.pts.push_back(pt);
   }
 
-  // Add the timestamp of the current IMU point so that VIO can associate data points more easily
-  std::lock_guard<std::mutex> lock_imu(imu_queue_mutex_);
-  if (!imu_queue_.empty()) {
-    output_points_.timestamp_imu_us = imu_queue_.front().timestamp_us;
-  }
-
-  std::cout << "Outputting points!\n";
-
   output_cond_var_.notify_one();
   return 0;
 }
@@ -426,6 +406,9 @@ bool ImageProcessor::GetTrackedPoints(ImagePoints *usr_pts) {
 }
 
 int ImageProcessor::ProcessThread() {
+  // Vector of imu messages
+  std::vector<mavlink_imu_t> imu_msgs;
+
   // Frames of the left and right camera
   cv::cuda::GpuMat d_frame_cam0_t1, d_frame_cam1_t1;
   cv::cuda::GpuMat d_frame_cam0_t0, d_frame_cam1_t0;
@@ -473,27 +456,13 @@ int ImageProcessor::ProcessThread() {
   cv::Ptr<cv::cuda::SparsePyrLKOpticalFlow> d_opt_flow_cam1_temp = cv::cuda::
     SparsePyrLKOpticalFlow::create();
 
-  // std::vector<cv::Point2f> debug_pts;
 
-  // debug_pts.push_back(cv::Point2f(320, 180));
-  // debug_pts.push_back(cv::Point2f(640, 180));
-  // debug_pts.push_back(cv::Point2f(960, 180));
-  // debug_pts.push_back(cv::Point2f(320, 360));
-  // debug_pts.push_back(cv::Point2f(640, 360));
-  // debug_pts.push_back(cv::Point2f(960, 360));
-  // debug_pts.push_back(cv::Point2f(320, 540));
-  // debug_pts.push_back(cv::Point2f(640, 540));
-  // debug_pts.push_back(cv::Point2f(960, 540));
-  // cv::cuda::GpuMat d_debug_pts; d_debug_pts.upload(debug_pts);
-  //   d_debug_pts.download(debug_pts);
-  // std::cout << "debug_pts " << debug_pts.size() << " x,y: " << debug_pts[0].x << ", " << debug_pts[0].y << std::endl;
 
   while (is_running_.load()) {
     // Trigger the camera to start acquiring an image
-    trigger_->TriggerCamera();
 
     // Read the frame and check for errors
-    if (cam0_->GetFrame(d_frame_cam0_t1) || cam1_->GetFrame(d_frame_cam1_t1)) {
+    if (sensor_interface_->GetSynchronizedData(d_frame_cam0_t1, d_frame_cam1_t1, imu_msgs)) {
       if (++error_counter >= max_error_counter_) {
         std::cerr << "Error! Failed to read more than " << max_error_counter_
           << " frames" << std::endl;
@@ -509,7 +478,8 @@ int ImageProcessor::ProcessThread() {
 
     cv::Matx33f rotation_t0_t1_cam0;
     cv::Matx33f rotation_t0_t1_cam1;
-    int retval = GenerateImuXform(counter, rotation_t0_t1_cam0, rotation_t0_t1_cam1);
+    int retval = sensor_interface_->GenerateImuXform(imu_msgs, R_imu_cam0_, R_imu_cam1_,
+      rotation_t0_t1_cam0, rotation_t0_t1_cam1);
 
     // if (retval == 0) {
     //   // cv::cuda::GpuMat tmp;
@@ -678,28 +648,28 @@ int ImageProcessor::ProcessThread() {
     }
 
     // If requested, output the video stream to the configured gstreamer pipeline
-    if (cam0_->OutputEnabled()) {
+    if (sensor_interface_->cam0_->OutputEnabled()) {
       cv::Mat show_frame, show_frame_color;
       d_frame_cam0_t1.download(show_frame);
       if (draw_points_to_frame) {
         cv::cvtColor(show_frame, show_frame_color, cv::COLOR_GRAY2BGR);
-        DrawPoints(tracked_pts_cam0_t1, show_frame_color);
+        sensor_interface_->DrawPoints(tracked_pts_cam0_t1, show_frame_color);
       } else {
         show_frame_color = show_frame;
       }
       // DrawPoints(debug_pts, show_frame);
-      cam0_->SendFrame(show_frame_color);
+      sensor_interface_->cam0_->SendFrame(show_frame_color);
     }
-    if (cam1_->OutputEnabled()) {
+    if (sensor_interface_->cam1_->OutputEnabled()) {
       cv::Mat show_frame, show_frame_color;
       d_frame_cam1_t1.download(show_frame);
       if (draw_points_to_frame) {
         cv::cvtColor(show_frame, show_frame_color, cv::COLOR_GRAY2BGR);
-        DrawPoints(tracked_pts_cam1_t1, show_frame_color);
+        sensor_interface_->DrawPoints(tracked_pts_cam1_t1, show_frame_color);
       } else {
         show_frame_color = show_frame;
       }
-      cam1_->SendFrame(show_frame_color);
+      sensor_interface_->cam1_->SendFrame(show_frame_color);
     }
 
     // Set the current t1 values to t0 for the next iteration
@@ -777,8 +747,7 @@ int ImageProcessor::StereoMatch(cv::Ptr<cv::cuda::SparsePyrLKOpticalFlow> opt,
     tracked_pts_cam1_t1_undistorted, K_cam1_, D_cam1_, cv::Mat(), P_cam1_);
 
   std::vector<cv::Vec3f> epilines;
-  cv::computeCorrespondEpilines(tracked_pts_cam0_t1_undistorted, 1, F_,
-    epilines);
+  cv::computeCorrespondEpilines(tracked_pts_cam0_t1_undistorted, 1, F_, epilines);
 
   std::vector<unsigned char> status;
   d_status.download(status);
@@ -1108,83 +1077,5 @@ int ImageProcessor::twoPointRansac(
 }
 
 void ImageProcessor::ReceiveImu(const mavlink_imu_t &msg) {
-  std::lock_guard<std::mutex> lock(imu_queue_mutex_);
-  imu_queue_.push(msg);
-}
-
-int ImageProcessor::GenerateImuXform(int image_counter, cv::Matx33f &rotation_t0_t1_cam0,
-  cv::Matx33f &rotation_t0_t1_cam1) {
-
-  // The first image will not have relvant imu data
-  if (image_counter == 0) {
-    rotation_t0_t1_cam0 = cv::Matx33f::eye();
-    rotation_t0_t1_cam1 = cv::Matx33f::eye();
-    return 0;
-  }
-
-  if (imu_queue_.size() == 0) {
-    std::cerr << "Imu queue empty!" << std::endl;
-    rotation_t0_t1_cam0 = cv::Matx33f::eye();
-    rotation_t0_t1_cam1 = cv::Matx33f::eye();
-    return -1;
-  }
-  std::vector<mavlink_imu_t> current_frame_msgs;
-
-  // Reserve some memory in our vector to prevent copies. We should expect this to fill up to
-  //  roughly (IMU acquisition rate / image acquisition rate )
-  current_frame_msgs.reserve(20);
-
-  std::queue<std::pair<uint32_t, uint64_t> > trigger_queue = trigger_->GetTriggerCount();
-
-  while(trigger_queue.size() > 1) {
-    std::cerr << "Error! Mismatch between number of triggers and proccesed frames" << std::endl;
-    trigger_queue.pop();
-  }
-
-  if (image_counter != std::get<0>(trigger_queue.front())) {
-    std::cerr << "Error! Mismatch between number of triggers and proccesed frames, image: "
-      << image_counter << ", from_imu: " << std::get<0>(trigger_queue.front()) << std::endl;
-    rotation_t0_t1_cam0 = cv::Matx33f::eye();
-    rotation_t0_t1_cam1 = cv::Matx33f::eye();
-    return -1;
-  }
-
-  // The objective is to get the rotation matrix from the previous frame to the current, so
-  // take all the imu measurements that correspond to the current frame minus 1
-
-  int image_of_interest = image_counter - 1;
-  std::lock_guard<std::mutex> lock(imu_queue_mutex_);
-  while (!imu_queue_.empty() && imu_queue_.front().trigger_count <= image_of_interest) {
-    if (imu_queue_.front().trigger_count == image_of_interest) {
-      current_frame_msgs.push_back(imu_queue_.front());
-    }
-    imu_queue_.pop();
-  }
-  last_imu_ts_us_ = current_frame_msgs.back().timestamp_us;
-
-  // Continue processesing now we have the imu data from the appropriate image frame
-  // We need at least 2 messages in order to run the integration
-  if (current_frame_msgs.size() < 2) {
-    std::cerr << "Error! Not enough imu messages to run integration" << std::endl;
-    return -1;
-  }
-
-  // Integrate the roll/pitch/yaw values
-  cv::Vec3f delta_rpw = {0.0f, 0.0f, 0.0f};
-  float dt = 0.0f;
-  for (int i = 0; i < current_frame_msgs.size(); i++) {
-    // Calculate the dt. For the last iteration, just use the same dt as before
-    if (i != current_frame_msgs.size() - 1) {
-      dt = current_frame_msgs[i + 1].timestamp_us - current_frame_msgs[i].timestamp_us;
-      dt /= 1.0E6f;
-    }
-
-    delta_rpw[0] -= current_frame_msgs[i].gyroXYZ[0] * dt;
-    delta_rpw[1] += current_frame_msgs[i].gyroXYZ[1] * dt;
-    delta_rpw[2] += current_frame_msgs[i].gyroXYZ[2] * dt;
-  }
-  cv::Rodrigues(R_imu_cam0_ * delta_rpw, rotation_t0_t1_cam0);
-  cv::Rodrigues(R_imu_cam1_ * delta_rpw, rotation_t0_t1_cam1);
-  // std::cout << delta_rpw: " << delta_rpw << std::endl;
-  return 0;
+  sensor_interface_->ReceiveImu(msg);
 }

@@ -11,15 +11,14 @@
 #include <queue>
 
 #include "fly_stereo/interface.h"
-#include "fly_stereo/camera.h"
-#include "fly_stereo/camera_trigger.h"
+#include "fly_stereo/sensor_io/sensor_interface.h"
 #include "yaml-cpp/yaml.h"
 #include "opencv2/core.hpp"
 #include "opencv2/features2d.hpp"
 #include "opencv2/cudafeatures2d.hpp"
 #include "opencv2/cudaimgproc.hpp"
 #include "opencv2/cudaoptflow.hpp"
-#include "fly_stereo/mavlink/fly_stereo/mavlink.h"
+#include "fly_stereo/sensor_io/mavlink/fly_stereo/mavlink.h"
 
 class ImageProcessor {
  public:
@@ -55,8 +54,6 @@ class ImageProcessor {
 
   int ProcessThread();
 
-  void DrawPoints(const std::vector<cv::Point2f> &mypoints, cv::Mat &myimage);
-
   int StereoMatch(cv::Ptr<cv::cuda::SparsePyrLKOpticalFlow> opt,
     const cv::cuda::GpuMat &d_frame_cam0,
     const cv::cuda::GpuMat &d_frame_cam1, 
@@ -91,8 +88,8 @@ class ImageProcessor {
     const double& success_probability,
     std::vector<uchar>& inlier_markers);
 
-  int GenerateImuXform(int image_counter, cv::Matx33f &rotation_t0_t1_cam0,
-    cv::Matx33f &rotation_t0_t1_cam1);
+  int GenerateImuXform(const std::vector<mavlink_imu_t> &imu_msgs,
+    cv::Matx33f &rotation_t0_t1_cam0, cv::Matx33f &rotation_t0_t1_cam1);
 
   int ProcessPoints(std::vector<cv::Point2f> pts_cam0, std::vector<cv::Point2f> pts_cam1,
     std::vector<unsigned int> ids);
@@ -108,9 +105,7 @@ class ImageProcessor {
   std::thread image_processor_thread_;
   
   // Video I/O
-  std::unique_ptr<Camera> cam0_;
-  std::unique_ptr<Camera> cam1_;
-  std::unique_ptr<CameraTrigger> trigger_;
+  std::unique_ptr<SensorInterface> sensor_interface_;
 
   // config params for LK optical flow
   int window_size_;
@@ -144,11 +139,6 @@ class ImageProcessor {
   cv::Matx44d Q_;
   cv::Matx33f R_imu_cam0_;
   cv::Matx33f R_imu_cam1_;
-
-  // IMU objects
-  std::queue<mavlink_imu_t> imu_queue_;
-  std::mutex imu_queue_mutex_;
-  uint64_t last_imu_ts_us_;
 
   // Class output and it's mutex guard
   std::mutex output_mutex_;
