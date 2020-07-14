@@ -28,6 +28,7 @@ Camera::Camera(YAML::Node input_params) {
     exposure_limits_[0] = tmp_vec[0];
     exposure_limits_[1] = tmp_vec[1];
     num_frames_to_calc_ = auto_exposure_node["num_frames_to_calc"].as<int>();
+    curr_frame_ = 0;
   } else {
     auto_exposure_ = false;
   }
@@ -50,6 +51,10 @@ int Camera::Init() {
       " -c trigger_mode=1");
     system(trigger_cmd.c_str());
   }
+
+  UpdateGain();
+
+  UpdateExposure();
 
   return 0;
 }
@@ -103,24 +108,27 @@ int Camera::GetFrame(cv::cuda::GpuMat &frame) {
   frame.upload(host_frame);
 
   if (auto_exposure_) {
-    cv::Scalar mean, st_dev;
-    cv::cuda::meanStdDev(frame, mean, st_dev);
+    if (++curr_frame_ == num_frames_to_calc_) {
+      curr_frame_ = 0;
+      cv::Scalar mean, st_dev;
+      cv::cuda::meanStdDev(frame, mean, st_dev);
 
-    if (mean(0) < pixel_range_limits_[0]) {
-      if (exposure_time_ >= exposure_limits_[1]) {
-        gain_++;
-        UpdateGain();
-      } else {
-        exposure_time_ += 250;
-        UpdateExposure();
-      }
-    } else if (mean(0) > pixel_range_limits_[1]) {
-      if (exposure_time_ <= exposure_limits_[0]) {
-        gain_--;
-        UpdateGain();
-      } else {
-        exposure_time_ -= 250;
-        UpdateExposure();
+      if (mean(0) < pixel_range_limits_[0]) {
+        if (exposure_time_ >= exposure_limits_[1]) {
+          gain_++;
+          UpdateGain();
+        } else {
+          exposure_time_ += 250;
+          UpdateExposure();
+        }
+      } else if (mean(0) > pixel_range_limits_[1]) {
+        if (exposure_time_ <= exposure_limits_[0]) {
+          gain_--;
+          UpdateGain();
+        } else {
+          exposure_time_ -= 250;
+          UpdateExposure();
+        }
       }
     }
   }

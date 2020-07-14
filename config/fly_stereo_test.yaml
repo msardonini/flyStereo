@@ -52,6 +52,7 @@ fly_stereo:
       pin_num: 79
       auto_trigger_async: false
       auto_trigger_async_rate_hz: 20
+      replay_mode: false
     Camera0:
       auto_exposure:
         pixel_range_limits: [108, 148]
