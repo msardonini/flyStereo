@@ -53,6 +53,10 @@ fly_stereo:
       auto_trigger_async: false
       auto_trigger_async_rate_hz: 20
     Camera0:
+      auto_exposure:
+        pixel_range_limits: [108, 148]
+        exposure_limits: [1250, 2500]
+        num_frames_to_calc: 3
       device_num: 0
       src_pipeline: "v4l2src device=/dev/video0 ! video/x-raw,width=1280,height=720 ! nvvidconv flip-method=0 ! video/x-raw, format=(string)GRAY8 ! appsink max-buffers=1 drop=true"
       sink_pipeline: "appsrc ! videoconvert ! nvvidconv ! nvv4l2h264enc insert-sps-pps=true ! h264parse ! rtph264pay pt=96 ! udpsink host=192.168.104.2 port=8000 sync=false "
@@ -64,6 +68,10 @@ fly_stereo:
       gain: 3
       exposure_time: 1500
     Camera1:
+      auto_exposure:
+        pixel_range_limits: [108, 148]
+        exposure_limits: [1250, 2500]
+        num_frames_to_calc: 3
       device_num: 1
       src_pipeline: "v4l2src device=/dev/video1 ! video/x-raw,width=1280,height=720 ! nvvidconv flip-method=0 ! video/x-raw, format=(string)GRAY8 ! appsink max-buffers=1 drop=true"
       sink_pipeline: "appsrc ! videoconvert ! nvvidconv ! nvv4l2h264enc insert-sps-pps=true ! h264parse ! rtph264pay pt=96 ! udpsink host=192.168.104.2 port=8001 sync=false "

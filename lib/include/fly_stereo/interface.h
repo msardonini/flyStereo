@@ -39,6 +39,7 @@ struct ImagePoints {
 
   // Stuct values
   uint64_t timestamp_us;
+  uint64_t timestamp_imu_us;
   std::vector<ImagePoint> pts;
 };
 

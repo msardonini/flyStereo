@@ -30,6 +30,8 @@ class Camera {
  private:
   // Initialize the image sink object
   int InitSink(bool is_color);
+  int UpdateGain();
+  int UpdateExposure();
 
   int flip_method_;
   bool hardware_trigger_mode_;
@@ -42,6 +44,12 @@ class Camera {
   int framerate_;
   int device_num_;
 
+  // Params for auto exposure
+  bool auto_exposure_;
+  int num_frames_to_calc_;
+  std::array<unsigned int, 2> pixel_range_limits_;
+  std::array<unsigned int, 2> exposure_limits_;
+  int curr_frame_;
 
   std::unique_ptr<cv::VideoCapture> cam_src_;
   std::unique_ptr<cv::VideoWriter> cam_sink_;

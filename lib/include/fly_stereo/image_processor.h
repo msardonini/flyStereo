@@ -94,7 +94,8 @@ class ImageProcessor {
   int GenerateImuXform(int image_counter, cv::Matx33f &rotation_t0_t1_cam0,
     cv::Matx33f &rotation_t0_t1_cam1);
 
-  int ProcessPoints(std::vector<cv::Point2f> pts_cam0, std::vector<cv::Point2f> pts_cam1);
+  int ProcessPoints(std::vector<cv::Point2f> pts_cam0, std::vector<cv::Point2f> pts_cam1,
+    std::vector<unsigned int> ids);
 
   int OuputTrackedPoints(std::vector<cv::Point2f> pts_cam0, std::vector<cv::Point2f> pts_cam1,
     std::vector<unsigned int> ids);
@@ -147,11 +148,17 @@ class ImageProcessor {
   // IMU objects
   std::queue<mavlink_imu_t> imu_queue_;
   std::mutex imu_queue_mutex_;
+  uint64_t last_imu_ts_us_;
 
   // Class output and it's mutex guard
   std::mutex output_mutex_;
   ImagePoints output_points_;
   std::condition_variable output_cond_var_;
+
+  // 3D output
+  unsigned int curr_pts_index_ = 0;
+  std::array<std::map<unsigned int, cv::Vec3f>, 2 > points_3d_;
+  cv::Vec3f vio_sum_ = cv::Vec3f(0.0, 0.0, 0.0);
 };
 
 #endif  // INCLUDE_FLY_STEREO_IMAGE_PROCESSOR_H_

@@ -163,7 +163,7 @@ bool MsckfVio::loadParameters(const YAML::Node &input_params) {
   // Maximum number of camera states to be stored
   max_cam_state_size = input_params["max_cam_state_size"].as<int>();  // Default 30
 
-  printf("===========================================");
+  printf("===========================================\n");
   printf("fixed frame id: %s\n", fixed_frame_id.c_str());
   printf("child frame id: %s\n", child_frame_id.c_str());
   printf("publish tf: %d\n", publish_tf);
@@ -249,6 +249,8 @@ bool MsckfVio::initialize(const YAML::Node &params) {
   // if (!createRosIO()) return false;
   // printf("Finish creating ROS IO...");
 
+  state_server.imu_state.position = Eigen::Vector3d::Zero();
+
   return true;
 }
 
@@ -258,13 +260,14 @@ void MsckfVio::imuCallback(const mavlink_imu_t &msg) {
   // being processed immediately. The IMU msgs are processed
   // when the next image is available, in which way, we can
   // easily handle the transfer delay.
-  imu_msg_buffer.push_back(msg);
+  imu_msg_buffer.push(msg);
 
   if (!is_gravity_set) {
     if (imu_msg_buffer.size() < 200) return;
     //if (imu_msg_buffer.size() < 10) return;
     initializeGravityAndBias();
     is_gravity_set = true;
+    std::cout << "Gravity Set!" << std::endl;
   }
 
   return;
@@ -276,7 +279,10 @@ void MsckfVio::initializeGravityAndBias() {
   Vector3d sum_angular_vel = Vector3d::Zero();
   Vector3d sum_linear_acc = Vector3d::Zero();
 
-  for (const auto& imu_msg : imu_msg_buffer) {
+  // for (const auto& imu_msg : imu_msg_buffer) {
+  while (!imu_msg_buffer.empty()) {
+    const auto& imu_msg = imu_msg_buffer.front();
+
     Vector3d angular_vel = Vector3d::Zero();
     Vector3d linear_acc = Vector3d::Zero();
 
@@ -285,15 +291,17 @@ void MsckfVio::initializeGravityAndBias() {
 
     sum_angular_vel += angular_vel;
     sum_linear_acc += linear_acc;
+
+    imu_msg_buffer.pop();
   }
 
   state_server.imu_state.gyro_bias =
-    sum_angular_vel / imu_msg_buffer.size();
+    sum_angular_vel / 200;
   //IMUState::gravity =
   //  -sum_linear_acc / imu_msg_buffer.size();
   // This is the gravity in the IMU frame.
   Vector3d gravity_imu =
-    sum_linear_acc / imu_msg_buffer.size();
+    sum_linear_acc / 200;
 
   // Initialize the initial orientation, so that the estimation
   // is consistent with the inertial frame.
@@ -358,7 +366,7 @@ bool MsckfVio::resetCallback() {
   map_server.clear();
 
   // Clear the IMU msg buffer.
-  imu_msg_buffer.clear();
+  imu_msg_buffer = std::queue<mavlink_imu_t>();
 
   // Reset the starting flags.
   is_gravity_set = false;
@@ -383,8 +391,10 @@ double MsckfVio::GetTimeSec() const {
 void MsckfVio::featureCallback(const struct ImagePoints& msg) {
 
   // Return if the gravity vector has not been set.
-  if (!is_gravity_set) return;
-
+  if (!is_gravity_set)  {
+    std::cout << "Gravity not set" << std::endl;
+    return;
+  }
   // Start the system if the first image is received.
   // The frame where the first image is received will be
   // the origin.
@@ -392,10 +402,13 @@ void MsckfVio::featureCallback(const struct ImagePoints& msg) {
     is_first_img = false;
 
     std::lock_guard<std::mutex> lock(imu_mutex_);
-    if (imu_msg_buffer.size() == 0) return;
+    if (imu_msg_buffer.size() == 0)  {
+      std::cout << "empty imu buffer!" << std::endl;
+      return;
+    }
 
     state_server.imu_state.time = 0.0;
-    start_time_ = imu_msg_buffer[0].timestamp_us;
+    start_time_ = imu_msg_buffer.front().timestamp_us;
   }
 
   static double max_processing_time = 0.0;
@@ -405,7 +418,7 @@ void MsckfVio::featureCallback(const struct ImagePoints& msg) {
   // Propogate the IMU state.
   // that are received before the image msg.
   double start_time = GetTimeSec();
-  batchImuProcessing(msg.TimestampToSec());
+  batchImuProcessing(msg.timestamp_imu_us);
   double imu_processing_time = GetTimeSec() - start_time;
 
   // Augment the state vector.
@@ -443,12 +456,12 @@ void MsckfVio::featureCallback(const struct ImagePoints& msg) {
     ++critical_time_cntr;
     printf("\033[1;31mTotal processing time %f/%d...\033[0m",
         processing_time, critical_time_cntr);
-    //printf("IMU processing time: %f/%f\n",
-    //    imu_processing_time, imu_processing_time/processing_time);
-    //printf("State augmentation time: %f/%f\n",
-    //    state_augmentation_time, state_augmentation_time/processing_time);
-    //printf("Add observations time: %f/%f\n",
-    //    add_observations_time, add_observations_time/processing_time);
+    printf("IMU processing time: %f/%f\n",
+       imu_processing_time, imu_processing_time/processing_time);
+    printf("State augmentation time: %f/%f\n",
+       state_augmentation_time, state_augmentation_time/processing_time);
+    printf("Add observations time: %f/%f\n",
+       add_observations_time, add_observations_time/processing_time);
     printf("Remove lost features time: %f/%f\n",
         remove_lost_features_time, remove_lost_features_time/processing_time);
     printf("Remove camera states time: %f/%f\n",
@@ -526,16 +539,28 @@ void MsckfVio::featureCallback(const struct ImagePoints& msg) {
 //   return;
 // }
 
-void MsckfVio::batchImuProcessing(const double& time_bound) {
+void MsckfVio::batchImuProcessing(const uint64_t& time_bound) {
   std::lock_guard<std::mutex> lock(imu_mutex_);
 
-  for (const auto& imu_msg : imu_msg_buffer) {
+  if (imu_msg_buffer.empty()) {
+    std::cout << "empty imu buffer!\n\n";
+    return;
+  }
+
+  // for (const auto& imu_msg : imu_msg_buffer) {
+  while (imu_msg_buffer.front().timestamp_us <= time_bound) {
   //   double imu_time = imu_msg.header.stamp.toSec();
   //   if (imu_time < state_server.imu_state.time) {
   //     ++used_imu_msg_cntr;
   //     continue;
   //   }
   //   if (imu_time > time_bound) break;
+    mavlink_imu_t &imu_msg = imu_msg_buffer.front();
+
+    if (imu_msg.timestamp_us == start_time_) {
+      imu_msg_buffer.pop();
+      continue;
+    }
 
     double imu_time = static_cast<double>(imu_msg.timestamp_us - start_time_) / 1.0E6;
 
@@ -550,13 +575,15 @@ void MsckfVio::batchImuProcessing(const double& time_bound) {
 
     // Execute process model.
     processModel(imu_time, m_gyro, m_acc);
+
+    imu_msg_buffer.pop();
   }
 
   // Set the state ID for the new IMU state.
   state_server.imu_state.id = IMUState::next_id++;
 
   // Remove all used IMU msgs.
-  imu_msg_buffer.clear();
+  // imu_msg_buffer = std::queue<mavlink_imu_t>();
   return;
 }
 
@@ -647,6 +674,8 @@ void MsckfVio::processModel(const double& time,
 
   // Update the state info
   state_server.imu_state.time = time;
+
+  std::cout << "ProcessModel: " << imu_state.position.transpose() << std::endl;
   return;
 }
 
@@ -1006,6 +1035,7 @@ void MsckfVio::measurementUpdate(
   state_server.imu_state.velocity += delta_x_imu.segment<3>(6);
   state_server.imu_state.acc_bias += delta_x_imu.segment<3>(9);
   state_server.imu_state.position += delta_x_imu.segment<3>(12);
+  std::cout << "delta: " << delta_x_imu.segment<3>(12) << std::endl;
 
   const Vector4d dq_extrinsic =
     smallAngleQuaternion(delta_x_imu.segment<3>(15));
@@ -1070,6 +1100,8 @@ void MsckfVio::removeLostFeatures() {
       iter != map_server.end(); ++iter) {
     // Rename the feature to be checked.
     auto& feature = iter->second;
+
+    std::cout << "size: " << feature.observations.size() << std::endl;
 
     // Pass the features that are still being tracked.
     if (feature.observations.find(state_server.imu_state.id) !=
@@ -1198,8 +1230,10 @@ void MsckfVio::findRedundantCamStates(
 
 void MsckfVio::pruneCamStateBuffer() {
 
-  if (state_server.cam_states.size() < max_cam_state_size)
+  if (state_server.cam_states.size() < max_cam_state_size) {
+    std::cout << "return 1 " << state_server.cam_states.size() << std::endl;
     return;
+  }
 
   // Find two camera states to be removed.
   vector<StateIDType> rm_cam_state_ids(0);
@@ -1218,9 +1252,13 @@ void MsckfVio::pruneCamStateBuffer() {
         involved_cam_state_ids.push_back(cam_id);
     }
 
-    if (involved_cam_state_ids.size() == 0) continue;
+    if (involved_cam_state_ids.size() == 0) {
+      std::cout << "continue 1" << std::endl;
+      continue;
+    } 
     if (involved_cam_state_ids.size() == 1) {
       feature.observations.erase(involved_cam_state_ids[0]);
+      std::cout << "continue 2" << std::endl;
       continue;
     }
 
@@ -1418,7 +1456,7 @@ void MsckfVio::publish() {
   // }
 
   // Added by Mike
-  std::cout << "Output Translation: " << T_b_w.translation() << std::endl;
+  std::cout << "Output Translation: " << imu_state.position.transpose() << std::endl;
 
   // Publish the odometry
   // nav_msgs::Odometry odom_msg;

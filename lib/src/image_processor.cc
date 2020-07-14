@@ -310,7 +310,7 @@ int ImageProcessor::UpdatePointsViaImu(const cv::cuda::GpuMat &d_current_pts,
 }
 
 int ImageProcessor::ProcessPoints(std::vector<cv::Point2f> pts_cam0,
-  std::vector<cv::Point2f> pts_cam1) {
+  std::vector<cv::Point2f> pts_cam1, std::vector<unsigned int> ids) {
 
   if (pts_cam0.size() != pts_cam1.size()) {
     std::cerr << "Error! points are not the same size!" << std::endl;
@@ -340,11 +340,42 @@ int ImageProcessor::ProcessPoints(std::vector<cv::Point2f> pts_cam0,
   std::vector<cv::Vec3f> vec;
   cv::convertPointsFromHomogeneous(output.t(), vec);
 
-  std::cout << "size of vec: " << vec.size() << std::endl;
-  if (vec.size() > 0) {
-    std::cout << "point 0 X,Y,Z: " << vec[0] << std::endl;
+
+  // Save the output ID / 3D position in the global map
+  unsigned int prev_pts_index = curr_pts_index_ ? 0 : 1;
+
+  points_3d_[curr_pts_index_].clear();
+  for (int i = 0; i < vec.size(); i++) {
+    points_3d_[curr_pts_index_][ids[i]] = vec[i];
   }
 
+  // Calculate the deltas from the last set of points to the current
+  unsigned int counter = 0;
+  cv::Vec3f diffs(0, 0.0, 0.0);
+  for (std::map<unsigned int, cv::Vec3f>::iterator it = points_3d_[curr_pts_index_].begin();
+    it != points_3d_[curr_pts_index_].end(); it++ ) {
+
+    std::map<unsigned int, cv::Vec3f>::iterator it_prev = points_3d_[prev_pts_index].find(
+      it->first);
+    if (it_prev != points_3d_[prev_pts_index].end()) {
+      diffs += (it->second - it_prev->second);
+      counter++;
+      std::cout << "diffs " << (it->second - it_prev->second) << std::endl;
+    }
+  }
+
+  if (counter != 0) {
+    diffs /= static_cast<float>(counter);
+    vio_sum_ += diffs;
+
+  }
+  // std::cout << "size of vec: " << vec.size() << std::endl;
+  if (vec.size() > 0) {
+    std::cout << "vio X,Y,Z: " << vio_sum_ << std::endl;
+  }
+
+  // Set the current index to the previous index for the next iteration
+  curr_pts_index_ = prev_pts_index;
   return 0;
 }
 
@@ -368,6 +399,14 @@ int ImageProcessor::OuputTrackedPoints(std::vector<cv::Point2f> pts_cam0,
     ImagePoint pt(ids[i], {pts_cam0[i].x, pts_cam0[i].y}, {pts_cam1[i].x, pts_cam1[i].y});
     output_points_.pts.push_back(pt);
   }
+
+  // Add the timestamp of the current IMU point so that VIO can associate data points more easily
+  std::lock_guard<std::mutex> lock_imu(imu_queue_mutex_);
+  if (!imu_queue_.empty()) {
+    output_points_.timestamp_imu_us = imu_queue_.front().timestamp_us;
+  }
+
+  std::cout << "Outputting points!\n";
 
   output_cond_var_.notify_one();
   return 0;
@@ -425,7 +464,7 @@ int ImageProcessor::ProcessThread() {
     system_clock::now();
 
   cv::Ptr<cv::cuda::CornersDetector> detector_ptr = cv::cuda::
-    createGoodFeaturesToTrackDetector(CV_8U, 1000, 0.05, 15);
+    createGoodFeaturesToTrackDetector(CV_8U, 2000, 0.15, 15);
 
   cv::Ptr<cv::cuda::SparsePyrLKOpticalFlow> d_opt_flow_cam0 = cv::cuda::
     SparsePyrLKOpticalFlow::create();
@@ -634,7 +673,8 @@ int ImageProcessor::ProcessThread() {
 
     // Signal this loop has finished and output the tracked points
     if (tracked_pts_cam0_t1.size() > 1 && tracked_pts_cam1_t1.size() > 1) {
-      OuputTrackedPoints(tracked_pts_cam0_t1, tracked_pts_cam1_t1, ids_tracked_t1);
+      // OuputTrackedPoints(tracked_pts_cam0_t1, tracked_pts_cam1_t1, ids_tracked_t1);
+      ProcessPoints(tracked_pts_cam0_t1, tracked_pts_cam0_t1, ids_tracked_t1);
     }
 
     // If requested, output the video stream to the configured gstreamer pipeline
@@ -655,7 +695,7 @@ int ImageProcessor::ProcessThread() {
       d_frame_cam1_t1.download(show_frame);
       if (draw_points_to_frame) {
         cv::cvtColor(show_frame, show_frame_color, cv::COLOR_GRAY2BGR);
-        DrawPoints(tracked_pts_cam0_t1, show_frame_color);
+        DrawPoints(tracked_pts_cam1_t1, show_frame_color);
       } else {
         show_frame_color = show_frame;
       }
@@ -1120,6 +1160,7 @@ int ImageProcessor::GenerateImuXform(int image_counter, cv::Matx33f &rotation_t0
     }
     imu_queue_.pop();
   }
+  last_imu_ts_us_ = current_frame_msgs.back().timestamp_us;
 
   // Continue processesing now we have the imu data from the appropriate image frame
   // We need at least 2 messages in order to run the integration

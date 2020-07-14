@@ -82,7 +82,7 @@ int main(int argc, char* argv[]) {
   image_processor.Init();
 
   msckf_vio::MsckfVio msckf_vio;
-  msckf_vio.loadParameters(fly_stereo_params["msckf_vio"]);
+  msckf_vio.initialize(fly_stereo_params["msckf_vio"]);
 
   std::thread imu_thread_obj(imu_thread, fly_stereo_params["mavlink_reader"], &image_processor,
     &msckf_vio);

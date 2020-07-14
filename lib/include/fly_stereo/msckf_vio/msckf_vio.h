@@ -13,6 +13,7 @@
 #include <vector>
 #include <string>
 #include <mutex>
+#include <queue>
 
 #include <Eigen/Dense>
 #include <Eigen/Geometry>
@@ -134,7 +135,7 @@ class MsckfVio {
     // Filter related functions
     // Propogate the state
     void batchImuProcessing(
-        const double& time_bound);
+        const uint64_t& time_bound);
     void processModel(const double& time,
         const Eigen::Vector3d& m_gyro,
         const Eigen::Vector3d& m_acc);
@@ -184,7 +185,7 @@ class MsckfVio {
     // IMU data buffer
     // This is buffer is used to handle the unsynchronization or
     // transfer delay between IMU and Image messages.
-    std::vector<mavlink_imu_t> imu_msg_buffer;
+    std::queue<mavlink_imu_t> imu_msg_buffer;
 
     // Indicate if the gravity vector is set.
     bool is_gravity_set;

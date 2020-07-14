@@ -17,6 +17,19 @@ Camera::Camera(YAML::Node input_params) {
   height_ = input_params["height"].as<int>();
   width_ = input_params["width"].as<int>();
   framerate_ = input_params["framerate"].as<int>();
+  if (input_params["auto_exposure"]) {
+    auto_exposure_ = true;
+    std::vector<unsigned int> tmp_vec;
+    tmp_vec = input_params["pixel_range_limits"].as<std::vector<unsigned int> >();
+    pixel_range_limits_[0] = tmp_vec[0];
+    pixel_range_limits_[1] = tmp_vec[1];
+    tmp_vec = input_params["exposure_limits"].as<std::vector<unsigned int> >();
+    exposure_limits_[0] = tmp_vec[0];
+    exposure_limits_[1] = tmp_vec[1];
+    num_frames_to_calc_ = input_params["num_frames_to_calc"].as<int>();
+  } else {
+    auto_exposure_ = false;
+  }
 }
 
 Camera::~Camera() {}
@@ -32,15 +45,23 @@ int Camera::Init() {
 
   // Enable the hardware trigger mode if requested
   if (hardware_trigger_mode_) {
-    std::string trigger_cmd("v4l2-ctl -d " + std::to_string(device_num_) + 
+    std::string trigger_cmd("v4l2-ctl -d " + std::to_string(device_num_) +
       " -c trigger_mode=1");
     system(trigger_cmd.c_str());
   }
 
-  std::string gain_cmd("v4l2-ctl -d " + std::to_string(device_num_) + 
+  return 0;
+}
+
+int Camera::UpdateGain() {
+  std::string gain_cmd("v4l2-ctl -d " + std::to_string(device_num_) +
     " -c gain=" + std::to_string(gain_));
   system(gain_cmd.c_str());
+  return 0;
+}
 
+
+int Camera::UpdateExposure() {
   std::string exposure_cmd("v4l2-ctl -d " + std::to_string(device_num_) +
     " -c exposure=" + std::to_string(exposure_time_));
   system(exposure_cmd.c_str());
@@ -69,7 +90,7 @@ int Camera::GetFrame(cv::Mat &frame) {
     return -1;
   }
 
-  cv::flip(frame, frame, flip_method_);
+  // cv::flip(frame, frame, flip_method_);
   return 0;
 }
 
@@ -79,6 +100,29 @@ int Camera::GetFrame(cv::cuda::GpuMat &frame) {
     return -1;
   }
   frame.upload(host_frame);
+
+  if (auto_exposure_) {
+    cv::Scalar mean, st_dev;
+    cv::cuda::meanStdDev(frame, mean, st_dev);
+
+    if (mean(0) < pixel_range_limits_[0]) {
+      if (exposure_time_ >= exposure_limits_[1]) {
+        gain_++;
+        UpdateGain();
+      } else {
+        exposure_time_ += 250;
+        UpdateExposure();
+      }
+    } else if (mean(0) > pixel_range_limits_[1]) {
+      if (exposure_time_ <= exposure_limits_[0]) {
+        gain_--;
+        UpdateGain();
+      } else {
+        exposure_time_ -= 250;
+        UpdateExposure();
+      }
+    }
+  }
   return 0;
 }
 
