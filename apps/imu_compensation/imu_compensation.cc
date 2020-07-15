@@ -1,4 +1,6 @@
 
+#include <getopt.h>
+#include <unistd.h>
 #include <iostream>
 #include <atomic>
 #include <signal.h>
@@ -38,6 +40,24 @@ int UpdatePointsViaImu(const std::vector<cv::Point2f> &current_pts, const cv::Ma
 }
 
 
+// Thread to collect the imu data and disperse it to all objects that need it
+void imu_thread(YAML::Node imu_reader_params, SensorInterface *sensor_interface) {
+  MavlinkReader mavlink_reader;
+  mavlink_reader.Init(imu_reader_params);
+
+  while(is_running.load()) {
+    mavlink_imu_t attitude;
+    // Get the next attitude message, block until we have one
+    if(mavlink_reader.GetAttitudeMsg(&attitude, true)) {
+      // Send the imu message to the image processor
+      sensor_interface->ReceiveImu(attitude);
+
+      // // Send the imu message to the vio object
+      // msckf_vio->imuCallback(attitude);
+    }
+  }
+}
+
 int main(int argc, char *argv[]) {
   std::cout << "PID of this process: " << getpid() << std::endl;
   signal(SIGINT, SignalHandler);
@@ -67,6 +87,7 @@ int main(int argc, char *argv[]) {
   SensorInterface sensor_interface;
   sensor_interface.Init(imu_comp_params["image_processor"]);
 
+  std::thread imu_thread_obj(imu_thread, imu_comp_params["mavlink_reader"], &sensor_interface);
 
   // Draw a box of points on the image
   std::vector<cv::Point2f> debug_pts_cam0;
@@ -108,9 +129,13 @@ int main(int argc, char *argv[]) {
 
   cv::Matx33f R_t0_t1_cam0, R_t0_t1_cam1;
   while (is_running.load()) {
+    imu_msgs.clear();
     sensor_interface.GetSynchronizedData(d_frame_cam0, d_frame_cam1, imu_msgs);
     sensor_interface.GenerateImuXform(imu_msgs, R_imu_cam0, R_imu_cam1, R_t0_t1_cam0,
       R_t0_t1_cam1);
+
+    if (imu_msgs.size() > 0)
+      std::cout << imu_msgs.size() << std::endl;
 
     cv::Mat show_frame_cam0, show_frame_cam1;
 

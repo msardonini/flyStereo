@@ -136,8 +136,8 @@ int SensorInterface::GenerateImuXform(const std::vector<mavlink_imu_t> &imu_msgs
     }
 
     delta_rpw[0] -= imu_msgs[i].gyroXYZ[0] * dt;
-    delta_rpw[1] += imu_msgs[i].gyroXYZ[1] * dt;
-    delta_rpw[2] += imu_msgs[i].gyroXYZ[2] * dt;
+    delta_rpw[1] -= imu_msgs[i].gyroXYZ[1] * dt;
+    delta_rpw[2] -= imu_msgs[i].gyroXYZ[2] * dt;
   }
   cv::Rodrigues(R_imu_cam0 * delta_rpw, rotation_t0_t1_cam0);
   cv::Rodrigues(R_imu_cam1 * delta_rpw, rotation_t0_t1_cam1);
