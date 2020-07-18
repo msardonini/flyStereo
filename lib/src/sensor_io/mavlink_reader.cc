@@ -97,9 +97,9 @@ int MavlinkReader::Init(YAML::Node input_params) {
   if (input_params["replay_imu_data_file"] && !input_params["replay_mode"].as<bool>()) {
     std::string replay_file = input_params["replay_imu_data_file"].as<std::string>();
 
-    replay_file_fd_ = open(replay_file.c_str(), O_RDWR | O_NOCTTY | O_NDELAY | O_CREAT);
-    int chmod_ret = chmod(replay_file.c_str(), S_IRWXU | S_IRWXG);
-    if (replay_file_fd_ <= 0 || chmod_ret < 0) {
+    replay_file_fd_ = open(replay_file.c_str(), O_RDWR | O_NOCTTY | O_NDELAY | O_CREAT, 0660);
+    // int chmod_ret = chmod(replay_file.c_str(), S_IRWXU | S_IRWXG);
+    if (replay_file_fd_ <= 0) {
       std::cerr << "error opening log file!\n";
     }
   }

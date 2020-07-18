@@ -18,10 +18,13 @@
 #include "opencv2/cudafeatures2d.hpp"
 #include "opencv2/cudaimgproc.hpp"
 #include "opencv2/cudaoptflow.hpp"
+#include "Eigen/Dense"
 #include "fly_stereo/sensor_io/mavlink/fly_stereo/mavlink.h"
+
 
 class ImageProcessor {
  public:
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
   ImageProcessor(const YAML::Node &input_params);
 
   // Forbit the unused constructors
@@ -72,10 +75,17 @@ class ImageProcessor {
   int RemovePointsOutOfFrame(const cv::Size framesize, const cv::cuda::GpuMat &d_points, 
     cv::cuda::GpuMat &d_status);
 
+  int GetInputMaskFromPoints(const cv::cuda::GpuMat &d_input_corners,
+  const cv::Size frame_size, cv::Mat &mask);
+  int DetectNewFeatures(const cv::Ptr<cv::cuda::FastFeatureDetector> &detector_ptr,
+    const cv::cuda::GpuMat &d_frame,
+    const cv::cuda::GpuMat &d_input_corners,
+    cv::cuda::GpuMat &d_output);
   int DetectNewFeatures(const cv::Ptr<cv::cuda::CornersDetector> &detector_ptr,
     const cv::cuda::GpuMat &d_frame,
     const cv::cuda::GpuMat &d_input_corners,
     cv::cuda::GpuMat &d_output);
+
 
   void rescalePoints(std::vector<cv::Point2f>& pts1, std::vector<cv::Point2f>& pts2,
     float& scaling_factor);
@@ -91,8 +101,9 @@ class ImageProcessor {
   int GenerateImuXform(const std::vector<mavlink_imu_t> &imu_msgs,
     cv::Matx33f &rotation_t0_t1_cam0, cv::Matx33f &rotation_t0_t1_cam1);
 
-  int ProcessPoints(std::vector<cv::Point2f> pts_cam0, std::vector<cv::Point2f> pts_cam1,
-    std::vector<unsigned int> ids);
+  int ProcessPoints(std::vector<cv::Point2f> pts_cam0_t0, std::vector<cv::Point2f>
+  pts_cam0_t1, std::vector<cv::Point2f> pts_cam1_t0, std::vector<cv::Point2f> pts_cam1_t1,
+  std::vector<unsigned int> ids);
 
   int OuputTrackedPoints(std::vector<cv::Point2f> pts_cam0, std::vector<cv::Point2f> pts_cam1,
     std::vector<unsigned int> ids);
@@ -149,6 +160,7 @@ class ImageProcessor {
   unsigned int curr_pts_index_ = 0;
   std::array<std::map<unsigned int, cv::Vec3f>, 2 > points_3d_;
   cv::Vec3f vio_sum_ = cv::Vec3f(0.0, 0.0, 0.0);
+  Eigen::MatrixXd pose_;
 };
 
 #endif  // INCLUDE_FLY_STEREO_IMAGE_PROCESSOR_H_
