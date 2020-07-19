@@ -42,6 +42,7 @@ int SensorInterface::GetSynchronizedData(cv::cuda::GpuMat &d_frame_cam0,
       return -1;
   }
   
+  imu_data.clear();
   AssociateImuData(imu_data);
   image_counter_++;
   return 0;
@@ -100,12 +101,20 @@ int SensorInterface::AssociateImuData(std::vector<mavlink_imu_t> &imu_msgs) {
   // take all the imu measurements that correspond to the current frame minus 1
   int image_of_interest = image_counter_ - 1;
   std::lock_guard<std::mutex> lock(imu_queue_mutex_);
+
+  // Do a sanity check that we didn't miss a bunch of IMU messages, or sometimes a message from a 
+  // previous recording makes it into the front of our queueu
+  if (image_of_interest + 3 < imu_queue_.front().trigger_count) {
+    std::cerr << "Error! Missed IMU messages" << std::endl;
+    imu_queue_.pop();
+  }
   while (!imu_queue_.empty() && imu_queue_.front().trigger_count <= image_of_interest) {
     if (imu_queue_.front().trigger_count == image_of_interest) {
       imu_msgs.push_back(imu_queue_.front());
     }
     imu_queue_.pop();
   }
+  return 0;
 }
 
 int SensorInterface::GenerateImuXform(const std::vector<mavlink_imu_t> &imu_msgs,

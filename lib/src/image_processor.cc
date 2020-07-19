@@ -537,6 +537,7 @@ int ImageProcessor::ProcessThread() {
 
   int counter = 0;
   int error_counter = 0;
+  int debug_num_pts[4];
   std::chrono::time_point<std::chrono::system_clock> time_end = std::chrono::
     system_clock::now();
 
@@ -548,11 +549,9 @@ int ImageProcessor::ProcessThread() {
   cv::Ptr<cv::cuda::SparsePyrLKOpticalFlow> d_opt_flow_cam0 = cv::cuda::
     SparsePyrLKOpticalFlow::create(cv::Size(21, 21), 3, 30, true);
   cv::Ptr<cv::cuda::SparsePyrLKOpticalFlow> d_opt_flow_cam1 = cv::cuda::
-    SparsePyrLKOpticalFlow::create(cv::Size(21, 21), 3, 30, true);
+    SparsePyrLKOpticalFlow::create(cv::Size(21, 21), 3, 30, false);
   cv::Ptr<cv::cuda::SparsePyrLKOpticalFlow> d_opt_flow_cam1_temp = cv::cuda::
     SparsePyrLKOpticalFlow::create(cv::Size(21, 21), 3, 30, true);
-
-
 
   while (is_running_.load()) {
     // Trigger the camera to start acquiring an image
@@ -576,6 +575,9 @@ int ImageProcessor::ProcessThread() {
     cv::Matx33f rotation_t0_t1_cam1;
     int retval = sensor_interface_->GenerateImuXform(imu_msgs, R_imu_cam0_, R_imu_cam1_,
       rotation_t0_t1_cam0, rotation_t0_t1_cam1);
+
+    std::cout << rotation_t0_t1_cam0 << std::endl;
+    std::cout << imu_msgs.size() << std::endl;
 
     // if (retval == 0) {
     //   // cv::cuda::GpuMat tmp;
@@ -608,6 +610,8 @@ int ImageProcessor::ProcessThread() {
       std::cerr << "Error receiving IMU transform" << std::endl;
       continue;
     }
+
+    debug_num_pts[0] = d_tracked_pts_cam0_t1.cols;
     /*********************************************************************
     * Apply the optical flow from the previous frame to the current frame
     *********************************************************************/
@@ -638,6 +642,7 @@ int ImageProcessor::ProcessThread() {
         std::cout << "RemoveOutliers failed after Tracking\n" << std::endl;
         return -1;
       }
+      debug_num_pts[1] = d_tracked_pts_cam0_t1.cols;
 
       // Match the points from camera 0 to camera 1
       int ret_val = StereoMatch(d_opt_flow_cam1, d_frame_cam0_t1, d_frame_cam1_t1,
@@ -661,6 +666,7 @@ int ImageProcessor::ProcessThread() {
           return -1;
         }
       }
+      debug_num_pts[2] = d_tracked_pts_cam0_t1.cols;
 
       // Perform a check to make sure that all of our tracked vectors are the same length,
       // otherwise something is wrong
@@ -708,6 +714,7 @@ int ImageProcessor::ProcessThread() {
             RemoveOutliers(status, ids_tracked_t1)) {
           std::cout << "RemoveOutliers failed after Ransac\n" << std::endl;
         }
+        debug_num_pts[3] = tracked_pts_cam0_t1.size();
         // std::cout <<" after RANSAC " << tracked_pts_cam0_t1.size() << std::endl;
       }
     } else {
@@ -756,8 +763,9 @@ int ImageProcessor::ProcessThread() {
     }
 
     std::cout << "num points: cam0 " << d_tracked_pts_cam0_t1.cols << " cam1 " <<
-      d_tracked_pts_cam1_t1.cols << std::endl;
-
+      d_tracked_pts_cam1_t1.cols << " start: " << debug_num_pts[0] << " tracking: " <<
+      debug_num_pts[1] << " matching: " << debug_num_pts[2] << " ransac: " << debug_num_pts[3]
+      << std::endl;
 
     // Signal this loop has finished and output the tracked points
     if (tracked_pts_cam0_t1.size() > 1 && tracked_pts_cam1_t1.size() > 1) {
@@ -834,8 +842,8 @@ int ImageProcessor::StereoMatch(cv::Ptr<cv::cuda::SparsePyrLKOpticalFlow> opt,
   // cv::projectPoints(homogenous_pts, cv::Vec3d::zeros(), cv::Vec3d::zeros(),
   //   K_cam1_, D_cam1_, corners_cam1_t1_);
 
-  cv::fisheye::projectPoints(homogenous_pts, tracked_pts_cam1_t1,
-    cv::Vec3d::zeros(), cv::Vec3d::zeros(), K_cam1_, D_cam1_);
+  cv::fisheye::projectPoints(homogenous_pts, tracked_pts_cam1_t1, cv::Vec3d::zeros(),
+    cv::Vec3d::zeros(), K_cam1_, D_cam1_);
 
   d_tracked_pts_cam1.upload(tracked_pts_cam1_t1);
 

@@ -92,8 +92,8 @@ fly_stereo:
 
     goodFeaturesToTrack:
       max_corners: 2000
-      quality_level: 0.1
-      min_dist: 10.0
+      quality_level: 0.15
+      min_dist: 15.0
 
     calcOpticalFlowPyrLK:
       window_size: 21
