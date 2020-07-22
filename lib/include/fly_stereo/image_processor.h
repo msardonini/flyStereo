@@ -93,7 +93,7 @@ class ImageProcessor {
   int twoPointRansac(
     const std::vector<cv::Point2f>& pts1, const std::vector<cv::Point2f>& pts2,
     const cv::Matx33f& R_p_c, const cv::Matx33d& intrinsics,
-    const cv::Vec4d& distortion_coeffs,
+    const std::vector<double>& distortion_coeffs,
     const double& inlier_error,
     const double& success_probability,
     std::vector<uchar>& inlier_markers);
@@ -137,10 +137,10 @@ class ImageProcessor {
   // Stereo Camera Parameters
   cv::Matx33d K_cam0_;
   cv::Matx33d K_cam1_;
-  cv::Vec4d D_cam0_;
-  cv::Vec4d D_cam1_;
+  std::vector<double> D_cam0_;
+  std::vector<double> D_cam1_;
   cv::Matx33d R_cam0_cam1_;
-  cv::Vec3f T_cam0_cam1_;
+  cv::Vec3d T_cam0_cam1_;
   cv::Matx33d E_;
   cv::Matx33d F_;
   cv::Matx33d R_cam0_;
@@ -161,6 +161,7 @@ class ImageProcessor {
   std::array<std::map<unsigned int, cv::Vec3f>, 2 > points_3d_;
   cv::Vec3f vio_sum_ = cv::Vec3f(0.0, 0.0, 0.0);
   Eigen::MatrixXd pose_;
+  Eigen::MatrixXd prev_xform_;
 };
 
 #endif  // INCLUDE_FLY_STEREO_IMAGE_PROCESSOR_H_

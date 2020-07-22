@@ -12,6 +12,11 @@
 #include "opengv/types.hpp"
 #include "opengv/relative_pose/methods.hpp"
 #include "opengv/relative_pose/NoncentralRelativeAdapter.hpp"
+#include "opengv/relative_pose/CentralRelativeAdapter.hpp"
+#include "opengv/triangulation/methods.hpp"
+
+
+std::vector<cv::Point2f> debug_pts_match;
 
 ImageProcessor::ImageProcessor(const YAML::Node &input_params) {
   // Params for OpenCV function goodFeaturesToTrack
@@ -32,23 +37,21 @@ ImageProcessor::ImageProcessor(const YAML::Node &input_params) {
   // Load the stereo calibration
   YAML::Node stereo_calibration = input_params["stereo_calibration"];
 
-  std::vector<double> interface_vec = stereo_calibration["K1"]["data"].as<
+  std::vector<double> interface_vec = stereo_calibration["K0"]["data"].as<
     std::vector<double>>();
   K_cam0_ = cv::Matx33d(interface_vec.data());
 
-  interface_vec = stereo_calibration["K2"]["data"].as<std::vector<double>>();
+  interface_vec = stereo_calibration["K1"]["data"].as<std::vector<double>>();
   K_cam1_ = cv::Matx33d(interface_vec.data());
 
-  interface_vec = stereo_calibration["D1"]["data"].as<std::vector<double>>();
-  D_cam0_ = cv::Vec4d(interface_vec.data());
+  D_cam0_ = stereo_calibration["D0"]["data"].as<std::vector<double>>();
 
-  interface_vec = stereo_calibration["D2"]["data"].as<std::vector<double>>();
-  D_cam1_ = cv::Vec4d(interface_vec.data());
+  D_cam1_ = stereo_calibration["D1"]["data"].as<std::vector<double>>();
 
   interface_vec = stereo_calibration["R"]["data"].as<std::vector<double>>();
   R_cam0_cam1_ = cv::Matx33d(interface_vec.data());
 
-  interface_vec = stereo_calibration["T"].as<std::vector<double>>();
+  interface_vec = stereo_calibration["T"]["data"].as<std::vector<double>>();
   T_cam0_cam1_ = cv::Vec3d(interface_vec.data());
 
   // Calculate the essential matrix and fundamental matrix
@@ -60,20 +63,20 @@ ImageProcessor::ImageProcessor(const YAML::Node &input_params) {
   E_ = T_cross_mat * R_cam0_cam1_;
   F_ = K_cam0_.inv().t() * E_ * K_cam1_.inv();
 
-  interface_vec = stereo_calibration["R1"]["data"].as<std::vector<double>>();
-  R_cam0_ = cv::Matx33d(interface_vec.data());
+  // interface_vec = stereo_calibration["R1"]["data"].as<std::vector<double>>();
+  // R_cam0_ = cv::Matx33d(interface_vec.data());
 
-  interface_vec = stereo_calibration["R2"]["data"].as<std::vector<double>>();
-  R_cam1_ = cv::Matx33d(interface_vec.data());
+  // interface_vec = stereo_calibration["R2"]["data"].as<std::vector<double>>();
+  // R_cam1_ = cv::Matx33d(interface_vec.data());
 
-  interface_vec = stereo_calibration["P1"]["data"].as<std::vector<double>>();
-  P_cam0_ = cv::Matx34d(interface_vec.data());
+  // interface_vec = stereo_calibration["P1"]["data"].as<std::vector<double>>();
+  // P_cam0_ = cv::Matx34d(interface_vec.data());
 
-  interface_vec = stereo_calibration["P2"]["data"].as<std::vector<double>>();
-  P_cam1_ = cv::Matx34d(interface_vec.data());
+  // interface_vec = stereo_calibration["P2"]["data"].as<std::vector<double>>();
+  // P_cam1_ = cv::Matx34d(interface_vec.data());
 
-  interface_vec = stereo_calibration["Q"]["data"].as<std::vector<double>>();
-  Q_ = cv::Matx44d(interface_vec.data());
+  // interface_vec = stereo_calibration["Q"]["data"].as<std::vector<double>>();
+  // Q_ = cv::Matx44d(interface_vec.data());
 
 
   std::vector<float> imu_cam0_vec = stereo_calibration["debug_vec"].as<std::vector<float>>();
@@ -85,6 +88,7 @@ ImageProcessor::ImageProcessor(const YAML::Node &input_params) {
   std::cout << R_imu_cam0_ << std::endl;
 
   pose_ = Eigen::Matrix4d::Identity();
+  prev_xform_ = Eigen::Matrix4d::Identity();
 
   // Make a copy of our configuration for later use
   input_params_ = input_params;
@@ -296,23 +300,43 @@ int ImageProcessor::ProcessPoints(std::vector<cv::Point2f> pts_cam0_t0, std::vec
     return -1;
   }
 
-  if (num_pts_cam0_t0 < 17) {
+  if (num_pts_cam0_t0 < 6) {
     std::cout << "Not enough points for algorithm!" << std::endl;
     return 0;
   }
 
+  // pts_cam0_t1.clear();
+  // pts_cam0_t1.push_back(cv::Point2f(629, 397));
+  // pts_cam0_t1.push_back(cv::Point2f(1162, 347));
+  // pts_cam0_t1.push_back(cv::Point2f(625, 674));
+
   // Cast all of our paramters to floating points for this function
   cv::Matx33f K_cam0 = static_cast<cv::Matx33f>(K_cam0_);
   cv::Matx33f K_cam1 = static_cast<cv::Matx33f>(K_cam1_);
-  cv::Matx34f P_cam0 = static_cast<cv::Matx34f>(P_cam0_);
-  cv::Matx34f P_cam1 = static_cast<cv::Matx34f>(P_cam1_);
-  cv::Vec4f D_cam0 = static_cast<cv::Vec4f>(D_cam0_);
-  cv::Vec4f D_cam1 = static_cast<cv::Vec4f>(D_cam1_);
+  // cv::Matx34f P_cam0 = static_cast<cv::Matx34f>(P_cam0_);
+  // cv::Matx34f P_cam1 = static_cast<cv::Matx34f>(P_cam1_);
+  // cv::Vec4f D_cam0 = static_cast<cv::Vec4f>(D_cam0_);
+  // cv::Vec4f D_cam1 = static_cast<cv::Vec4f>(D_cam1_);
 
-  cv::fisheye::undistortPoints(pts_cam0_t0, pts_cam0_t0, K_cam0, D_cam0, R_cam0_, P_cam0);
-  cv::fisheye::undistortPoints(pts_cam0_t1, pts_cam0_t1, K_cam0, D_cam0, R_cam0_, P_cam0);
-  cv::fisheye::undistortPoints(pts_cam1_t0, pts_cam1_t0, K_cam1, D_cam1, R_cam1_, P_cam1);
-  cv::fisheye::undistortPoints(pts_cam1_t1, pts_cam1_t1, K_cam1, D_cam1, R_cam1_, P_cam1);
+  std::vector<cv::Point2f> pts_cam0_t0_ud;
+  std::vector<cv::Point2f> pts_cam0_t1_ud;
+  std::vector<cv::Point2f> pts_cam1_t0_ud;
+  std::vector<cv::Point2f> pts_cam1_t1_ud;
+
+  cv::undistortPoints(pts_cam0_t0, pts_cam0_t0_ud, K_cam0, D_cam0_);
+  cv::undistortPoints(pts_cam0_t1, pts_cam0_t1_ud, K_cam0, D_cam0_);
+  cv::undistortPoints(pts_cam1_t0, pts_cam1_t0_ud, K_cam1, D_cam1_);
+  cv::undistortPoints(pts_cam1_t1, pts_cam1_t1_ud, K_cam1, D_cam1_);
+
+  std::vector<cv::Vec3f> xform_vec_cam0_t0;
+  std::vector<cv::Vec3f> xform_vec_cam0_t1;
+  std::vector<cv::Vec3f> xform_vec_cam1_t0;
+  std::vector<cv::Vec3f> xform_vec_cam1_t1;
+
+  cv::convertPointsToHomogeneous(pts_cam0_t0_ud, xform_vec_cam0_t0);
+  cv::convertPointsToHomogeneous(pts_cam0_t1_ud, xform_vec_cam0_t1);
+  cv::convertPointsToHomogeneous(pts_cam1_t0_ud, xform_vec_cam1_t0);
+  cv::convertPointsToHomogeneous(pts_cam1_t1_ud, xform_vec_cam1_t1);
 
   opengv::bearingVectors_t bearing_vectors0;
   opengv::bearingVectors_t bearing_vectors1;
@@ -321,77 +345,111 @@ int ImageProcessor::ProcessPoints(std::vector<cv::Point2f> pts_cam0_t0, std::vec
 
   for (int i = 0; i < pts_cam0_t0.size(); i++) {
     opengv::bearingVector_t tmp_cam0;
-    tmp_cam0 << (pts_cam0_t0[i].x -  K_cam0_(0, 2)) / K_cam0_(0, 0), (pts_cam0_t0[i].y - K_cam0_(1, 2)) / K_cam0_(1, 1), 1;
-    tmp_cam0 /= tmp_cam0.norm();
-    bearing_vectors0.push_back(tmp_cam0);
-    cam_correspondences0.push_back(0);
+    // cv::cv2eigen(static_cast<cv::Vec3d>(xform_vec_cam0_t0[i]), tmp_cam0);
+    // // tmp_cam0 /= tmp_cam0.norm();
+    // bearing_vectors0.push_back(tmp_cam0);
+    // cam_correspondences0.push_back(0);
 
     // bearingVector_t tmp_cam0;
-    tmp_cam0 << (pts_cam0_t1[i].x - K_cam0_(0, 2)) / K_cam0_(0, 0), (pts_cam0_t1[i].y -
-      K_cam0_(1, 2)) / K_cam0_(1, 1), 1;
-    tmp_cam0 /= tmp_cam0.norm();
-    bearing_vectors1.push_back(tmp_cam0);
+    cv::cv2eigen(static_cast<cv::Vec3d>(xform_vec_cam0_t1[i]), tmp_cam0);
+    // tmp_cam0 /= tmp_cam0.norm();
+    bearing_vectors0.push_back(tmp_cam0);
     cam_correspondences1.push_back(0);
 
     opengv::bearingVector_t tmp_cam1;
-    tmp_cam1 << (pts_cam1_t0[i].x - K_cam1_(0, 2)) / K_cam1_(0, 0), (pts_cam1_t0[i].y - K_cam1_(1, 2)) / K_cam1_(1, 1), 1;
-    tmp_cam1 /= tmp_cam1.norm();
-    bearing_vectors0.push_back(tmp_cam1);
-    cam_correspondences0.push_back(1);
+    // cv::cv2eigen(static_cast<cv::Vec3d>(xform_vec_cam1_t0[i]), tmp_cam1);
+    // // tmp_cam1 /= tmp_cam1.norm();
+    // bearing_vectors0.push_back(tmp_cam1);
+    // cam_correspondences0.push_back(1);
 
-    tmp_cam1 << (pts_cam1_t1[i].x - K_cam1_(0, 2)) / K_cam1_(0, 0), (pts_cam1_t1[i].y - K_cam1_(1, 2)) / K_cam1_(1, 1), 1;
-    tmp_cam1 /= tmp_cam1.norm();
+    cv::cv2eigen(static_cast<cv::Vec3d>(xform_vec_cam1_t1[i]), tmp_cam1);
+    // tmp_cam1 /= tmp_cam1.norm();
     bearing_vectors1.push_back(tmp_cam1);
     cam_correspondences1.push_back(1);
   }
 
   //Extract the relative pose
-  opengv::translation_t position = Eigen::Vector3d::Zero(); opengv::rotation_t rotation = Eigen::Matrix3d::Identity();
+  opengv::translation_t position = Eigen::Vector3d::Zero(); opengv::rotation_t rotation = Eigen::
+    Matrix3d::Identity();
 
-  opengv::translations_t camOffsets;
-  opengv::rotations_t camRotations;
+  Eigen::MatrixXd cam1_offset;
+  Eigen::Matrix3d cam1_rot;
+  cv::cv2eigen(T_cam0_cam1_, cam1_offset);
+  cv::cv2eigen(R_cam0_cam1_, cam1_rot);
 
-  camOffsets.push_back(Eigen::Vector3d::Zero());
-  camRotations.push_back(Eigen::Matrix3d::Identity());
-
-  Eigen::Matrix3d R; cv::cv2eigen(R_cam0_cam1_, R);
-  Eigen::MatrixXf T; cv::cv2eigen(T_cam0_cam1_, T);
-  camRotations.push_back(R);
-  camOffsets.push_back(T.cast<double>());
-
-  //create non-central relative adapter
-  opengv::relative_pose::NoncentralRelativeAdapter adapter(
+  opengv::relative_pose::CentralRelativeAdapter adapter(
     bearing_vectors0,
     bearing_vectors1,
-    cam_correspondences0,
-    cam_correspondences1,
-    camOffsets,
-    camRotations);
-    // position,
-    // rotation);
+    cam1_offset,
+    cam1_rot);
 
-  std::vector<int> indices17;
-  for (int i = 0; i < 6; i++)
-    indices17.push_back(i);
-
-  opengv::transformation_t seventeenpt_transformation_all;
-  opengv::rotations_t rotations;
-  for(size_t i = 0; i < 1; i++) {
-    // std::cout << "i: " << i << std::endl;
-    // rotations = opengv::relative_pose::sixpt(adapter, indices17);
-    // seventeenpt_transformation_all = opengv::relative_pose::optimize_nonlinear(adapter);
-    seventeenpt_transformation_all = opengv::relative_pose::seventeenpt(adapter);
+  unsigned int num_pts = pts_cam0_t0.size();
+  Eigen::MatrixXd triangulate_results(3, num_pts);
+  std::cout << "Triangulation output! \n";
+  for(size_t i = 0; i < num_pts; i++) {
+    triangulate_results.block<3,1>(0, i) = opengv::triangulation::triangulate(adapter, i);
+    std::cout << triangulate_results.block<3,1>(0, i).transpose() << std::endl;
   }
 
+
+  // opengv::translations_t camOffsets;
+  // opengv::rotations_t camRotations;
+
+  // camOffsets.push_back(Eigen::Vector3d::Zero());
+  // camRotations.push_back(Eigen::Matrix3d::Identity());
+
+  // Eigen::Matrix3d R; cv::cv2eigen(R_cam0_cam1_, R);
+  // Eigen::MatrixXf T; cv::cv2eigen(T_cam0_cam1_, T);
+  // camRotations.push_back(R.transpose());
+  // camOffsets.push_back(-T.cast<double>());
+
+  // //create non-central relative adapter
+  // opengv::relative_pose::NoncentralRelativeAdapter adapter(
+  //   bearing_vectors0,
+  //   bearing_vectors1,
+  //   cam_correspondences0,
+  //   cam_correspondences1,
+  //   camOffsets,
+  //   camRotations);
+  //   position,
+  //   rotation);
+
+  // std::vector<int> indices17;
+  // for (int i = 0; i < 6; i++)
+  //   indices17.push_back(i);
+
+  // opengv::transformation_t seventeenpt_transformation_all;
+  // opengv::rotations_t rotations;
+  // opengv::geOutput_t output;
+  // for(size_t i = 0; i < 1; i++) {
+  //   // std::cout << "i: " << i << std::endl;
+  //   // rotations = opengv::relative_pose::sixpt(adapter, indices17);
+  //   // seventeenpt_transformation_all = opengv::relative_pose::optimize_nonlinear(adapter);
+  //   seventeenpt_transformation_all = opengv::relative_pose::seventeenpt(adapter);
+
+  //   // generalized eigensolver (over all points)
+  //   // opengv::relative_pose::ge(adapter, output);
+
+  // }
+
+  // Eigen::Matrix4d delta_xform = Eigen::Matrix4d::Identity();
+  // delta_xform.block<3,3>(0, 0) = output.rotation;
+  // Eigen::Vector3d tmp = output.translation.block<3,1>(0,0);
+  // delta_xform.block<3,1>(0, 3) = tmp;
   // Update our position & rotation
-  Eigen::Matrix4d delta_xform = Eigen::Matrix4d::Identity();
-  delta_xform.block<3,4>(0, 0) = seventeenpt_transformation_all;
-  pose_ = delta_xform * pose_;
+  // delta_xform.block<3,4>(0, 0) = seventeenpt_transformation_all;
+  
 
-  std::cout << "output transformation: \n" << pose_ << std::endl;
+  // pose_ = pose_ * delta_xform ;
 
-  // cv::Mat tmp_cam0(pts_cam0);
-  // cv::Mat tmp_cam1(pts_cam1);
+
+  // std::cout << "output transformation: \n" << pose_ << std::endl;
+
+  // prev_xform_ = delta_xform;
+
+
+  // cv::Mat tmp_cam0(pts_cam0_t1);
+  // cv::Mat tmp_cam1(pts_cam1_t1);
   // cv::Mat output;
 
   // cv::triangulatePoints(P_cam0, P_cam1, tmp_cam0, tmp_cam1, output);
@@ -420,7 +478,7 @@ int ImageProcessor::ProcessPoints(std::vector<cv::Point2f> pts_cam0_t0, std::vec
   //   if (it_prev != points_3d_[prev_pts_index].end()) {
   //     diffs += (it->second - it_prev->second);
   //     counter++;
-  //     std::cout << "diffs " << (it->second - it_prev->second) << std::endl;
+  //     // std::cout << "diffs " << (it->second - it_prev->second) << std::endl;
   //     diffs_vec.push_back(it->second - it_prev->second);
   //   }
   // }
@@ -537,7 +595,7 @@ int ImageProcessor::ProcessThread() {
 
   int counter = 0;
   int error_counter = 0;
-  int debug_num_pts[4];
+  int debug_num_pts[6];
   std::chrono::time_point<std::chrono::system_clock> time_end = std::chrono::
     system_clock::now();
 
@@ -549,7 +607,7 @@ int ImageProcessor::ProcessThread() {
   cv::Ptr<cv::cuda::SparsePyrLKOpticalFlow> d_opt_flow_cam0 = cv::cuda::
     SparsePyrLKOpticalFlow::create(cv::Size(21, 21), 3, 30, true);
   cv::Ptr<cv::cuda::SparsePyrLKOpticalFlow> d_opt_flow_cam1 = cv::cuda::
-    SparsePyrLKOpticalFlow::create(cv::Size(21, 21), 3, 30, false);
+    SparsePyrLKOpticalFlow::create(cv::Size(21, 21), 3, 30, true);
   cv::Ptr<cv::cuda::SparsePyrLKOpticalFlow> d_opt_flow_cam1_temp = cv::cuda::
     SparsePyrLKOpticalFlow::create(cv::Size(21, 21), 3, 30, true);
 
@@ -576,8 +634,8 @@ int ImageProcessor::ProcessThread() {
     int retval = sensor_interface_->GenerateImuXform(imu_msgs, R_imu_cam0_, R_imu_cam1_,
       rotation_t0_t1_cam0, rotation_t0_t1_cam1);
 
-    std::cout << rotation_t0_t1_cam0 << std::endl;
-    std::cout << imu_msgs.size() << std::endl;
+    // std::cout << rotation_t0_t1_cam0 << std::endl;
+    // std::cout << imu_msgs.size() << std::endl;
 
     // if (retval == 0) {
     //   // cv::cuda::GpuMat tmp;
@@ -611,7 +669,7 @@ int ImageProcessor::ProcessThread() {
       continue;
     }
 
-    debug_num_pts[0] = d_tracked_pts_cam0_t1.cols;
+    debug_num_pts[0] = d_tracked_pts_cam0_t0.cols;
     /*********************************************************************
     * Apply the optical flow from the previous frame to the current frame
     *********************************************************************/
@@ -714,7 +772,6 @@ int ImageProcessor::ProcessThread() {
             RemoveOutliers(status, ids_tracked_t1)) {
           std::cout << "RemoveOutliers failed after Ransac\n" << std::endl;
         }
-        debug_num_pts[3] = tracked_pts_cam0_t1.size();
         // std::cout <<" after RANSAC " << tracked_pts_cam0_t1.size() << std::endl;
       }
     } else {
@@ -735,11 +792,12 @@ int ImageProcessor::ProcessThread() {
       else
         tracked_pts_cam1_t0.clear();
     }
-
+    debug_num_pts[3] = tracked_pts_cam0_t1.size();
     /*********************************************************************
     * Detect new features for the next iteration
     *********************************************************************/
     DetectNewFeatures(detector_ptr, d_frame_cam0_t1, d_tracked_pts_cam0_t1, d_keypoints_cam0_t1);
+    debug_num_pts[4] = d_keypoints_cam0_t1.cols;
     // Match the detected features in the second camera
     d_keypoints_cam1_t1.release();
     StereoMatch(d_opt_flow_cam1_temp, d_frame_cam0_t1, d_frame_cam1_t1,
@@ -754,6 +812,7 @@ int ImageProcessor::ProcessThread() {
         std::cout << "RemoveOutliers failed after Detection\n" << std::endl;
         return -1;
       }
+      debug_num_pts[5] = d_keypoints_cam0_t1.cols;
     }
     // Fill in the ids vector with our new detected features
     ids_detected_t1.clear();
@@ -764,7 +823,7 @@ int ImageProcessor::ProcessThread() {
 
     std::cout << "num points: cam0 " << d_tracked_pts_cam0_t1.cols << " cam1 " <<
       d_tracked_pts_cam1_t1.cols << " start: " << debug_num_pts[0] << " tracking: " <<
-      debug_num_pts[1] << " matching: " << debug_num_pts[2] << " ransac: " << debug_num_pts[3]
+      debug_num_pts[1] << " matching: " << debug_num_pts[2] << " ransac: " << debug_num_pts[3] << " detection: " << debug_num_pts[4] << " detection matching: " << debug_num_pts[5]
       << std::endl;
 
     // Signal this loop has finished and output the tracked points
@@ -776,6 +835,7 @@ int ImageProcessor::ProcessThread() {
 
     // If requested, output the video stream to the configured gstreamer pipeline
     if (sensor_interface_->cam0_->OutputEnabled()) {
+      std::cout << "camera 0 \n";
       cv::Mat show_frame, show_frame_color;
       d_frame_cam0_t1.download(show_frame);
       if (draw_points_to_frame) {
@@ -788,16 +848,19 @@ int ImageProcessor::ProcessThread() {
       sensor_interface_->cam0_->SendFrame(show_frame_color);
     }
     if (sensor_interface_->cam1_->OutputEnabled()) {
+      std::cout << "camera 1 \n";
       cv::Mat show_frame, show_frame_color;
       d_frame_cam1_t1.download(show_frame);
       if (draw_points_to_frame) {
         cv::cvtColor(show_frame, show_frame_color, cv::COLOR_GRAY2BGR);
+        // sensor_interface_->DrawPoints(debug_pts_match, show_frame_color);
         sensor_interface_->DrawPoints(tracked_pts_cam1_t1, show_frame_color);
       } else {
         show_frame_color = show_frame;
       }
       sensor_interface_->cam1_->SendFrame(show_frame_color);
     }
+
 
     // Set the current t1 values to t0 for the next iteration
     d_frame_cam0_t0 = d_frame_cam0_t1.clone();
@@ -834,7 +897,7 @@ int ImageProcessor::StereoMatch(cv::Ptr<cv::cuda::SparsePyrLKOpticalFlow> opt,
   std::vector<cv::Point2f> tracked_pts_cam1_t1;
   d_tracked_pts_cam0.download(tracked_pts_cam0_t1);
 
-  cv::fisheye::undistortPoints(tracked_pts_cam0_t1, tracked_pts_cam1_t1,
+  cv::undistortPoints(tracked_pts_cam0_t1, tracked_pts_cam1_t1,
     K_cam0_, D_cam0_, R_cam0_cam1_);
 
   std::vector<cv::Point3f> homogenous_pts;
@@ -842,12 +905,15 @@ int ImageProcessor::StereoMatch(cv::Ptr<cv::cuda::SparsePyrLKOpticalFlow> opt,
   // cv::projectPoints(homogenous_pts, cv::Vec3d::zeros(), cv::Vec3d::zeros(),
   //   K_cam1_, D_cam1_, corners_cam1_t1_);
 
-  cv::fisheye::projectPoints(homogenous_pts, tracked_pts_cam1_t1, cv::Vec3d::zeros(),
-    cv::Vec3d::zeros(), K_cam1_, D_cam1_);
+  cv::projectPoints(homogenous_pts, cv::Vec3d(0, 0, 0), cv::Vec3d(0, 0, 0), K_cam1_, D_cam1_, tracked_pts_cam1_t1);
 
   d_tracked_pts_cam1.upload(tracked_pts_cam1_t1);
 
   opt->calc(d_frame_cam0, d_frame_cam1, d_tracked_pts_cam0, d_tracked_pts_cam1, d_status);
+
+
+  // TODO: Remove
+  d_tracked_pts_cam1.download(debug_pts_match);
 
   // Check if we have zero tracked points, this is a corner case and these variables need
   // to be reset to prevent errors in sizing, calc() does not return all zero length vectors
@@ -868,11 +934,23 @@ int ImageProcessor::StereoMatch(cv::Ptr<cv::cuda::SparsePyrLKOpticalFlow> opt,
 
   std::vector<cv::Point2f> tracked_pts_cam0_t1_undistorted(0);
   std::vector<cv::Point2f> tracked_pts_cam1_t1_undistorted(0);
-  cv::fisheye::undistortPoints(tracked_pts_cam0_t1,
-    tracked_pts_cam0_t1_undistorted, K_cam0_, D_cam0_, cv::Mat(), P_cam0_);
-  cv::fisheye::undistortPoints(tracked_pts_cam1_t1,
-    tracked_pts_cam1_t1_undistorted, K_cam1_, D_cam1_, cv::Mat(), P_cam1_);
+  cv::undistortPoints(tracked_pts_cam0_t1,
+    tracked_pts_cam0_t1_undistorted, K_cam0_, D_cam0_);
+  cv::undistortPoints(tracked_pts_cam1_t1,
+    tracked_pts_cam1_t1_undistorted, K_cam1_, D_cam1_);
 
+
+  std::vector<cv::Vec3f> pts_cam0_und(tracked_pts_cam0_t1_undistorted.size());
+  std::vector<cv::Vec3f> pts_cam1_und(tracked_pts_cam1_t1_undistorted.size());
+  for (int i = 0; i < tracked_pts_cam0_t1_undistorted.size(); i++) {
+    cv::Vec3f tmp0(tracked_pts_cam0_t1_undistorted[i].x, tracked_pts_cam0_t1_undistorted[i].y, 1);
+    pts_cam0_und[i] = (K_cam0_ * tmp0);
+    cv::Vec3f tmp1(tracked_pts_cam1_t1_undistorted[i].x, tracked_pts_cam1_t1_undistorted[i].y, 1);
+    pts_cam1_und[i] = (K_cam1_ * tmp1);
+  }
+
+  cv::convertPointsFromHomogeneous(pts_cam0_und, tracked_pts_cam0_t1_undistorted);
+  cv::convertPointsFromHomogeneous(pts_cam1_und, tracked_pts_cam1_t1_undistorted);
   std::vector<cv::Vec3f> epilines;
   cv::computeCorrespondEpilines(tracked_pts_cam0_t1_undistorted, 1, F_, epilines);
 
@@ -882,8 +960,8 @@ int ImageProcessor::StereoMatch(cv::Ptr<cv::cuda::SparsePyrLKOpticalFlow> opt,
     if (status[i] == 0) {
       continue;
     }
-    cv::Vec3f pt0(tracked_pts_cam0_t1_undistorted[i].x,
-      tracked_pts_cam0_t1_undistorted[i].y, 1.0);
+    // cv::Vec3f pt0(tracked_pts_cam0_t1_undistorted[i].x,
+    //   tracked_pts_cam0_t1_undistorted[i].y, 1.0);
 
     cv::Vec3f pt1(tracked_pts_cam1_t1_undistorted[i].x,
       tracked_pts_cam1_t1_undistorted[i].y, 1.0);
@@ -990,7 +1068,7 @@ void ImageProcessor::rescalePoints(
 int ImageProcessor::twoPointRansac(
     const std::vector<cv::Point2f>& pts1, const std::vector<cv::Point2f>& pts2,
     const cv::Matx33f& R_p_c, const cv::Matx33d& intrinsics,
-    const cv::Vec4d& distortion_coeffs,
+    const std::vector<double>& distortion_coeffs,
     const double& inlier_error,
     const double& success_probability,
     std::vector<uchar>& inlier_markers) {
