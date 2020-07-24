@@ -13,6 +13,7 @@ find_package(SPQR)
 add_definitions(-march=native)
 add_library(fly_stereo_lib
   src/image_processor.cc
+  src/vio.cc
   src/sensor_io/sensor_interface.cc
   src/sensor_io/mavlink_reader.cc
   src/sensor_io/camera_trigger.cc
@@ -35,3 +36,5 @@ target_link_libraries(fly_stereo_lib
     yaml-cpp
     opengv
 )
+
+set_property(TARGET fly_stereo_lib PROPERTY CXX_STANDARD 17)

@@ -25,7 +25,7 @@
 class ImageProcessor {
  public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-  ImageProcessor(const YAML::Node &input_params);
+  ImageProcessor(const YAML::Node &input_params, const YAML::Node &stereo_calibration);
 
   // Forbit the unused constructors
   ImageProcessor() = delete;
@@ -105,7 +105,10 @@ class ImageProcessor {
   pts_cam0_t1, std::vector<cv::Point2f> pts_cam1_t0, std::vector<cv::Point2f> pts_cam1_t1,
   std::vector<unsigned int> ids);
 
-  int OuputTrackedPoints(std::vector<cv::Point2f> pts_cam0, std::vector<cv::Point2f> pts_cam1,
+  int OuputTrackedPoints(std::vector<cv::Point2f> pts_cam0_t0,
+    std::vector<cv::Point2f> pts_cam0_t1,
+    std::vector<cv::Point2f> pts_cam1_t0,
+    std::vector<cv::Point2f> pts_cam1_t1,
     std::vector<unsigned int> ids);
 
   // Local version of input params

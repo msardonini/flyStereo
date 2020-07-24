@@ -1,24 +1,19 @@
 
-#include <random>
 
 #include "fly_stereo/image_processor.h"
+
+#include <random>
+#include <fstream>  // std::ofstream
 
 #include "opencv2/video/tracking.hpp"
 #include "opencv2/imgproc.hpp"
 #include "opencv2/calib3d.hpp"
 #include "opencv2/core/cuda.hpp"
-#include "opencv2/core/eigen.hpp"
 #include "Eigen/Dense"
 #include "opengv/types.hpp"
-#include "opengv/relative_pose/methods.hpp"
-#include "opengv/relative_pose/NoncentralRelativeAdapter.hpp"
-#include "opengv/relative_pose/CentralRelativeAdapter.hpp"
-#include "opengv/triangulation/methods.hpp"
 
-
-std::vector<cv::Point2f> debug_pts_match;
-
-ImageProcessor::ImageProcessor(const YAML::Node &input_params) {
+ImageProcessor::ImageProcessor(const YAML::Node &input_params,
+  const YAML::Node &stereo_calibration) {
   // Params for OpenCV function goodFeaturesToTrack
   YAML::Node features_params = input_params["goodFeaturesToTrack"];
   max_corners_ = features_params["max_corners"].as<int>();
@@ -34,9 +29,7 @@ ImageProcessor::ImageProcessor(const YAML::Node &input_params) {
   stereo_threshold_ = input_params["stereo_threshold"].as<double>();
   ransac_threshold_ = input_params["ransac_threshold"].as<double>();
 
-  // Load the stereo calibration
-  YAML::Node stereo_calibration = input_params["stereo_calibration"];
-
+  // Load the stereo camera calibration
   std::vector<double> interface_vec = stereo_calibration["K0"]["data"].as<
     std::vector<double>>();
   K_cam0_ = cv::Matx33d(interface_vec.data());
@@ -286,244 +279,19 @@ int ImageProcessor::UpdatePointsViaImu(const cv::cuda::GpuMat &d_current_pts,
 
 int ImageProcessor::ProcessPoints(std::vector<cv::Point2f> pts_cam0_t0, std::vector<cv::Point2f>
   pts_cam0_t1, std::vector<cv::Point2f> pts_cam1_t0, std::vector<cv::Point2f> pts_cam1_t1,
+  std::vector<unsigned int> ids) {}
+
+int ImageProcessor::OuputTrackedPoints(std::vector<cv::Point2f> pts_cam0_t0,
+  std::vector<cv::Point2f> pts_cam0_t1,
+  std::vector<cv::Point2f> pts_cam1_t0,
+  std::vector<cv::Point2f> pts_cam1_t1,
   std::vector<unsigned int> ids) {
-
-  // Check to make sure all of our vectors have the same number of points, otherwise, something 
-  // went wrong
-  unsigned int num_pts_cam0_t0 = pts_cam0_t0.size();
-  if (num_pts_cam0_t0 != pts_cam0_t1.size() || 
-      num_pts_cam0_t0 != pts_cam1_t0.size() ||
-      num_pts_cam0_t0 != pts_cam1_t1.size()) {
-    std::cerr << "Error! [ProcessPoints] points are not the same size!" << std::endl;
-    return -1;
-  } else if (pts_cam0_t0.size() == 0) {
-    return -1;
-  }
-
-  if (num_pts_cam0_t0 < 6) {
-    std::cout << "Not enough points for algorithm!" << std::endl;
-    return 0;
-  }
-
-  // pts_cam0_t1.clear();
-  // pts_cam0_t1.push_back(cv::Point2f(629, 397));
-  // pts_cam0_t1.push_back(cv::Point2f(1162, 347));
-  // pts_cam0_t1.push_back(cv::Point2f(625, 674));
-
-  // Cast all of our paramters to floating points for this function
-  cv::Matx33f K_cam0 = static_cast<cv::Matx33f>(K_cam0_);
-  cv::Matx33f K_cam1 = static_cast<cv::Matx33f>(K_cam1_);
-  // cv::Matx34f P_cam0 = static_cast<cv::Matx34f>(P_cam0_);
-  // cv::Matx34f P_cam1 = static_cast<cv::Matx34f>(P_cam1_);
-  // cv::Vec4f D_cam0 = static_cast<cv::Vec4f>(D_cam0_);
-  // cv::Vec4f D_cam1 = static_cast<cv::Vec4f>(D_cam1_);
-
-  std::vector<cv::Point2f> pts_cam0_t0_ud;
-  std::vector<cv::Point2f> pts_cam0_t1_ud;
-  std::vector<cv::Point2f> pts_cam1_t0_ud;
-  std::vector<cv::Point2f> pts_cam1_t1_ud;
-
-  cv::undistortPoints(pts_cam0_t0, pts_cam0_t0_ud, K_cam0, D_cam0_);
-  cv::undistortPoints(pts_cam0_t1, pts_cam0_t1_ud, K_cam0, D_cam0_);
-  cv::undistortPoints(pts_cam1_t0, pts_cam1_t0_ud, K_cam1, D_cam1_);
-  cv::undistortPoints(pts_cam1_t1, pts_cam1_t1_ud, K_cam1, D_cam1_);
-
-  std::vector<cv::Vec3f> xform_vec_cam0_t0;
-  std::vector<cv::Vec3f> xform_vec_cam0_t1;
-  std::vector<cv::Vec3f> xform_vec_cam1_t0;
-  std::vector<cv::Vec3f> xform_vec_cam1_t1;
-
-  cv::convertPointsToHomogeneous(pts_cam0_t0_ud, xform_vec_cam0_t0);
-  cv::convertPointsToHomogeneous(pts_cam0_t1_ud, xform_vec_cam0_t1);
-  cv::convertPointsToHomogeneous(pts_cam1_t0_ud, xform_vec_cam1_t0);
-  cv::convertPointsToHomogeneous(pts_cam1_t1_ud, xform_vec_cam1_t1);
-
-  opengv::bearingVectors_t bearing_vectors0;
-  opengv::bearingVectors_t bearing_vectors1;
-  std::vector<int> cam_correspondences0;
-  std::vector<int> cam_correspondences1;
-
-  for (int i = 0; i < pts_cam0_t0.size(); i++) {
-    opengv::bearingVector_t tmp_cam0;
-    // cv::cv2eigen(static_cast<cv::Vec3d>(xform_vec_cam0_t0[i]), tmp_cam0);
-    // // tmp_cam0 /= tmp_cam0.norm();
-    // bearing_vectors0.push_back(tmp_cam0);
-    // cam_correspondences0.push_back(0);
-
-    // bearingVector_t tmp_cam0;
-    cv::cv2eigen(static_cast<cv::Vec3d>(xform_vec_cam0_t1[i]), tmp_cam0);
-    // tmp_cam0 /= tmp_cam0.norm();
-    bearing_vectors0.push_back(tmp_cam0);
-    cam_correspondences1.push_back(0);
-
-    opengv::bearingVector_t tmp_cam1;
-    // cv::cv2eigen(static_cast<cv::Vec3d>(xform_vec_cam1_t0[i]), tmp_cam1);
-    // // tmp_cam1 /= tmp_cam1.norm();
-    // bearing_vectors0.push_back(tmp_cam1);
-    // cam_correspondences0.push_back(1);
-
-    cv::cv2eigen(static_cast<cv::Vec3d>(xform_vec_cam1_t1[i]), tmp_cam1);
-    // tmp_cam1 /= tmp_cam1.norm();
-    bearing_vectors1.push_back(tmp_cam1);
-    cam_correspondences1.push_back(1);
-  }
-
-  //Extract the relative pose
-  opengv::translation_t position = Eigen::Vector3d::Zero(); opengv::rotation_t rotation = Eigen::
-    Matrix3d::Identity();
-
-  Eigen::MatrixXd cam1_offset;
-  Eigen::Matrix3d cam1_rot;
-  cv::cv2eigen(T_cam0_cam1_, cam1_offset);
-  cv::cv2eigen(R_cam0_cam1_, cam1_rot);
-
-  opengv::relative_pose::CentralRelativeAdapter adapter(
-    bearing_vectors0,
-    bearing_vectors1,
-    cam1_offset,
-    cam1_rot);
-
-  unsigned int num_pts = pts_cam0_t0.size();
-  Eigen::MatrixXd triangulate_results(3, num_pts);
-  std::cout << "Triangulation output! \n";
-  for(size_t i = 0; i < num_pts; i++) {
-    triangulate_results.block<3,1>(0, i) = opengv::triangulation::triangulate(adapter, i);
-    std::cout << triangulate_results.block<3,1>(0, i).transpose() << std::endl;
-  }
-
-
-  // opengv::translations_t camOffsets;
-  // opengv::rotations_t camRotations;
-
-  // camOffsets.push_back(Eigen::Vector3d::Zero());
-  // camRotations.push_back(Eigen::Matrix3d::Identity());
-
-  // Eigen::Matrix3d R; cv::cv2eigen(R_cam0_cam1_, R);
-  // Eigen::MatrixXf T; cv::cv2eigen(T_cam0_cam1_, T);
-  // camRotations.push_back(R.transpose());
-  // camOffsets.push_back(-T.cast<double>());
-
-  // //create non-central relative adapter
-  // opengv::relative_pose::NoncentralRelativeAdapter adapter(
-  //   bearing_vectors0,
-  //   bearing_vectors1,
-  //   cam_correspondences0,
-  //   cam_correspondences1,
-  //   camOffsets,
-  //   camRotations);
-  //   position,
-  //   rotation);
-
-  // std::vector<int> indices17;
-  // for (int i = 0; i < 6; i++)
-  //   indices17.push_back(i);
-
-  // opengv::transformation_t seventeenpt_transformation_all;
-  // opengv::rotations_t rotations;
-  // opengv::geOutput_t output;
-  // for(size_t i = 0; i < 1; i++) {
-  //   // std::cout << "i: " << i << std::endl;
-  //   // rotations = opengv::relative_pose::sixpt(adapter, indices17);
-  //   // seventeenpt_transformation_all = opengv::relative_pose::optimize_nonlinear(adapter);
-  //   seventeenpt_transformation_all = opengv::relative_pose::seventeenpt(adapter);
-
-  //   // generalized eigensolver (over all points)
-  //   // opengv::relative_pose::ge(adapter, output);
-
-  // }
-
-  // Eigen::Matrix4d delta_xform = Eigen::Matrix4d::Identity();
-  // delta_xform.block<3,3>(0, 0) = output.rotation;
-  // Eigen::Vector3d tmp = output.translation.block<3,1>(0,0);
-  // delta_xform.block<3,1>(0, 3) = tmp;
-  // Update our position & rotation
-  // delta_xform.block<3,4>(0, 0) = seventeenpt_transformation_all;
-  
-
-  // pose_ = pose_ * delta_xform ;
-
-
-  // std::cout << "output transformation: \n" << pose_ << std::endl;
-
-  // prev_xform_ = delta_xform;
-
-
-  // cv::Mat tmp_cam0(pts_cam0_t1);
-  // cv::Mat tmp_cam1(pts_cam1_t1);
-  // cv::Mat output;
-
-  // cv::triangulatePoints(P_cam0, P_cam1, tmp_cam0, tmp_cam1, output);
-
-  // std::vector<cv::Vec3f> vec;
-  // cv::convertPointsFromHomogeneous(output.t(), vec);
-
-
-  // // Save the output ID / 3D position in the global map
-  // unsigned int prev_pts_index = curr_pts_index_ ? 0 : 1;
-
-  // points_3d_[curr_pts_index_].clear();
-  // for (int i = 0; i < vec.size(); i++) {
-  //   points_3d_[curr_pts_index_][ids[i]] = vec[i];
-  // }
-
-  // // Calculate the deltas from the last set of points to the current
-  // unsigned int counter = 0;
-  // cv::Vec3f diffs(0, 0.0, 0.0);
-  // std::vector<cv::Vec3d> diffs_vec; diffs_vec.reserve(points_3d_[curr_pts_index_].size());
-  // for (std::map<unsigned int, cv::Vec3f>::iterator it = points_3d_[curr_pts_index_].begin();
-  //   it != points_3d_[curr_pts_index_].end(); it++ ) {
-
-  //   std::map<unsigned int, cv::Vec3f>::iterator it_prev = points_3d_[prev_pts_index].find(
-  //     it->first);
-  //   if (it_prev != points_3d_[prev_pts_index].end()) {
-  //     diffs += (it->second - it_prev->second);
-  //     counter++;
-  //     // std::cout << "diffs " << (it->second - it_prev->second) << std::endl;
-  //     diffs_vec.push_back(it->second - it_prev->second);
-  //   }
-  // }
-
-  // // std::cout << "size of vec: " << vec.size() << std::endl;
-  // if (vec.size() > 0) {
-
-  //   if (diffs_vec.size() > 0) {
-  //     cv::Vec3d mean, std_dev;
-  //     cv::Mat mat_diffs(diffs_vec.size(), 1, CV_64FC3, diffs_vec.data());
-  //     cv::meanStdDev(mat_diffs, mean, std_dev);
-
-  //     // Delete points that are not within 2 standard deviations of the mean
-  //     for (int i = diffs_vec.size() - 1; i >= 0; i--) {
-  //       if (diffs_vec[i][0] < mean(0) - 2 * std_dev(0) || 
-  //           diffs_vec[i][0] > mean(0) + 2 * std_dev(0) ||
-  //           diffs_vec[i][1] < mean(1) - 2 * std_dev(1) ||
-  //           diffs_vec[i][1] > mean(1) + 2 * std_dev(1) ||
-  //           diffs_vec[i][2] < mean(2) - 2 * std_dev(2) ||
-  //           diffs_vec[i][2] > mean(2) + 2 * std_dev(2)) {
-  //         diffs_vec.erase(diffs_vec.begin() + i);
-  //       }
-  //     }
-
-  //   }
-  //   if (diffs_vec.size() > 0) {
-  //     cv::Vec3d mean2, std_dev;
-  //     cv::Mat mat_diffs2(diffs_vec.size(), 1, CV_64FC3, diffs_vec.data());
-  //     cv::meanStdDev(mat_diffs2, mean2, std_dev);
-  //     vio_sum_ += mean2;
-  //   }
-
-  //   std::cout << "vio X,Y,Z: " << vio_sum_ << std::endl;
-  // }
-
-  // // Set the current index to the previous index for the next iteration
-  // curr_pts_index_ = prev_pts_index;
-  return 0;
-}
-
-int ImageProcessor::OuputTrackedPoints(std::vector<cv::Point2f> pts_cam0,
-    std::vector<cv::Point2f> pts_cam1, std::vector<unsigned int> ids) {
   // Check to make sure that our input data is sized correctly
-  unsigned int num_pts = pts_cam0.size();
-  if (num_pts != pts_cam1.size() || num_pts != ids.size()) {
+  unsigned int num_pts = pts_cam0_t0.size();
+  if (num_pts != pts_cam0_t1.size() || 
+      num_pts != pts_cam1_t0.size() || 
+      num_pts != pts_cam1_t1.size() || 
+      num_pts != ids.size()) {
     std::cerr << "Error! Vectors do not match in OutputTrackedPoints" << std::endl;
     return -1;
   }
@@ -536,7 +304,10 @@ int ImageProcessor::OuputTrackedPoints(std::vector<cv::Point2f> pts_cam0,
   output_points_.pts.reserve(num_pts);
 
   for (int i = 0; i < num_pts; i++) {
-    ImagePoint pt(ids[i], {pts_cam0[i].x, pts_cam0[i].y}, {pts_cam1[i].x, pts_cam1[i].y});
+    ImagePoint pt(ids[i], {pts_cam0_t0[i].x, pts_cam0_t0[i].y},
+      {pts_cam0_t1[i].x, pts_cam0_t1[i].y},
+      {pts_cam1_t0[i].x, pts_cam1_t0[i].y},
+      {pts_cam1_t1[i].x, pts_cam1_t1[i].y});
     output_points_.pts.push_back(pt);
   }
 
@@ -793,6 +564,7 @@ int ImageProcessor::ProcessThread() {
         tracked_pts_cam1_t0.clear();
     }
     debug_num_pts[3] = tracked_pts_cam0_t1.size();
+
     /*********************************************************************
     * Detect new features for the next iteration
     *********************************************************************/
@@ -828,12 +600,15 @@ int ImageProcessor::ProcessThread() {
 
     // Signal this loop has finished and output the tracked points
     if (tracked_pts_cam0_t1.size() > 1 && tracked_pts_cam1_t1.size() > 1) {
-      // OuputTrackedPoints(tracked_pts_cam0_t1, tracked_pts_cam1_t1, ids_tracked_t1);
-      ProcessPoints(tracked_pts_cam0_t0, tracked_pts_cam0_t1, tracked_pts_cam1_t0,
+      OuputTrackedPoints(tracked_pts_cam0_t0, tracked_pts_cam0_t1, tracked_pts_cam1_t0,
         tracked_pts_cam1_t1, ids_tracked_t1);
+      // ProcessPoints(tracked_pts_cam0_t0, tracked_pts_cam0_t1, tracked_pts_cam1_t0,
+      //   tracked_pts_cam1_t1, ids_tracked_t1);
     }
 
-    // If requested, output the video stream to the configured gstreamer pipeline
+    /*********************************************************************
+    * Output Images to the sink, if requested
+    *********************************************************************/
     if (sensor_interface_->cam0_->OutputEnabled()) {
       std::cout << "camera 0 \n";
       cv::Mat show_frame, show_frame_color;
@@ -853,7 +628,6 @@ int ImageProcessor::ProcessThread() {
       d_frame_cam1_t1.download(show_frame);
       if (draw_points_to_frame) {
         cv::cvtColor(show_frame, show_frame_color, cv::COLOR_GRAY2BGR);
-        // sensor_interface_->DrawPoints(debug_pts_match, show_frame_color);
         sensor_interface_->DrawPoints(tracked_pts_cam1_t1, show_frame_color);
       } else {
         show_frame_color = show_frame;
@@ -910,10 +684,6 @@ int ImageProcessor::StereoMatch(cv::Ptr<cv::cuda::SparsePyrLKOpticalFlow> opt,
   d_tracked_pts_cam1.upload(tracked_pts_cam1_t1);
 
   opt->calc(d_frame_cam0, d_frame_cam1, d_tracked_pts_cam0, d_tracked_pts_cam1, d_status);
-
-
-  // TODO: Remove
-  d_tracked_pts_cam1.download(debug_pts_match);
 
   // Check if we have zero tracked points, this is a corner case and these variables need
   // to be reset to prevent errors in sizing, calc() does not return all zero length vectors

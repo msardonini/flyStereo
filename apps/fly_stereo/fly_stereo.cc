@@ -8,6 +8,7 @@
 #include <csignal>
 
 #include "yaml-cpp/yaml.h"
+#include "fly_stereo/vio.h"
 #include "fly_stereo/image_processor.h"
 #include "fly_stereo/sensor_io/mavlink_reader.h"
 
@@ -36,17 +37,17 @@ void imu_thread(YAML::Node imu_reader_params, ImageProcessor *image_processor) {
   }
 }
 
-// void tracked_features_thread(ImageProcessor *image_processor, msckf_vio::MsckfVio *msckf_vio) {
-//   while(is_running.load()) {
-//     ImagePoints pts;
-//     if(image_processor->GetTrackedPoints(&pts)) {
-//       // Send the vector of feature points to the vio object
-//       std::cout << "Sending Features to VIO!\n\n";
-//       // Send the imu message to the vio object
-//       msckf_vio->featureCallback(pts);
-//     }
-//   }
-// }
+void tracked_features_thread(ImageProcessor *image_processor, Vio *vio) {
+ Eigen::Vector3d pose;
+  while(is_running.load()) {
+    ImagePoints pts;
+    if(image_processor->GetTrackedPoints(&pts)) {
+
+      // Send the features to the vio object
+      vio->ProcessPoints(pts, pose);
+    }
+  }
+}
 
 
 int main(int argc, char* argv[]) {
@@ -75,10 +76,15 @@ int main(int argc, char* argv[]) {
 
   YAML::Node fly_stereo_params = YAML::LoadFile(config_file)["fly_stereo"];
 
-  ImageProcessor image_processor(fly_stereo_params["image_processor"]);
+  ImageProcessor image_processor(fly_stereo_params["image_processor"], 
+    fly_stereo_params["stereo_calibration"]);
   image_processor.Init();
 
   std::thread imu_thread_obj(imu_thread, fly_stereo_params["mavlink_reader"], &image_processor);
+
+
+  Vio vio(fly_stereo_params["vio"], fly_stereo_params["stereo_calibration"]);
+  std::thread features_thread_obj(tracked_features_thread, &image_processor, &vio);
 
   while (is_running.load()) {
     std::this_thread::sleep_for(std::chrono::seconds(1));
@@ -87,6 +93,10 @@ int main(int argc, char* argv[]) {
   // Clean up the threads
   if (imu_thread_obj.joinable()) {
     imu_thread_obj.join();
+  }
+  // Clean up the threads
+  if (features_thread_obj.joinable()) {
+    features_thread_obj.join();
   }
 
   std::cout << "Shutting down main " << std::endl;
