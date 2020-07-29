@@ -1,2 +1,4 @@
 build**
 replay_data**
+scripts/*.yaml
+matlab/*m~

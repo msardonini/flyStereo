@@ -44,6 +44,10 @@ class Vio {
   cv::Vec3d T_cam0_cam1_;
 
   Eigen::MatrixXd pose_;
+
+  // Output file stream for debugging output
+  std::unique_ptr<std::ofstream> ofs_;
+
 };
 
 
