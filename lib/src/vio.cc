@@ -43,6 +43,17 @@ Vio::Vio(const YAML::Node &input_params, const YAML::Node &stereo_calibration) {
   interface_vec = stereo_calibration["T"]["data"].as<std::vector<double>>();
   T_cam0_cam1_ = cv::Vec3d(interface_vec.data());
 
+  // Create the projection matrices such that the output points will be in the coordinate system
+  // of cam0
+  P0_ = cv::Matx34d::eye();
+  P1_ = cv::Matx34d::zeros();
+  for (int i = 0; i < 3; i++) {
+    for (int j = 0; j < 3; j++) {
+      P1_(i, j) = R_cam0_cam1_(i, j);
+    }
+    P1_(i, 3) = T_cam0_cam1_[i];
+  }
+
   pose_ = Eigen::Matrix4d::Identity();
 }
 
@@ -144,22 +155,11 @@ int Vio::CalculatePoseUpdate(const std::map<int, std::vector<ImagePoint> > &grid
   cv::undistortPoints(pts_cam1_t0, pts_cam1_t0_ud, K_cam1_, D_cam1_);
   cv::undistortPoints(pts_cam1_t1, pts_cam1_t1_ud, K_cam1_, D_cam1_);
 
-  // Create the projection matrices such that the output points will be in the coordinate system
-  // of cam0
-  cv::Matx34d P0 = cv::Matx34d::eye();
-  cv::Matx34d P1 = cv::Matx34d::zeros();
-  for (int i = 0; i < 3; i++) {
-    for (int j = 0; j < 3; j++) {
-      P1(i, j) = R_cam0_cam1_(i, j);
-    }
-    P1(i, 3) = T_cam0_cam1_[i];
-  }
-
   // Perform Triangulation to get 3D points for time step T0
   cv::Mat pts_cam0_t0_mat(pts_cam0_t0_ud); pts_cam0_t0_mat.convertTo(pts_cam0_t0_mat, CV_64F);
   cv::Mat pts_cam1_t0_mat(pts_cam1_t0_ud); pts_cam1_t0_mat.convertTo(pts_cam1_t0_mat, CV_64F);
   cv::Mat triangulation_output_pts_homo;
-  cv::triangulatePoints(P0, P1, pts_cam0_t0_mat, pts_cam1_t0_mat, triangulation_output_pts_homo);
+  cv::triangulatePoints(P0_, P1_, pts_cam0_t0_mat, pts_cam1_t0_mat, triangulation_output_pts_homo);
 
   // Convert points from homogeneous to 3D coords
   std::vector<cv::Vec3d> triangulation_output_pts;
@@ -173,10 +173,10 @@ int Vio::CalculatePoseUpdate(const std::map<int, std::vector<ImagePoint> > &grid
   }
 
   // Containers for homogeneous undistorted points
-  std::vector<cv::Vec3f> xform_vec_cam0_t0;
-  std::vector<cv::Vec3f> xform_vec_cam0_t1;
-  std::vector<cv::Vec3f> xform_vec_cam1_t0;
-  std::vector<cv::Vec3f> xform_vec_cam1_t1;
+  std::vector<cv::Vec3d> xform_vec_cam0_t0;
+  std::vector<cv::Vec3d> xform_vec_cam0_t1;
+  std::vector<cv::Vec3d> xform_vec_cam1_t0;
+  std::vector<cv::Vec3d> xform_vec_cam1_t1;
   cv::convertPointsToHomogeneous(pts_cam0_t0_ud, xform_vec_cam0_t0);
   cv::convertPointsToHomogeneous(pts_cam0_t1_ud, xform_vec_cam0_t1);
   cv::convertPointsToHomogeneous(pts_cam1_t0_ud, xform_vec_cam1_t0);

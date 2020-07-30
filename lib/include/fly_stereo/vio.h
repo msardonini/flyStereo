@@ -42,7 +42,10 @@ class Vio {
   std::vector<double> D_cam1_;
   cv::Matx33d R_cam0_cam1_;
   cv::Vec3d T_cam0_cam1_;
+  cv::Matx34d P0_;
+  cv::Matx34d P1_;
 
+  // The estimated pose after VIO is run
   Eigen::MatrixXd pose_;
 
   // Output file stream for debugging output
