@@ -6,6 +6,8 @@
 #include "Eigen/Dense"
 #include "yaml-cpp/yaml.h"
 #include "fly_stereo/interface.h"
+#include "liblas/liblas.hpp"
+#include "opengv/types.hpp"
 
 class Vio {
  public:
@@ -18,6 +20,11 @@ class Vio {
   int ProcessPoints(const ImagePoints &pts, Eigen::Vector3d &pose);
 
  private:
+
+  inline unsigned int Modulo( int value, unsigned m);
+  int SaveInliers(std::vector<int> inliers, std::vector<int> pt_ids, opengv::points_t pts);
+ 
+
   int BinFeatures(const ImagePoints &pts, std::map<int, std::vector<ImagePoint> > &grid);
 
   int CalculatePoseUpdate(const std::map<int, std::vector<ImagePoint> > &grid,
@@ -50,6 +57,14 @@ class Vio {
 
   // Output file stream for debugging output
   std::unique_ptr<std::ofstream> ofs_;
+  std::unique_ptr<std::ofstream> trajecotry_file_;
+  std::unique_ptr<liblas::Writer> writer_;
+  std::unique_ptr<liblas::Header> header_;
+
+
+  std::vector<std::map<unsigned int, opengv::point_t> > point_history_;
+  std::vector<Eigen::Matrix4d, Eigen::aligned_allocator<Eigen::Matrix4d> > pose_history_;
+  unsigned int point_history_index_;
 
 };
 
