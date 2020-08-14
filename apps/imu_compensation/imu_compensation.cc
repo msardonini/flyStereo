@@ -128,11 +128,12 @@ int main(int argc, char *argv[]) {
   cv::Matx33f R_imu_cam1 = R_imu_cam0 * R_cam0_cam1;
 
   cv::Matx33f R_t0_t1_cam0, R_t0_t1_cam1;
+  uint64_t current_frame_time;
   while (is_running.load()) {
     imu_msgs.clear();
-    sensor_interface.GetSynchronizedData(d_frame_cam0, d_frame_cam1, imu_msgs);
+    sensor_interface.GetSynchronizedData(d_frame_cam0, d_frame_cam1, imu_msgs, current_frame_time);
     sensor_interface.GenerateImuXform(imu_msgs, R_imu_cam0, R_imu_cam1, R_t0_t1_cam0,
-      R_t0_t1_cam1);
+      current_frame_time, R_t0_t1_cam1);
 
     if (imu_msgs.size() > 0)
       std::cout << imu_msgs.size() << std::endl;

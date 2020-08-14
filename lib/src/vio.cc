@@ -21,7 +21,8 @@
 constexpr unsigned int history_size = 10;
 constexpr unsigned int min_num_matches = 25;
 // Constructor with config params
-Vio::Vio(const YAML::Node &input_params, const YAML::Node &stereo_calibration) {
+Vio::Vio(const YAML::Node &input_params, const YAML::Node &stereo_calibration) :
+  kf_(input_params["kalman_filter"]) {
   // Parse params for the VIO node
   image_width_ = input_params["image_width"].as<unsigned int>();
   image_height_= input_params["image_height"].as<unsigned int>();
@@ -84,8 +85,56 @@ int Vio::ProcessPoints(const ImagePoints &pts, Eigen::Vector3d &pose) {
 
   BinFeatures(pts, grid);
 
-  Eigen::Matrix4d pose_update;
-  CalculatePoseUpdate(grid, pose_update);
+  Eigen::Vector3f position_vio;
+  if (CalculatePoseUpdate(grid, position_vio) == 0) {
+    // TODO: add imu prediction and vo measurement update
+    // ProcessImu(pts.imu_pts);
+    ProcessVio(position_vio, pts.timestamp_us);
+    Debug_SaveOutput();
+  }
+  return 0;
+}
+
+// int Vio::ProcessImu(const std::vector<mavlink_imu_t> &imu_pts) {
+//   for (int i = 0; i < imu_pts.size(); i++) {
+//     Eigen::Matrix3f m(Eigen::AngleAxisf(imu_pts[i].roll, Eigen::Vector3f::UnitX())
+//       * Eigen::AngleAxisf(imu_pts[i].pitch,  Eigen::Vector3f::UnitY())
+//       * Eigen::AngleAxisf(imu_pts[i].yaw, Eigen::Vector3f::UnitZ()));
+//     Eigen::Vector3f gravity_vec; gravity_vec << 0.0, 0.0, -9.81;
+//     Eigen::Vector3f gravity_vec_rotated = m * gravity_vec;
+
+//     Eigen::Array<double, 1, 6> u(Eigen::Matrix<double, 1, 6>::Zero());
+//     u(0) = imu_pts[i].accelXYZ[0] - gravity_vec_rotated(0);
+//     u(1) = imu_pts[i].accelXYZ[0] - gravity_vec_rotated(0);
+//     u(2) = imu_pts[i].accelXYZ[1] - gravity_vec_rotated(1);
+//     u(3) = imu_pts[i].accelXYZ[1] - gravity_vec_rotated(1);
+//     u(4) = imu_pts[i].accelXYZ[2] - gravity_vec_rotated(2);
+//     u(4) = imu_pts[i].accelXYZ[2] - gravity_vec_rotated(2);
+
+//     std::cout << "U!!! " << u << std::endl;
+//     if (last_timestamp_ != 0) {
+//       kf_.Predict(u, static_cast<double>(imu_pts[i].timestamp_us - last_timestamp_) / 1.0E6);
+//     }
+//     last_timestamp_ = imu_pts[i].timestamp_us;
+//   }
+//   return 0;
+// }
+
+int Vio::ProcessVio(const Eigen::Vector3f &position_vio, uint64_t image_timestamp) {
+  Eigen::Matrix<double, 1, 3> z(Eigen::Matrix<double, 1, 3>::Zero());
+
+  z(0) = position_vio(0);
+  z(1) = position_vio(1);
+  z(2) = position_vio(2);
+
+  if (last_timestamp_ == 0) {
+    kf_.Predict();
+  } else {
+    kf_.Predict(static_cast<double>(image_timestamp - last_timestamp_) / 1.0E6);
+  }
+  last_timestamp_ = image_timestamp;
+  kf_.Measure(z);
+  return 0;
 }
 
 int Vio::BinFeatures(const ImagePoints &pts, std::map<int, std::vector<ImagePoint> > &grid) {
@@ -110,7 +159,7 @@ int Vio::BinFeatures(const ImagePoints &pts, std::map<int, std::vector<ImagePoin
   return 0;
 }
 
-inline unsigned int Vio::Modulo( int value, unsigned m) {
+inline unsigned int Vio::Modulo(int value, unsigned m) {
     int mod = value % (int)m;
     if (value < 0) {
         mod += m;
@@ -118,9 +167,8 @@ inline unsigned int Vio::Modulo( int value, unsigned m) {
     return mod;
 }
 
-
 int Vio::CalculatePoseUpdate(const std::map<int, std::vector<ImagePoint> > &grid,
-  Eigen::Matrix4d &pose_update) {
+  Eigen::Vector3f &position_update) {
   // Calculate the number of points in the grid
   unsigned int num_pts = 0;
   for (auto it = grid.begin(); it != grid.end(); it++) {
@@ -161,7 +209,7 @@ int Vio::CalculatePoseUpdate(const std::map<int, std::vector<ImagePoint> > &grid
 
   if (num_pts_cam0_t0 < 6) {
     std::cout << "Not enough points for algorithm!" << std::endl;
-    return 0;
+    return -1;
   }
 
   // Points that are measured to be 45 degrees off center, and 22.5 deg off center
@@ -404,38 +452,46 @@ int Vio::CalculatePoseUpdate(const std::map<int, std::vector<ImagePoint> > &grid
   pose_history_[Modulo(static_cast<int>(point_history_index_), history_size)] = pose_;
   point_history_index_ = (point_history_index_ >= history_size - 1) ? 0 : point_history_index_ + 1;
 
+  for (int i = 0; i < 3; i++) {
+    position_update(i) = pose_(i, 3);
+  }
+
   // Debug statements
   // // if (ransac.model_coefficients_(1,3) < -0.3) {
   // if (g++ == 99) {
   //   int p = 0;
   // }
 
+  return 0;
+}
+
+int Vio::Debug_SaveOutput() {
   static int g = 0;
   // if (ransac.model_coefficients_(0,3) > 5 || ransac.model_coefficients_(1,3) > 5 || ransac.model_coefficients_(2,3) > 5) {
   if (1) {
-    unsigned int index_temp = Modulo(point_history_index_ - 2, history_size);
-    Eigen::Matrix4d pose_inv = Eigen::Matrix4d::Identity();
-    pose_inv.block<3, 3>(0,0) = pose_history_[index_temp].block<3, 3>(0, 0).transpose();
-    pose_inv.block<3, 1>(0,3) = -pose_history_[index_temp].block<3, 1>(0, 3);
+    // unsigned int index_temp = Modulo(point_history_index_ - 2, history_size);
+    // Eigen::Matrix4d pose_inv = Eigen::Matrix4d::Identity();
+    // pose_inv.block<3, 3>(0,0) = pose_history_[index_temp].block<3, 3>(0, 0).transpose();
+    // pose_inv.block<3, 1>(0,3) = -pose_history_[index_temp].block<3, 1>(0, 3);
 
-    for (int i = 0; i < ransac.inliers_.size(); i++) {
-      Eigen::Vector4d first_pt;
-      first_pt.head<3>() = points[ransac.inliers_[i]];
-      first_pt[3] = 1;
+    // for (int i = 0; i < ransac.inliers_.size(); i++) {
+    //   Eigen::Vector4d first_pt;
+    //   first_pt.head<3>() = points[ransac.inliers_[i]];
+    //   first_pt[3] = 1;
 
-      Eigen::Vector4d point_adj = pose_inv * first_pt;
-      liblas::Point point(header_.get());
-      // point.SetCoordinates(point_adj[0], point_adj[1], point_adj[2]);
-      point.SetCoordinates(first_pt[0], first_pt[1], first_pt[2]);
-      writer_->WritePoint(point);
-    }
+    //   Eigen::Vector4d point_adj = pose_inv * first_pt;
+    //   liblas::Point point(header_.get());
+    //   // point.SetCoordinates(point_adj[0], point_adj[1], point_adj[2]);
+    //   point.SetCoordinates(first_pt[0], first_pt[1], first_pt[2]);
+    //   writer_->WritePoint(point);
+    // }
 
     if (!trajecotry_file_) {
       trajecotry_file_ = std::make_unique<std::ofstream> ("file.txt", std::ios::out);
     }
     Eigen::Matrix<double, 3, 4> writer_pose = pose_.block<3, 4> (0, 0);
     Eigen::Map<Eigen::RowVectorXd> v(writer_pose.data(), writer_pose.size());
-    *trajecotry_file_ << v << std::endl;
+    *trajecotry_file_ << v << kf_.GetState().transpose() << std::endl;
 
     // for (int i = 0; i < points.size(); i++) {
     //   // ofs  << vec[i](0) << "," << vec[i](1) << "," << vec[i](2) << std::endl;
@@ -445,6 +501,7 @@ int Vio::CalculatePoseUpdate(const std::map<int, std::vector<ImagePoint> > &grid
   }
   return 0;
 }
+
 
 int Vio::SaveInliers(std::vector<int> inliers, std::vector<int> pt_ids, opengv::points_t pts) {
   // Remove the duplicate points

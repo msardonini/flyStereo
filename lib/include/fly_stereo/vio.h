@@ -2,12 +2,13 @@
 #define LIB_INCLUDE_FLY_STEREO_VIO_H_
 
 // Package Includes
-#include "opencv2/core.hpp"
 #include "Eigen/Dense"
+#include "opencv2/core.hpp"
 #include "yaml-cpp/yaml.h"
-#include "fly_stereo/interface.h"
 #include "liblas/liblas.hpp"
 #include "opengv/types.hpp"
+#include "fly_stereo/interface.h"
+#include "fly_stereo/kalman_filter.h"
 
 class Vio {
  public:
@@ -28,8 +29,11 @@ class Vio {
   int BinFeatures(const ImagePoints &pts, std::map<int, std::vector<ImagePoint> > &grid);
 
   int CalculatePoseUpdate(const std::map<int, std::vector<ImagePoint> > &grid,
-    Eigen::Matrix4d &pose_update);
+    Eigen::Vector3f &pose_update);
 
+  int ProcessImu(const std::vector<mavlink_imu_t> &imu_pts);
+  int ProcessVio(const Eigen::Vector3f &position_vio, uint64_t image_timestamp);
+  int Debug_SaveOutput();
   // Object to hold all of the binned features
   unsigned int image_width_;
   unsigned int image_height_;
@@ -66,6 +70,9 @@ class Vio {
   std::vector<Eigen::Matrix4d, Eigen::aligned_allocator<Eigen::Matrix4d> > pose_history_;
   unsigned int point_history_index_;
 
+  // Kalman Filter object to fuse imu and visual odom measurmenets
+  KalmanFilter kf_;
+  uint64_t last_timestamp_ = 0;
 };
 
 

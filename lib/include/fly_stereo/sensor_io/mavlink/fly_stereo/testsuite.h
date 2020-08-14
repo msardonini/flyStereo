@@ -37,11 +37,12 @@ static void mavlink_test_imu(uint8_t system_id, uint8_t component_id, mavlink_me
         uint8_t buffer[MAVLINK_MAX_PACKET_LEN];
         uint16_t i;
     mavlink_imu_t packet_in = {
-        93372036854775807ULL,963497880,101.0,129.0,157.0,{ 185.0, 186.0, 187.0 },{ 269.0, 270.0, 271.0 }
+        93372036854775807ULL,963497880,963498088,129.0,157.0,185.0,{ 213.0, 214.0, 215.0 },{ 297.0, 298.0, 299.0 }
     };
     mavlink_imu_t packet1, packet2;
         memset(&packet1, 0, sizeof(packet1));
         packet1.timestamp_us = packet_in.timestamp_us;
+        packet1.time_since_trigger_us = packet_in.time_since_trigger_us;
         packet1.trigger_count = packet_in.trigger_count;
         packet1.roll = packet_in.roll;
         packet1.pitch = packet_in.pitch;
@@ -62,12 +63,12 @@ static void mavlink_test_imu(uint8_t system_id, uint8_t component_id, mavlink_me
         MAVLINK_ASSERT(memcmp(&packet1, &packet2, sizeof(packet1)) == 0);
 
         memset(&packet2, 0, sizeof(packet2));
-    mavlink_msg_imu_pack(system_id, component_id, &msg , packet1.timestamp_us , packet1.trigger_count , packet1.roll , packet1.pitch , packet1.yaw , packet1.gyroXYZ , packet1.accelXYZ );
+    mavlink_msg_imu_pack(system_id, component_id, &msg , packet1.timestamp_us , packet1.time_since_trigger_us , packet1.trigger_count , packet1.roll , packet1.pitch , packet1.yaw , packet1.gyroXYZ , packet1.accelXYZ );
     mavlink_msg_imu_decode(&msg, &packet2);
         MAVLINK_ASSERT(memcmp(&packet1, &packet2, sizeof(packet1)) == 0);
 
         memset(&packet2, 0, sizeof(packet2));
-    mavlink_msg_imu_pack_chan(system_id, component_id, MAVLINK_COMM_0, &msg , packet1.timestamp_us , packet1.trigger_count , packet1.roll , packet1.pitch , packet1.yaw , packet1.gyroXYZ , packet1.accelXYZ );
+    mavlink_msg_imu_pack_chan(system_id, component_id, MAVLINK_COMM_0, &msg , packet1.timestamp_us , packet1.time_since_trigger_us , packet1.trigger_count , packet1.roll , packet1.pitch , packet1.yaw , packet1.gyroXYZ , packet1.accelXYZ );
     mavlink_msg_imu_decode(&msg, &packet2);
         MAVLINK_ASSERT(memcmp(&packet1, &packet2, sizeof(packet1)) == 0);
 
@@ -80,7 +81,7 @@ static void mavlink_test_imu(uint8_t system_id, uint8_t component_id, mavlink_me
         MAVLINK_ASSERT(memcmp(&packet1, &packet2, sizeof(packet1)) == 0);
         
         memset(&packet2, 0, sizeof(packet2));
-    mavlink_msg_imu_send(MAVLINK_COMM_1 , packet1.timestamp_us , packet1.trigger_count , packet1.roll , packet1.pitch , packet1.yaw , packet1.gyroXYZ , packet1.accelXYZ );
+    mavlink_msg_imu_send(MAVLINK_COMM_1 , packet1.timestamp_us , packet1.time_since_trigger_us , packet1.trigger_count , packet1.roll , packet1.pitch , packet1.yaw , packet1.gyroXYZ , packet1.accelXYZ );
     mavlink_msg_imu_decode(last_msg, &packet2);
         MAVLINK_ASSERT(memcmp(&packet1, &packet2, sizeof(packet1)) == 0);
 }

@@ -14,6 +14,7 @@ add_definitions(-march=native)
 add_library(fly_stereo_lib
   src/image_processor.cc
   src/vio.cc
+  src/kalman_filter.cc
   src/sensor_io/sensor_interface.cc
   src/sensor_io/mavlink_reader.cc
   src/sensor_io/camera_trigger.cc

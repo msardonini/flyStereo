@@ -36,14 +36,14 @@ int SensorInterface::Init(YAML::Node input_params) {
 }
 
 int SensorInterface::GetSynchronizedData(cv::cuda::GpuMat &d_frame_cam0,
-    cv::cuda::GpuMat &d_frame_cam1, std::vector<mavlink_imu_t> &imu_data) {
+    cv::cuda::GpuMat &d_frame_cam1, std::vector<mavlink_imu_t> &imu_data, uint64_t &current_frame_time) {
   camera_trigger_->TriggerCamera();
   if (cam0_->GetFrame(d_frame_cam0) || cam1_->GetFrame(d_frame_cam1)) {
       return -1;
   }
   
   imu_data.clear();
-  AssociateImuData(imu_data);
+  AssociateImuData(imu_data, current_frame_time);
   image_counter_++;
   return 0;
 }
@@ -69,7 +69,8 @@ int SensorInterface::ReceiveImu(mavlink_imu_t imu_msg) {
   imu_queue_.push(imu_msg);
 }
 
-int SensorInterface::AssociateImuData(std::vector<mavlink_imu_t> &imu_msgs) {
+int SensorInterface::AssociateImuData(std::vector<mavlink_imu_t> &imu_msgs,
+  uint64_t &current_frame_time) {
   // The first image will not have relvant imu data
   if (image_counter_ == 0) {
     return 0;
@@ -114,12 +115,19 @@ int SensorInterface::AssociateImuData(std::vector<mavlink_imu_t> &imu_msgs) {
     }
     imu_queue_.pop();
   }
+
+  if (imu_queue_.empty()) {
+    current_frame_time = 0;
+  } else{
+    mavlink_imu_t &msg = imu_msgs.front();
+    current_frame_time = msg.timestamp_us - msg.time_since_trigger_us;
+  }
   return 0;
 }
 
 int SensorInterface::GenerateImuXform(const std::vector<mavlink_imu_t> &imu_msgs,
   const cv::Matx33f R_imu_cam0, const cv::Matx33f R_imu_cam1, cv::Matx33f &rotation_t0_t1_cam0,
-  cv::Matx33f &rotation_t0_t1_cam1) {
+  const uint64_t current_frame_time, cv::Matx33f &rotation_t0_t1_cam1) {
   // The first image will not have relvant imu data
   if (imu_msgs.size() == 0) {
     rotation_t0_t1_cam0 = cv::Matx33f::eye();
@@ -136,17 +144,29 @@ int SensorInterface::GenerateImuXform(const std::vector<mavlink_imu_t> &imu_msgs
 
   // Integrate the roll/pitch/yaw values
   cv::Vec3f delta_rpw = {0.0f, 0.0f, 0.0f};
-  float dt = 0.0f;
-  for (int i = 0; i < imu_msgs.size(); i++) {
-    // Calculate the dt. For the last iteration, just use the same dt as before
-    if (i != imu_msgs.size() - 1) {
-      dt = imu_msgs[i + 1].timestamp_us - imu_msgs[i].timestamp_us;
-      dt /= 1.0E6f;
-    }
+  if (imu_msgs.size() == 1) {
+    uint64_t delta_t = current_frame_time - (imu_msgs[0].timestamp_us - imu_msgs[0].
+      time_since_trigger_us);
+    delta_rpw -= cv::Vec3f(imu_msgs[0].gyroXYZ[0], imu_msgs[0].gyroXYZ[1], imu_msgs[0].gyroXYZ[2])
+      * static_cast<float>(delta_t) / 1.0E6f;
+  } else {  
+    for (int i = 0; i < imu_msgs.size(); i++) {
+      uint64_t delta_t;
+      // Handle the edge cases where i = 0, or i is max
+      if (i == 0) {
+        delta_t = imu_msgs[i].time_since_trigger_us;
+      } else if (i == imu_msgs.size() - 1) {
+        // If we don't have the current time, just use the same dt at the last iteration
+        if (current_frame_time != 0) {
+          delta_t = current_frame_time - imu_msgs[i - 1].timestamp_us;
+        }
+      } else {
+        delta_t = imu_msgs[i].timestamp_us - imu_msgs[i - 1].timestamp_us; 
+      }
 
-    delta_rpw[0] -= imu_msgs[i].gyroXYZ[0] * dt;
-    delta_rpw[1] -= imu_msgs[i].gyroXYZ[1] * dt;
-    delta_rpw[2] -= imu_msgs[i].gyroXYZ[2] * dt;
+      delta_rpw -= cv::Vec3f(imu_msgs[i].gyroXYZ[0], imu_msgs[i].gyroXYZ[1],
+        imu_msgs[i].gyroXYZ[2]) * static_cast<float>(delta_t) / 1.0E6f;
+    }
   }
   cv::Rodrigues(R_imu_cam0 * delta_rpw, rotation_t0_t1_cam0);
   cv::Rodrigues(R_imu_cam1 * delta_rpw, rotation_t0_t1_cam1);

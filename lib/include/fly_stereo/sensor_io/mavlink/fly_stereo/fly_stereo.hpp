@@ -21,7 +21,7 @@ namespace fly_stereo {
 /**
  * Array of msg_entry needed for @p mavlink_parse_char() (trought @p mavlink_get_msg_entry())
  */
-constexpr std::array<mavlink_msg_entry_t, 2> MESSAGE_ENTRIES {{ {0, 32, 48, 48, 0, 0, 0}, {1, 68, 8, 8, 0, 0, 0} }};
+constexpr std::array<mavlink_msg_entry_t, 2> MESSAGE_ENTRIES {{ {0, 181, 52, 52, 0, 0, 0}, {1, 68, 8, 8, 0, 0, 0} }};
 
 //! MAVLINK VERSION
 constexpr auto MAVLINK_VERSION = 3;

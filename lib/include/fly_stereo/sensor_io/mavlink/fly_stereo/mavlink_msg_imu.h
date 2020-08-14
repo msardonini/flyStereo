@@ -6,6 +6,7 @@
 
 typedef struct __mavlink_imu_t {
  uint64_t timestamp_us; /*< [us] timestamp since linux epoch*/
+ uint32_t time_since_trigger_us; /*< [us] timestamp since trigger*/
  uint32_t trigger_count; /*<  counter of trigger pulses*/
  float roll; /*< [rad] Roll angle (-pi..+pi)*/
  float pitch; /*< [rad] Pitch angle (-pi..+pi)*/
@@ -14,13 +15,13 @@ typedef struct __mavlink_imu_t {
  float accelXYZ[3]; /*< [rad/s] Acel output XYZ*/
 } mavlink_imu_t;
 
-#define MAVLINK_MSG_ID_IMU_LEN 48
-#define MAVLINK_MSG_ID_IMU_MIN_LEN 48
-#define MAVLINK_MSG_ID_0_LEN 48
-#define MAVLINK_MSG_ID_0_MIN_LEN 48
+#define MAVLINK_MSG_ID_IMU_LEN 52
+#define MAVLINK_MSG_ID_IMU_MIN_LEN 52
+#define MAVLINK_MSG_ID_0_LEN 52
+#define MAVLINK_MSG_ID_0_MIN_LEN 52
 
-#define MAVLINK_MSG_ID_IMU_CRC 32
-#define MAVLINK_MSG_ID_0_CRC 32
+#define MAVLINK_MSG_ID_IMU_CRC 181
+#define MAVLINK_MSG_ID_0_CRC 181
 
 #define MAVLINK_MSG_IMU_FIELD_GYROXYZ_LEN 3
 #define MAVLINK_MSG_IMU_FIELD_ACCELXYZ_LEN 3
@@ -29,27 +30,29 @@ typedef struct __mavlink_imu_t {
 #define MAVLINK_MESSAGE_INFO_IMU { \
     0, \
     "IMU", \
-    7, \
+    8, \
     {  { "timestamp_us", NULL, MAVLINK_TYPE_UINT64_T, 0, 0, offsetof(mavlink_imu_t, timestamp_us) }, \
-         { "trigger_count", NULL, MAVLINK_TYPE_UINT32_T, 0, 8, offsetof(mavlink_imu_t, trigger_count) }, \
-         { "roll", NULL, MAVLINK_TYPE_FLOAT, 0, 12, offsetof(mavlink_imu_t, roll) }, \
-         { "pitch", NULL, MAVLINK_TYPE_FLOAT, 0, 16, offsetof(mavlink_imu_t, pitch) }, \
-         { "yaw", NULL, MAVLINK_TYPE_FLOAT, 0, 20, offsetof(mavlink_imu_t, yaw) }, \
-         { "gyroXYZ", NULL, MAVLINK_TYPE_FLOAT, 3, 24, offsetof(mavlink_imu_t, gyroXYZ) }, \
-         { "accelXYZ", NULL, MAVLINK_TYPE_FLOAT, 3, 36, offsetof(mavlink_imu_t, accelXYZ) }, \
+         { "time_since_trigger_us", NULL, MAVLINK_TYPE_UINT32_T, 0, 8, offsetof(mavlink_imu_t, time_since_trigger_us) }, \
+         { "trigger_count", NULL, MAVLINK_TYPE_UINT32_T, 0, 12, offsetof(mavlink_imu_t, trigger_count) }, \
+         { "roll", NULL, MAVLINK_TYPE_FLOAT, 0, 16, offsetof(mavlink_imu_t, roll) }, \
+         { "pitch", NULL, MAVLINK_TYPE_FLOAT, 0, 20, offsetof(mavlink_imu_t, pitch) }, \
+         { "yaw", NULL, MAVLINK_TYPE_FLOAT, 0, 24, offsetof(mavlink_imu_t, yaw) }, \
+         { "gyroXYZ", NULL, MAVLINK_TYPE_FLOAT, 3, 28, offsetof(mavlink_imu_t, gyroXYZ) }, \
+         { "accelXYZ", NULL, MAVLINK_TYPE_FLOAT, 3, 40, offsetof(mavlink_imu_t, accelXYZ) }, \
          } \
 }
 #else
 #define MAVLINK_MESSAGE_INFO_IMU { \
     "IMU", \
-    7, \
+    8, \
     {  { "timestamp_us", NULL, MAVLINK_TYPE_UINT64_T, 0, 0, offsetof(mavlink_imu_t, timestamp_us) }, \
-         { "trigger_count", NULL, MAVLINK_TYPE_UINT32_T, 0, 8, offsetof(mavlink_imu_t, trigger_count) }, \
-         { "roll", NULL, MAVLINK_TYPE_FLOAT, 0, 12, offsetof(mavlink_imu_t, roll) }, \
-         { "pitch", NULL, MAVLINK_TYPE_FLOAT, 0, 16, offsetof(mavlink_imu_t, pitch) }, \
-         { "yaw", NULL, MAVLINK_TYPE_FLOAT, 0, 20, offsetof(mavlink_imu_t, yaw) }, \
-         { "gyroXYZ", NULL, MAVLINK_TYPE_FLOAT, 3, 24, offsetof(mavlink_imu_t, gyroXYZ) }, \
-         { "accelXYZ", NULL, MAVLINK_TYPE_FLOAT, 3, 36, offsetof(mavlink_imu_t, accelXYZ) }, \
+         { "time_since_trigger_us", NULL, MAVLINK_TYPE_UINT32_T, 0, 8, offsetof(mavlink_imu_t, time_since_trigger_us) }, \
+         { "trigger_count", NULL, MAVLINK_TYPE_UINT32_T, 0, 12, offsetof(mavlink_imu_t, trigger_count) }, \
+         { "roll", NULL, MAVLINK_TYPE_FLOAT, 0, 16, offsetof(mavlink_imu_t, roll) }, \
+         { "pitch", NULL, MAVLINK_TYPE_FLOAT, 0, 20, offsetof(mavlink_imu_t, pitch) }, \
+         { "yaw", NULL, MAVLINK_TYPE_FLOAT, 0, 24, offsetof(mavlink_imu_t, yaw) }, \
+         { "gyroXYZ", NULL, MAVLINK_TYPE_FLOAT, 3, 28, offsetof(mavlink_imu_t, gyroXYZ) }, \
+         { "accelXYZ", NULL, MAVLINK_TYPE_FLOAT, 3, 40, offsetof(mavlink_imu_t, accelXYZ) }, \
          } \
 }
 #endif
@@ -61,6 +64,7 @@ typedef struct __mavlink_imu_t {
  * @param msg The MAVLink message to compress the data into
  *
  * @param timestamp_us [us] timestamp since linux epoch
+ * @param time_since_trigger_us [us] timestamp since trigger
  * @param trigger_count  counter of trigger pulses
  * @param roll [rad] Roll angle (-pi..+pi)
  * @param pitch [rad] Pitch angle (-pi..+pi)
@@ -70,21 +74,23 @@ typedef struct __mavlink_imu_t {
  * @return length of the message in bytes (excluding serial stream start sign)
  */
 static inline uint16_t mavlink_msg_imu_pack(uint8_t system_id, uint8_t component_id, mavlink_message_t* msg,
-                               uint64_t timestamp_us, uint32_t trigger_count, float roll, float pitch, float yaw, const float *gyroXYZ, const float *accelXYZ)
+                               uint64_t timestamp_us, uint32_t time_since_trigger_us, uint32_t trigger_count, float roll, float pitch, float yaw, const float *gyroXYZ, const float *accelXYZ)
 {
 #if MAVLINK_NEED_BYTE_SWAP || !MAVLINK_ALIGNED_FIELDS
     char buf[MAVLINK_MSG_ID_IMU_LEN];
     _mav_put_uint64_t(buf, 0, timestamp_us);
-    _mav_put_uint32_t(buf, 8, trigger_count);
-    _mav_put_float(buf, 12, roll);
-    _mav_put_float(buf, 16, pitch);
-    _mav_put_float(buf, 20, yaw);
-    _mav_put_float_array(buf, 24, gyroXYZ, 3);
-    _mav_put_float_array(buf, 36, accelXYZ, 3);
+    _mav_put_uint32_t(buf, 8, time_since_trigger_us);
+    _mav_put_uint32_t(buf, 12, trigger_count);
+    _mav_put_float(buf, 16, roll);
+    _mav_put_float(buf, 20, pitch);
+    _mav_put_float(buf, 24, yaw);
+    _mav_put_float_array(buf, 28, gyroXYZ, 3);
+    _mav_put_float_array(buf, 40, accelXYZ, 3);
         memcpy(_MAV_PAYLOAD_NON_CONST(msg), buf, MAVLINK_MSG_ID_IMU_LEN);
 #else
     mavlink_imu_t packet;
     packet.timestamp_us = timestamp_us;
+    packet.time_since_trigger_us = time_since_trigger_us;
     packet.trigger_count = trigger_count;
     packet.roll = roll;
     packet.pitch = pitch;
@@ -105,6 +111,7 @@ static inline uint16_t mavlink_msg_imu_pack(uint8_t system_id, uint8_t component
  * @param chan The MAVLink channel this message will be sent over
  * @param msg The MAVLink message to compress the data into
  * @param timestamp_us [us] timestamp since linux epoch
+ * @param time_since_trigger_us [us] timestamp since trigger
  * @param trigger_count  counter of trigger pulses
  * @param roll [rad] Roll angle (-pi..+pi)
  * @param pitch [rad] Pitch angle (-pi..+pi)
@@ -115,21 +122,23 @@ static inline uint16_t mavlink_msg_imu_pack(uint8_t system_id, uint8_t component
  */
 static inline uint16_t mavlink_msg_imu_pack_chan(uint8_t system_id, uint8_t component_id, uint8_t chan,
                                mavlink_message_t* msg,
-                                   uint64_t timestamp_us,uint32_t trigger_count,float roll,float pitch,float yaw,const float *gyroXYZ,const float *accelXYZ)
+                                   uint64_t timestamp_us,uint32_t time_since_trigger_us,uint32_t trigger_count,float roll,float pitch,float yaw,const float *gyroXYZ,const float *accelXYZ)
 {
 #if MAVLINK_NEED_BYTE_SWAP || !MAVLINK_ALIGNED_FIELDS
     char buf[MAVLINK_MSG_ID_IMU_LEN];
     _mav_put_uint64_t(buf, 0, timestamp_us);
-    _mav_put_uint32_t(buf, 8, trigger_count);
-    _mav_put_float(buf, 12, roll);
-    _mav_put_float(buf, 16, pitch);
-    _mav_put_float(buf, 20, yaw);
-    _mav_put_float_array(buf, 24, gyroXYZ, 3);
-    _mav_put_float_array(buf, 36, accelXYZ, 3);
+    _mav_put_uint32_t(buf, 8, time_since_trigger_us);
+    _mav_put_uint32_t(buf, 12, trigger_count);
+    _mav_put_float(buf, 16, roll);
+    _mav_put_float(buf, 20, pitch);
+    _mav_put_float(buf, 24, yaw);
+    _mav_put_float_array(buf, 28, gyroXYZ, 3);
+    _mav_put_float_array(buf, 40, accelXYZ, 3);
         memcpy(_MAV_PAYLOAD_NON_CONST(msg), buf, MAVLINK_MSG_ID_IMU_LEN);
 #else
     mavlink_imu_t packet;
     packet.timestamp_us = timestamp_us;
+    packet.time_since_trigger_us = time_since_trigger_us;
     packet.trigger_count = trigger_count;
     packet.roll = roll;
     packet.pitch = pitch;
@@ -153,7 +162,7 @@ static inline uint16_t mavlink_msg_imu_pack_chan(uint8_t system_id, uint8_t comp
  */
 static inline uint16_t mavlink_msg_imu_encode(uint8_t system_id, uint8_t component_id, mavlink_message_t* msg, const mavlink_imu_t* imu)
 {
-    return mavlink_msg_imu_pack(system_id, component_id, msg, imu->timestamp_us, imu->trigger_count, imu->roll, imu->pitch, imu->yaw, imu->gyroXYZ, imu->accelXYZ);
+    return mavlink_msg_imu_pack(system_id, component_id, msg, imu->timestamp_us, imu->time_since_trigger_us, imu->trigger_count, imu->roll, imu->pitch, imu->yaw, imu->gyroXYZ, imu->accelXYZ);
 }
 
 /**
@@ -167,7 +176,7 @@ static inline uint16_t mavlink_msg_imu_encode(uint8_t system_id, uint8_t compone
  */
 static inline uint16_t mavlink_msg_imu_encode_chan(uint8_t system_id, uint8_t component_id, uint8_t chan, mavlink_message_t* msg, const mavlink_imu_t* imu)
 {
-    return mavlink_msg_imu_pack_chan(system_id, component_id, chan, msg, imu->timestamp_us, imu->trigger_count, imu->roll, imu->pitch, imu->yaw, imu->gyroXYZ, imu->accelXYZ);
+    return mavlink_msg_imu_pack_chan(system_id, component_id, chan, msg, imu->timestamp_us, imu->time_since_trigger_us, imu->trigger_count, imu->roll, imu->pitch, imu->yaw, imu->gyroXYZ, imu->accelXYZ);
 }
 
 /**
@@ -175,6 +184,7 @@ static inline uint16_t mavlink_msg_imu_encode_chan(uint8_t system_id, uint8_t co
  * @param chan MAVLink channel to send the message
  *
  * @param timestamp_us [us] timestamp since linux epoch
+ * @param time_since_trigger_us [us] timestamp since trigger
  * @param trigger_count  counter of trigger pulses
  * @param roll [rad] Roll angle (-pi..+pi)
  * @param pitch [rad] Pitch angle (-pi..+pi)
@@ -184,21 +194,23 @@ static inline uint16_t mavlink_msg_imu_encode_chan(uint8_t system_id, uint8_t co
  */
 #ifdef MAVLINK_USE_CONVENIENCE_FUNCTIONS
 
-static inline void mavlink_msg_imu_send(mavlink_channel_t chan, uint64_t timestamp_us, uint32_t trigger_count, float roll, float pitch, float yaw, const float *gyroXYZ, const float *accelXYZ)
+static inline void mavlink_msg_imu_send(mavlink_channel_t chan, uint64_t timestamp_us, uint32_t time_since_trigger_us, uint32_t trigger_count, float roll, float pitch, float yaw, const float *gyroXYZ, const float *accelXYZ)
 {
 #if MAVLINK_NEED_BYTE_SWAP || !MAVLINK_ALIGNED_FIELDS
     char buf[MAVLINK_MSG_ID_IMU_LEN];
     _mav_put_uint64_t(buf, 0, timestamp_us);
-    _mav_put_uint32_t(buf, 8, trigger_count);
-    _mav_put_float(buf, 12, roll);
-    _mav_put_float(buf, 16, pitch);
-    _mav_put_float(buf, 20, yaw);
-    _mav_put_float_array(buf, 24, gyroXYZ, 3);
-    _mav_put_float_array(buf, 36, accelXYZ, 3);
+    _mav_put_uint32_t(buf, 8, time_since_trigger_us);
+    _mav_put_uint32_t(buf, 12, trigger_count);
+    _mav_put_float(buf, 16, roll);
+    _mav_put_float(buf, 20, pitch);
+    _mav_put_float(buf, 24, yaw);
+    _mav_put_float_array(buf, 28, gyroXYZ, 3);
+    _mav_put_float_array(buf, 40, accelXYZ, 3);
     _mav_finalize_message_chan_send(chan, MAVLINK_MSG_ID_IMU, buf, MAVLINK_MSG_ID_IMU_MIN_LEN, MAVLINK_MSG_ID_IMU_LEN, MAVLINK_MSG_ID_IMU_CRC);
 #else
     mavlink_imu_t packet;
     packet.timestamp_us = timestamp_us;
+    packet.time_since_trigger_us = time_since_trigger_us;
     packet.trigger_count = trigger_count;
     packet.roll = roll;
     packet.pitch = pitch;
@@ -217,7 +229,7 @@ static inline void mavlink_msg_imu_send(mavlink_channel_t chan, uint64_t timesta
 static inline void mavlink_msg_imu_send_struct(mavlink_channel_t chan, const mavlink_imu_t* imu)
 {
 #if MAVLINK_NEED_BYTE_SWAP || !MAVLINK_ALIGNED_FIELDS
-    mavlink_msg_imu_send(chan, imu->timestamp_us, imu->trigger_count, imu->roll, imu->pitch, imu->yaw, imu->gyroXYZ, imu->accelXYZ);
+    mavlink_msg_imu_send(chan, imu->timestamp_us, imu->time_since_trigger_us, imu->trigger_count, imu->roll, imu->pitch, imu->yaw, imu->gyroXYZ, imu->accelXYZ);
 #else
     _mav_finalize_message_chan_send(chan, MAVLINK_MSG_ID_IMU, (const char *)imu, MAVLINK_MSG_ID_IMU_MIN_LEN, MAVLINK_MSG_ID_IMU_LEN, MAVLINK_MSG_ID_IMU_CRC);
 #endif
@@ -231,21 +243,23 @@ static inline void mavlink_msg_imu_send_struct(mavlink_channel_t chan, const mav
   is usually the receive buffer for the channel, and allows a reply to an
   incoming message with minimum stack space usage.
  */
-static inline void mavlink_msg_imu_send_buf(mavlink_message_t *msgbuf, mavlink_channel_t chan,  uint64_t timestamp_us, uint32_t trigger_count, float roll, float pitch, float yaw, const float *gyroXYZ, const float *accelXYZ)
+static inline void mavlink_msg_imu_send_buf(mavlink_message_t *msgbuf, mavlink_channel_t chan,  uint64_t timestamp_us, uint32_t time_since_trigger_us, uint32_t trigger_count, float roll, float pitch, float yaw, const float *gyroXYZ, const float *accelXYZ)
 {
 #if MAVLINK_NEED_BYTE_SWAP || !MAVLINK_ALIGNED_FIELDS
     char *buf = (char *)msgbuf;
     _mav_put_uint64_t(buf, 0, timestamp_us);
-    _mav_put_uint32_t(buf, 8, trigger_count);
-    _mav_put_float(buf, 12, roll);
-    _mav_put_float(buf, 16, pitch);
-    _mav_put_float(buf, 20, yaw);
-    _mav_put_float_array(buf, 24, gyroXYZ, 3);
-    _mav_put_float_array(buf, 36, accelXYZ, 3);
+    _mav_put_uint32_t(buf, 8, time_since_trigger_us);
+    _mav_put_uint32_t(buf, 12, trigger_count);
+    _mav_put_float(buf, 16, roll);
+    _mav_put_float(buf, 20, pitch);
+    _mav_put_float(buf, 24, yaw);
+    _mav_put_float_array(buf, 28, gyroXYZ, 3);
+    _mav_put_float_array(buf, 40, accelXYZ, 3);
     _mav_finalize_message_chan_send(chan, MAVLINK_MSG_ID_IMU, buf, MAVLINK_MSG_ID_IMU_MIN_LEN, MAVLINK_MSG_ID_IMU_LEN, MAVLINK_MSG_ID_IMU_CRC);
 #else
     mavlink_imu_t *packet = (mavlink_imu_t *)msgbuf;
     packet->timestamp_us = timestamp_us;
+    packet->time_since_trigger_us = time_since_trigger_us;
     packet->trigger_count = trigger_count;
     packet->roll = roll;
     packet->pitch = pitch;
@@ -273,13 +287,23 @@ static inline uint64_t mavlink_msg_imu_get_timestamp_us(const mavlink_message_t*
 }
 
 /**
+ * @brief Get field time_since_trigger_us from imu message
+ *
+ * @return [us] timestamp since trigger
+ */
+static inline uint32_t mavlink_msg_imu_get_time_since_trigger_us(const mavlink_message_t* msg)
+{
+    return _MAV_RETURN_uint32_t(msg,  8);
+}
+
+/**
  * @brief Get field trigger_count from imu message
  *
  * @return  counter of trigger pulses
  */
 static inline uint32_t mavlink_msg_imu_get_trigger_count(const mavlink_message_t* msg)
 {
-    return _MAV_RETURN_uint32_t(msg,  8);
+    return _MAV_RETURN_uint32_t(msg,  12);
 }
 
 /**
@@ -289,7 +313,7 @@ static inline uint32_t mavlink_msg_imu_get_trigger_count(const mavlink_message_t
  */
 static inline float mavlink_msg_imu_get_roll(const mavlink_message_t* msg)
 {
-    return _MAV_RETURN_float(msg,  12);
+    return _MAV_RETURN_float(msg,  16);
 }
 
 /**
@@ -299,7 +323,7 @@ static inline float mavlink_msg_imu_get_roll(const mavlink_message_t* msg)
  */
 static inline float mavlink_msg_imu_get_pitch(const mavlink_message_t* msg)
 {
-    return _MAV_RETURN_float(msg,  16);
+    return _MAV_RETURN_float(msg,  20);
 }
 
 /**
@@ -309,7 +333,7 @@ static inline float mavlink_msg_imu_get_pitch(const mavlink_message_t* msg)
  */
 static inline float mavlink_msg_imu_get_yaw(const mavlink_message_t* msg)
 {
-    return _MAV_RETURN_float(msg,  20);
+    return _MAV_RETURN_float(msg,  24);
 }
 
 /**
@@ -319,7 +343,7 @@ static inline float mavlink_msg_imu_get_yaw(const mavlink_message_t* msg)
  */
 static inline uint16_t mavlink_msg_imu_get_gyroXYZ(const mavlink_message_t* msg, float *gyroXYZ)
 {
-    return _MAV_RETURN_float_array(msg, gyroXYZ, 3,  24);
+    return _MAV_RETURN_float_array(msg, gyroXYZ, 3,  28);
 }
 
 /**
@@ -329,7 +353,7 @@ static inline uint16_t mavlink_msg_imu_get_gyroXYZ(const mavlink_message_t* msg,
  */
 static inline uint16_t mavlink_msg_imu_get_accelXYZ(const mavlink_message_t* msg, float *accelXYZ)
 {
-    return _MAV_RETURN_float_array(msg, accelXYZ, 3,  36);
+    return _MAV_RETURN_float_array(msg, accelXYZ, 3,  40);
 }
 
 /**
@@ -342,6 +366,7 @@ static inline void mavlink_msg_imu_decode(const mavlink_message_t* msg, mavlink_
 {
 #if MAVLINK_NEED_BYTE_SWAP || !MAVLINK_ALIGNED_FIELDS
     imu->timestamp_us = mavlink_msg_imu_get_timestamp_us(msg);
+    imu->time_since_trigger_us = mavlink_msg_imu_get_time_since_trigger_us(msg);
     imu->trigger_count = mavlink_msg_imu_get_trigger_count(msg);
     imu->roll = mavlink_msg_imu_get_roll(msg);
     imu->pitch = mavlink_msg_imu_get_pitch(msg);
