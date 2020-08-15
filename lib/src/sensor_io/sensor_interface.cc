@@ -41,7 +41,7 @@ int SensorInterface::GetSynchronizedData(cv::cuda::GpuMat &d_frame_cam0,
   if (cam0_->GetFrame(d_frame_cam0) || cam1_->GetFrame(d_frame_cam1)) {
       return -1;
   }
-  
+
   imu_data.clear();
   AssociateImuData(imu_data);
   image_counter_++;
@@ -66,13 +66,16 @@ void SensorInterface::DrawPoints(const std::vector<cv::Point2f> &mypoints,
 
 int SensorInterface::ReceiveImu(mavlink_imu_t imu_msg) {
   std::lock_guard<std::mutex> lock(imu_queue_mutex_);
+  std::cout << "trigger counnt: " << imu_msg.trigger_count << std::endl;
   imu_queue_.push(imu_msg);
 }
 
 int SensorInterface::AssociateImuData(std::vector<mavlink_imu_t> &imu_msgs) {
+  std::queue<std::pair<uint32_t, uint64_t> > trigger_queue = camera_trigger_->GetTriggerCount();
+
   // The first image will not have relvant imu data
   if (image_counter_ == 0) {
-    return 0;
+    return 1;
   }
 
   if (imu_queue_.size() == 0) {
@@ -84,7 +87,6 @@ int SensorInterface::AssociateImuData(std::vector<mavlink_imu_t> &imu_msgs) {
   //  roughly (IMU acquisition rate / image acquisition rate )
   imu_msgs.reserve(20);
 
-  std::queue<std::pair<uint32_t, uint64_t> > trigger_queue = camera_trigger_->GetTriggerCount();
 
   while(trigger_queue.size() > 1) {
     std::cerr << "Error! Mismatch between number of triggers and proccesed frames" << std::endl;
@@ -102,7 +104,7 @@ int SensorInterface::AssociateImuData(std::vector<mavlink_imu_t> &imu_msgs) {
   int image_of_interest = image_counter_ - 1;
   std::lock_guard<std::mutex> lock(imu_queue_mutex_);
 
-  // Do a sanity check that we didn't miss a bunch of IMU messages, or sometimes a message from a 
+  // Do a sanity check that we didn't miss a bunch of IMU messages, or sometimes a message from a
   // previous recording makes it into the front of our queueu
   if (image_of_interest + 3 < imu_queue_.front().trigger_count) {
     std::cerr << "Error! Missed IMU messages" << std::endl;

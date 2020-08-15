@@ -42,6 +42,7 @@ int main(int argc, char *argv[]) {
   // Argument params
   std::string config_file;
   int image_counter = 0;
+  bool user_input = false;
 
   int opt;
   while((opt = getopt(argc, argv, "c:n:")) != -1) {
@@ -52,6 +53,8 @@ int main(int argc, char *argv[]) {
       case 'n':
         image_counter = std::stoi(optarg);
         break;
+      case 'u':
+        user_input = true;
       case '?':
         printf("unknown option: %c\n", optopt);
         break;
@@ -86,6 +89,7 @@ int main(int argc, char *argv[]) {
   std::experimental::filesystem::path save_dir(params["save_dir"].as<std::
     string>());
   std::experimental::filesystem::create_directory(save_dir);
+  int counter = 1;
   while (true) {
     if (cam0.GetFrame(frame_cam0) || cam1.GetFrame(frame_cam1)) {
       std::cerr << "Error reading frame!" << std::endl;
@@ -95,13 +99,20 @@ int main(int argc, char *argv[]) {
     cam0.SendFrame(frame_cam0);
     cam1.SendFrame(frame_cam1);
 
-    char ret = get_user_input(0, 50000);
 
     bool save_img = false;
-    if (ret == 0x20) {
-      save_img = true;
-    } else if (ret != 0) {
-      std::cout << "ret is: " << ret << std::endl;
+    
+    if (user_input) {
+      char ret = get_user_input(0, 50000);
+      if (ret == 0x20) {
+        save_img = true;
+      } else if (ret != 0) {
+        std::cout << "ret is: " << ret << std::endl;
+      }
+    } else {
+      // Default behavior is just to save an image every ~5 seconds
+      if (counter % 60 == 0)
+        save_img = true;
     }
 
     if (save_img) {
@@ -116,6 +127,7 @@ int main(int argc, char *argv[]) {
       cv::imwrite(save_path_0.c_str(), frame_cam0);
       cv::imwrite(save_path_1.c_str(), frame_cam1);
     }
+    counter++;
   }
 
   return 0;  

@@ -21,20 +21,21 @@ void SignalHandler(int signal_num) {
 }
 
 
-int UpdatePointsViaImu(const std::vector<cv::Point2f> &current_pts, const cv::Matx33d &rotation,
-  const cv::Matx33d &camera_matrix, std::vector<cv::Point2f> &updated_pts) {
+int UpdatePointsViaImu(const std::vector<cv::Point3d> &current_pts, const cv::Matx33d &rotation,
+  const cv::Matx33d &camera_matrix, std::vector<cv::Point3d> &updated_pts) {
   if (current_pts.size() == 0) {
     return -1;
   }
 
-  cv::Matx33f H = camera_matrix * rotation * camera_matrix.inv();
+  cv::Matx33d H = camera_matrix * rotation * camera_matrix.inv();
 
   updated_pts.resize(current_pts.size());
   for (int i = 0; i < current_pts.size(); i++) {
-    cv::Vec3f temp_current(current_pts[i].x, current_pts[i].y, 1.0f);
-    cv::Vec3f temp_updated = H * temp_current;
-    updated_pts[i].x = temp_updated[0] / temp_updated[2];
-    updated_pts[i].y = temp_updated[1] / temp_updated[2];
+    cv::Vec3d temp_current(current_pts[i].x, current_pts[i].y, current_pts[i].z);
+    cv::Vec3d temp_updated = H * temp_current;
+    // updated_pts[i].x = temp_updated[0] / temp_updated[2];
+    // updated_pts[i].y = temp_updated[1] / temp_updated[2];
+    updated_pts[i] = rotation * temp_current;
   }
   return 0;
 }
@@ -90,19 +91,31 @@ int main(int argc, char *argv[]) {
   std::thread imu_thread_obj(imu_thread, imu_comp_params["mavlink_reader"], &sensor_interface);
 
   // Draw a box of points on the image
-  std::vector<cv::Point2f> debug_pts_cam0;
+  std::vector<cv::Point3d> debug_pts_cam0;
 
-  debug_pts_cam0.push_back(cv::Point2f(320, 180));
-  debug_pts_cam0.push_back(cv::Point2f(640, 180));
-  debug_pts_cam0.push_back(cv::Point2f(960, 180));
-  debug_pts_cam0.push_back(cv::Point2f(320, 360));
-  debug_pts_cam0.push_back(cv::Point2f(640, 360));
-  debug_pts_cam0.push_back(cv::Point2f(960, 360));
-  debug_pts_cam0.push_back(cv::Point2f(320, 540));
-  debug_pts_cam0.push_back(cv::Point2f(640, 540));
-  debug_pts_cam0.push_back(cv::Point2f(960, 540));
+  // debug_pts_cam0.push_back(cv::Point2d(320, 180));
+  // debug_pts_cam0.push_back(cv::Point2d(640, 180));
+  // debug_pts_cam0.push_back(cv::Point2d(960, 180));
+  // debug_pts_cam0.push_back(cv::Point2d(320, 360));
+  // debug_pts_cam0.push_back(cv::Point2d(640, 360));
+  // debug_pts_cam0.push_back(cv::Point2d(960, 360));
+  // debug_pts_cam0.push_back(cv::Point2d(320, 540));
+  // debug_pts_cam0.push_back(cv::Point2d(640, 540));
+  // debug_pts_cam0.push_back(cv::Point2d(960, 540));
 
-  std::vector<cv::Point2f> debug_pts_cam1 = debug_pts_cam0;
+  debug_pts_cam0.push_back(cv::Point3d(-0.25, -0.25, 1));
+  debug_pts_cam0.push_back(cv::Point3d(-0.25, 0.0, 1));
+  debug_pts_cam0.push_back(cv::Point3d(-0.25, 0.25, 1));
+  debug_pts_cam0.push_back(cv::Point3d(0.0, -0.25, 1));
+  debug_pts_cam0.push_back(cv::Point3d(0.0, 0.0, 1));
+  debug_pts_cam0.push_back(cv::Point3d(0.0, 0.25, 1));
+  debug_pts_cam0.push_back(cv::Point3d(0.25, -0.25, 1));
+  debug_pts_cam0.push_back(cv::Point3d(0.25, 0.0, 1));
+  debug_pts_cam0.push_back(cv::Point3d(0.25, 0.25, 1));
+
+
+
+  std::vector<cv::Point3d> debug_pts_cam1 = debug_pts_cam0;
 
   // cv::cuda::GpuMat d_debug_pts; d_debug_pts.upload(debug_pts);
   //   d_debug_pts.download(debug_pts);
@@ -111,55 +124,75 @@ int main(int argc, char *argv[]) {
   std::vector<mavlink_imu_t> imu_msgs;
 
   // Get the config params for the rotation of IMU to cameras
-  YAML::Node stereo_calibration = imu_comp_params["image_processor"]["stereo_calibration"];
-  std::vector<float> interface_vec = stereo_calibration["R"]["data"].as<std::vector<float>>();
-  cv::Matx33f R_cam0_cam1 = cv::Matx33f(interface_vec.data());
+  YAML::Node stereo_calibration = imu_comp_params["stereo_calibration"];
+  std::vector<double> interface_vec = stereo_calibration["R"]["data"].as<std::vector<double>>();
+  cv::Matx33d R_cam0_cam1 = cv::Matx33d(interface_vec.data());
 
-  interface_vec = stereo_calibration["K1"]["data"].as<std::vector<float>>();
-  cv::Matx33f K_cam0 = cv::Matx33f(interface_vec.data());
-  interface_vec = stereo_calibration["K2"]["data"].as<std::vector<float>>();
-  cv::Matx33f K_cam1 = cv::Matx33f(interface_vec.data());
+  interface_vec = stereo_calibration["K0"]["data"].as<std::vector<double>>();
+  cv::Matx33d K_cam0 = cv::Matx33d(interface_vec.data());
+  interface_vec = stereo_calibration["K1"]["data"].as<std::vector<double>>();
+  cv::Matx33d K_cam1 = cv::Matx33d(interface_vec.data());
+  std::vector<double> D_cam0 = stereo_calibration["D0"]["data"].as<std::vector<double>>();
+  std::vector<double> D_cam1 = stereo_calibration["D1"]["data"].as<std::vector<double>>();
 
 
-  cv::Matx33f R_imu_cam0;
-  std::vector<float> imu_cam0_vec = stereo_calibration["debug_vec"].as<std::vector<float>>();
-  cv::Vec3f angles_imu_cam0 = {imu_cam0_vec[0], imu_cam0_vec[1], imu_cam0_vec[2]};
+
+  cv::Matx33d R_imu_cam0;
+  std::vector<double> imu_cam0_vec = stereo_calibration["debug_vec"].as<std::vector<double>>();
+  cv::Vec3d angles_imu_cam0 = {imu_cam0_vec[0], imu_cam0_vec[1], imu_cam0_vec[2]};
   cv::Rodrigues(angles_imu_cam0, R_imu_cam0);
-  cv::Matx33f R_imu_cam1 = R_imu_cam0 * R_cam0_cam1;
+  cv::Matx33d R_imu_cam1 = R_imu_cam0 * R_cam0_cam1;
 
   cv::Matx33f R_t0_t1_cam0, R_t0_t1_cam1;
   while (is_running.load()) {
     imu_msgs.clear();
     sensor_interface.GetSynchronizedData(d_frame_cam0, d_frame_cam1, imu_msgs);
-    sensor_interface.GenerateImuXform(imu_msgs, R_imu_cam0, R_imu_cam1, R_t0_t1_cam0,
-      R_t0_t1_cam1);
+    if(sensor_interface.GenerateImuXform(imu_msgs, R_imu_cam0, R_imu_cam1, R_t0_t1_cam0,
+      R_t0_t1_cam1) != 0) {
+      continue;
+    }
 
-    if (imu_msgs.size() > 0)
-      std::cout << imu_msgs.size() << std::endl;
 
     cv::Mat show_frame_cam0, show_frame_cam1;
 
     UpdatePointsViaImu(debug_pts_cam0, R_t0_t1_cam0, K_cam0, debug_pts_cam0);
     UpdatePointsViaImu(debug_pts_cam1, R_t0_t1_cam1, K_cam1, debug_pts_cam1);
 
-    sensor_interface.DrawPoints(debug_pts_cam1, show_frame_cam1);
+    if (imu_msgs.size() > 0) {
+      std::cout << "imu message size: " << imu_msgs.size() << std::endl;
+      std::cout << "xform " << R_t0_t1_cam0 << std::endl;
+      std::cout << "debug_pts_cam0 " << debug_pts_cam0[0] << std::endl;
+    }
 
-
+    cv::Vec3d tvec(0.0, 0.0, 0.0);
+    cv::Vec3d rvec(0.0, 0.0, 0.0);
     if (sensor_interface.cam0_->OutputEnabled()) {
+      std::vector<cv::Point2d> show_pts;
+      // std::vector<cv::Point2f> show_pts_inf(debug_pts_cam0.begin(), debug_pts_cam0.end());
+      cv::projectPoints(debug_pts_cam0, rvec, tvec, K_cam0, D_cam0,
+        show_pts);
+      std::vector<cv::Point2f> show_pts_f(show_pts.begin(), show_pts.end());
       cv::Mat show_frame, show_frame_color;
       d_frame_cam0.download(show_frame);
       cv::cvtColor(show_frame, show_frame_color, cv::COLOR_GRAY2BGR);
-      sensor_interface.DrawPoints(debug_pts_cam0, show_frame_color);
+      sensor_interface.DrawPoints(show_pts_f, show_frame_color);
       sensor_interface.cam0_->SendFrame(show_frame_color);
     }
 
-    if (sensor_interface.cam1_->OutputEnabled()) {
+    if (sensor_interface.cam1_->OutputEnabled() && 0) {
+      std::vector<cv::Point2d> show_pts;
+      cv::projectPoints(debug_pts_cam1, cv::Mat(), cv::Mat(), K_cam1, D_cam1,
+        show_pts);
+      std::vector<cv::Point2f> show_pts_f(show_pts.begin(), show_pts.end());
       cv::Mat show_frame, show_frame_color;
       d_frame_cam1.download(show_frame);
       cv::cvtColor(show_frame, show_frame_color, cv::COLOR_GRAY2BGR);
-      sensor_interface.DrawPoints(debug_pts_cam1, show_frame_color);
+      sensor_interface.DrawPoints(show_pts_f, show_frame_color);
       sensor_interface.cam1_->SendFrame(show_frame_color);
     }
+    
+    // Sleep to limit the FPS
+    std::this_thread::sleep_for(std::chrono::microseconds(10000));
   }
   return 0;
 }

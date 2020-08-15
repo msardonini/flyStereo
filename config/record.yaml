@@ -1,43 +1,12 @@
 fly_stereo:
-  msckf_vio:
-    fixed_frame_id: "world"
-    child_frame_id: "robot"
-    publish_tf: false
-    frame_rate: 20
-    position_std_threshold: 8.0  
-    rotation_threshold: 0.2618
-    translation_threshold: 0.4
-    tracking_rate_threshold: 0.5
-    feature_translation_threshold: 0.2
-    max_cam_state_size: 30
-
-    noise:
-      gyro: 0.001
-      acc: 0.01
-      gyro_bias: 0.001
-      acc_bias: 0.01
-      feature: 0.01
-
-    initial_velocity: [0.0, 0.0, 0.0]
-
-    initial_covariance:
-      velocity: 0.25
-      gyro_bias: 0.0001
-      acc_bias: 0.01
-      extrinsic_rotation_cov: 0.00030462
-      extrinsic_translation_cov: 0.0001
-    
-    R_imu_cam0_euler: [0, 0, 4.71238898038]
-    T_imu_cam0: [0, 0, 0]
-
-    R_cam0_cam1: [ 9.9995094893828418e-01, 9.0814081573217936e-03,
-             3.9531940636981407e-03, -9.0542745605519358e-03,
-             9.9993569490162326e-01, -6.8283360923398128e-03,
-             -4.0149507602548606e-03, 6.7922078507608756e-03,
-             9.9996887255699352e-01 ]
-    T_cam0_cam1: [ 2.9274478422131663e-02, -1.8842573615682340e-01,
-          1.6592818394838118e-03 ]
-
+  vio:
+    image_width: 1280
+    image_height: 720
+    # bins_width: 40
+    # bins_height: 30
+    bins_width: 20
+    bins_height: 15
+    max_pts_in_bin: 2
 
 
   mavlink_reader:
@@ -54,34 +23,34 @@ fly_stereo:
       auto_trigger_async_rate_hz: 20
       replay_mode: false
     Camera0:
-      auto_exposure:
-        pixel_range_limits: [108, 148]
-        exposure_limits: [1250, 2500]
-        num_frames_to_calc: 3
+      # auto_exposure:
+      #   pixel_range_limits: [78, 118]
+      #   exposure_limits: [1250, 2500]
+      #   num_frames_to_calc: 3
       device_num: 0
-      src_pipeline: "v4l2src device=/dev/video0 ! video/x-raw,width=1280,height=720 ! nvvidconv flip-method=0 ! video/x-raw, format=(string)GRAY8 ! appsink max-buffers=1 drop=true"
+      src_pipeline: "v4l2src device=/dev/video0 ! video/x-raw,width=1280,height=720 ! nvvidconv ! video/x-raw, format=(string)GRAY8 ! appsink max-buffers=1 drop=true"
       sink_pipeline: "appsrc do-timestamp=true ! nvvidconv ! nvv4l2h264enc maxperf-enable=true insert-sps-pps=true bitrate=107456000 ! h264parse ! qtmux ! filesink location=/tmp/test/cam0.mp4 "
       framerate: 20
       width: 1280
       height: 720
       flip_method: 0
       hardware_trigger_mode: true
-      gain: 2
+      gain: 3
       exposure_time: 1500
     Camera1:
-      auto_exposure:
-        pixel_range_limits: [108, 148]
-        exposure_limits: [1250, 2500]
-        num_frames_to_calc: 3
+      # auto_exposure:
+      #   pixel_range_limits: [78, 118]
+      #   exposure_limits: [1250, 2500]
+      #   num_frames_to_calc: 3
       device_num: 1
-      src_pipeline: "v4l2src device=/dev/video1 ! video/x-raw,width=1280,height=720 ! nvvidconv flip-method=0 ! video/x-raw, format=(string)GRAY8 ! appsink max-buffers=1 drop=true"
+      src_pipeline: "v4l2src device=/dev/video1 ! video/x-raw,width=1280,height=720 ! nvvidconv ! video/x-raw, format=(string)GRAY8 ! appsink max-buffers=1 drop=true"
       sink_pipeline: "appsrc do-timestamp=true ! nvvidconv ! nvv4l2h264enc maxperf-enable=true insert-sps-pps=true bitrate=107456000 ! h264parse ! qtmux ! filesink location=/tmp/test/cam1.mp4 "
       framerate: 20
       width: 1280
       height: 720
       flip_method: 0
       hardware_trigger_mode: true
-      gain: 2
+      gain: 3
       exposure_time: 1500
     draw_points_to_frame: false
     max_error_counter: 2
@@ -98,76 +67,71 @@ fly_stereo:
       max_pyramid_level: 5
 
 
-    stereo_calibration:
-      # 3.14159265359
-      # 4.71238898038
-      # debug_vec: [1.57, 0, 4.7123]
-      debug_vec: [0, 0, 4.71238898038]
-      K1: !!opencv-matrix
-         rows: 3
-         cols: 3
-         dt: d
-         data: [ 6.9278520294414886e+02, 0., 6.2433073946189779e+02, 0.,
-             6.9363921242545518e+02, 3.2791944141189538e+02, 0., 0., 1. ]
-      K2: !!opencv-matrix
-         rows: 3
-         cols: 3
-         dt: d
-         data: [ 6.9356805497443031e+02, 0., 6.3760779469083991e+02, 0.,
-             6.9322551798392237e+02, 3.0566722498239227e+02, 0., 0., 1. ]
-      D1: 
-        data: [ -4.1444181360044602e-02, 1.0908491981000276e-03,
-          -2.5875875082820677e-02, 2.0958115256675357e-02 ]
-      D2: 
-        data: [ -3.8914630686555429e-02, -2.0235556621828670e-02,
-          1.5140049330060750e-02, -3.9433182586886516e-03 ]
-      R: !!opencv-matrix
-         rows: 3
-         cols: 3
-         dt: d
-         data: [ 9.9995094893828418e-01, 9.0814081573217936e-03,
-             3.9531940636981407e-03, -9.0542745605519358e-03,
-             9.9993569490162326e-01, -6.8283360923398128e-03,
-             -4.0149507602548606e-03, 6.7922078507608756e-03,
-             9.9996887255699352e-01 ]
-      T: [ 2.9274478422131663e-02, -1.8842573615682340e-01,
-          1.6592818394838118e-03 ]
-      R1: !!opencv-matrix
-         rows: 3
-         cols: 3
-         dt: d
-         data: [ 1.6242001352117996e-01, -9.8659108794051031e-01,
-             1.6055042950436315e-02, 9.8661630790531496e-01,
-             1.6261898691861149e-01, 1.1971886603603510e-02,
-             -1.4422211448484396e-02, 1.3895693214989390e-02,
-             9.9979943465027543e-01 ]
-      R2: !!opencv-matrix
-         rows: 3
-         cols: 3
-         dt: d
-         data: [ 1.5351587899359453e-01, -9.8810786972933418e-01,
-             8.7013031082354662e-03, 9.8809204991329647e-01,
-             1.5359368668557977e-01, 9.1148400135131480e-03,
-             -1.0342910372038794e-02, 7.1984157485728371e-03,
-             9.9992060035572172e-01 ]
-      P1: !!opencv-matrix
-         rows: 3
-         cols: 4
-         dt: d
-         data: [ 1.0160079208553813e+03, 0., 7.1132536696101829e+02, 0., 0.,
-             1.0160079208553813e+03, 2.9144978969692437e+02, 0., 0., 0., 1.,
-             0. ]
-      P2: !!opencv-matrix
-         rows: 3
-         cols: 4
-         dt: d
-         data: [ 1.0160079208553813e+03, 0., 7.1132536696101829e+02,
-             1.9374609422023858e+02, 0., 1.0160079208553813e+03,
-             2.9144978969692437e+02, 0., 0., 0., 1., 0. ]
-      Q: !!opencv-matrix
-         rows: 4
-         cols: 4
-         dt: d
-         data: [ 1., 0., 0., -7.1132536696101829e+02, 0., 1., 0.,
-             -2.9144978969692437e+02, 0., 0., 0., 1.0160079208553813e+03, 0.,
-             0., -5.2440175630092769e+00, 0. ]
+  stereo_calibration:
+    # 3.14159265359
+    # 4.71238898038
+    # debug_vec: [1.57, 0, 4.7123]
+    debug_vec: [0, 0, 4.71238898038]
+    K0: !!opencv-matrix
+       rows: 3
+       cols: 3
+       dt: d
+       data: [ 6.9405104213644108e+02, 0., 6.2829447177361112e+02, 0.,
+           6.9435089917188429e+02, 3.8595932303228301e+02, 0., 0., 1. ]
+    D0: !!opencv-matrix
+       rows: 1
+       cols: 14
+       dt: d
+       data: [ 2.9172687627692741e-02, -1.6641312201850308e-01,
+           8.0842321202957605e-07, -4.3162167446279549e-04,
+           -7.1683190805320708e-03, 4.0002117134871995e-01,
+           -2.3670153598056326e-01, -4.1696875523209734e-02, 0., 0., 0., 0.,
+           0., 0. ]
+
+    K1: !!opencv-matrix
+       rows: 3
+       cols: 3
+       dt: d
+       data: [ 6.9515927299394002e+02, 0., 6.3824055289358103e+02, 0.,
+           6.9427497514517211e+02, 4.0611331039166436e+02, 0., 0., 1. ]
+    D1: !!opencv-matrix
+       rows: 1
+       cols: 14
+       dt: d
+       data: [ 1.8848754919589383e-01, -2.2244379845824566e-01,
+           3.9547898987299166e-05, -4.7494701014367123e-06,
+           -1.3842073392074933e-02, 5.6541773545986240e-01,
+           -2.4505940046126989e-01, -7.0794269370746607e-02, 0., 0., 0., 0.,
+           0., 0. ]
+    R: !!opencv-matrix
+       rows: 3
+       cols: 3
+       dt: d
+       data: [ 9.9982676660917746e-01, -8.9941746491797123e-03,
+           1.6295447039509661e-02, 8.8700673844131304e-03,
+           9.9993122567914705e-01, 7.6724061672038745e-03,
+           -1.6363333292253802e-02, -7.5265353369681738e-03,
+           9.9983778313753879e-01 ]
+    T: !!opencv-matrix
+       rows: 3
+       cols: 1
+       dt: d
+       data: [ 3.4675201961119527e-02, 1.8888898321132341e-01,
+           -6.8925098843385822e-03 ]
+    E: !!opencv-matrix
+       rows: 3
+       cols: 3
+       dt: d
+       data: [ -3.0297163604000011e-03, 5.4703562497483010e-03,
+           1.8891122436845748e-01, -6.3239139848140285e-03,
+           3.2297657054781287e-04, -3.4781893588441720e-02,
+           -1.8854868995430943e-01, 3.6371717701962833e-02,
+           -2.8119881888914165e-03 ]
+    F: !!opencv-matrix
+       rows: 3
+       cols: 3
+       dt: d
+       data: [ 8.0148560316298316e-07, -1.4468039780538996e-06,
+           -3.4763592692455110e-02, 1.6697374901756633e-06,
+           -8.5257696265469937e-08, 5.3703781665070914e-03,
+           3.3384378545979074e-02, -5.7095435676686552e-03, 1. ]
