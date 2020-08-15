@@ -27,7 +27,7 @@ int UpdatePointsViaImu(const std::vector<cv::Point3d> &current_pts, const cv::Ma
     return -1;
   }
 
-  cv::Matx33d H = camera_matrix * rotation * camera_matrix.inv();
+  cv::Matx33d H = camera_matrix * rotation.t() * camera_matrix.inv();
 
   updated_pts.resize(current_pts.size());
   for (int i = 0; i < current_pts.size(); i++) {
@@ -52,9 +52,6 @@ void imu_thread(YAML::Node imu_reader_params, SensorInterface *sensor_interface)
     if(mavlink_reader.GetAttitudeMsg(&attitude, true)) {
       // Send the imu message to the image processor
       sensor_interface->ReceiveImu(attitude);
-
-      // // Send the imu message to the vio object
-      // msckf_vio->imuCallback(attitude);
     }
   }
 }
@@ -93,18 +90,16 @@ int main(int argc, char *argv[]) {
   // Draw a box of points on the image
   std::vector<cv::Point3d> debug_pts_cam0;
 
-
-  debug_pts_cam0.push_back(cv::Point3d(-0.25, -0.25, 1));
-  debug_pts_cam0.push_back(cv::Point3d(-0.25, 0.0, 1));
-  debug_pts_cam0.push_back(cv::Point3d(-0.25, 0.25, 1));
-  debug_pts_cam0.push_back(cv::Point3d(0.0, -0.25, 1));
+  const float grid_size = 0.4;
+  debug_pts_cam0.push_back(cv::Point3d(-grid_size, -grid_size, 1));
+  debug_pts_cam0.push_back(cv::Point3d(-grid_size, 0.0, 1));
+  debug_pts_cam0.push_back(cv::Point3d(-grid_size, grid_size, 1));
+  debug_pts_cam0.push_back(cv::Point3d(0.0, -grid_size, 1));
   debug_pts_cam0.push_back(cv::Point3d(0.0, 0.0, 1));
-  debug_pts_cam0.push_back(cv::Point3d(0.0, 0.25, 1));
-  debug_pts_cam0.push_back(cv::Point3d(0.25, -0.25, 1));
-  debug_pts_cam0.push_back(cv::Point3d(0.25, 0.0, 1));
-  debug_pts_cam0.push_back(cv::Point3d(0.25, 0.25, 1));
-
-
+  debug_pts_cam0.push_back(cv::Point3d(0.0, grid_size, 1));
+  debug_pts_cam0.push_back(cv::Point3d(grid_size, -grid_size, 1));
+  debug_pts_cam0.push_back(cv::Point3d(grid_size, 0.0, 1));
+  debug_pts_cam0.push_back(cv::Point3d(grid_size, grid_size, 1));
 
   std::vector<cv::Point3d> debug_pts_cam1 = debug_pts_cam0;
 
@@ -126,10 +121,8 @@ int main(int argc, char *argv[]) {
   std::vector<double> D_cam0 = stereo_calibration["D0"]["data"].as<std::vector<double>>();
   std::vector<double> D_cam1 = stereo_calibration["D1"]["data"].as<std::vector<double>>();
 
-
-
   cv::Matx33d R_imu_cam0;
-  std::vector<double> imu_cam0_vec = stereo_calibration["debug_vec"].as<std::vector<double>>();
+  std::vector<double> imu_cam0_vec = stereo_calibration["R_imu_cam0"].as<std::vector<double>>();
   cv::Vec3d angles_imu_cam0 = {imu_cam0_vec[0], imu_cam0_vec[1], imu_cam0_vec[2]};
   cv::Rodrigues(angles_imu_cam0, R_imu_cam0);
   cv::Matx33d R_imu_cam1 = R_imu_cam0 * R_cam0_cam1;
@@ -138,12 +131,13 @@ int main(int argc, char *argv[]) {
   uint64_t current_frame_time;
   while (is_running.load()) {
     imu_msgs.clear();
-    sensor_interface.GetSynchronizedData(d_frame_cam0, d_frame_cam1, imu_msgs, current_frame_time);
+    if(sensor_interface.GetSynchronizedData(d_frame_cam0, d_frame_cam1, imu_msgs, current_frame_time) != 0) {
+      continue;
+    }
     if(sensor_interface.GenerateImuXform(imu_msgs, R_imu_cam0, R_imu_cam1, R_t0_t1_cam0,
       current_frame_time, R_t0_t1_cam1) != 0) {
       continue;
     }
-
 
     cv::Mat show_frame_cam0, show_frame_cam1;
 
@@ -182,9 +176,13 @@ int main(int argc, char *argv[]) {
       sensor_interface.DrawPoints(show_pts_f, show_frame_color);
       sensor_interface.cam1_->SendFrame(show_frame_color);
     }
-    
+
     // Sleep to limit the FPS
     std::this_thread::sleep_for(std::chrono::microseconds(10000));
+  }
+
+  if (imu_thread_obj.joinable()) {
+    imu_thread_obj.join();
   }
   return 0;
 }

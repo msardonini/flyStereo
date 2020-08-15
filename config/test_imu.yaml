@@ -56,12 +56,14 @@ fly_stereo:
       window_size: 21
       max_pyramid_level: 5
 
+    # Minumum time before two triggers are allowed
+    min_camera_dt_ms: 40
 
   stereo_calibration:
     # 3.14159265359
     # 4.71238898038
     # debug_vec: [1.57, 0, 4.7123]
-    debug_vec: [0, -0.0872665, 4.71238898038]
+    R_imu_cam0: [0, -0.0872665, 4.71238898038]
     K0: !!opencv-matrix
        rows: 3
        cols: 3

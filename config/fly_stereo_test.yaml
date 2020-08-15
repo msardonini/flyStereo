@@ -7,6 +7,21 @@ fly_stereo:
     bins_width: 20
     bins_height: 15
     max_pts_in_bin: 2
+    kalman_filter:
+        dt: 0.2
+        sigma_a: 0.1
+        f: [0.0, 1.0, 0.0, 0.0, 0.0, 0.0,
+            0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+            0.0, 0.0, 0.0, 1.0, 0.0, 0.0,
+            0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+            0.0, 0.0, 0.0, 0.0, 0.0, 1.0,
+            0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+        h:  [1.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+            0.0, 0.0, 1.0, 0.0, 0.0, 0.0,
+            0.0, 0.0, 0.0, 0.0, 1.0, 0.0]
+        r:  [0.001, 0.0, 0.0, 
+            0.0, 0.001, 0.0, 
+            0.0, 0.0, 0.001]
 
   mavlink_reader:
     device: /dev/ttyTHS1
@@ -52,7 +67,7 @@ fly_stereo:
       gain: 2
       exposure_time: 1500
     draw_points_to_frame: true
-    max_error_counter: 2
+    max_error_counter: 5
     stereo_threshold: 15
     ransac_threshold: 5
 
@@ -65,12 +80,14 @@ fly_stereo:
       window_size: 21
       max_pyramid_level: 5
 
+    # Minumum time before two triggers are allowed
+    min_camera_dt_ms: 40
 
   stereo_calibration:
     # 3.14159265359
     # 4.71238898038
     # debug_vec: [1.57, 0, 4.7123]
-    debug_vec: [0, 0, 4.71238898038]
+    R_imu_cam0: [0, 0, 4.71238898038]
     K0: !!opencv-matrix
        rows: 3
        cols: 3

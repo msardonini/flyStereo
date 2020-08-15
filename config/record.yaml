@@ -66,6 +66,8 @@ fly_stereo:
       window_size: 21
       max_pyramid_level: 5
 
+    # Minumum time before two triggers are allowed
+    min_camera_dt_ms: 40
 
   stereo_calibration:
     # 3.14159265359

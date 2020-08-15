@@ -72,7 +72,7 @@ ImageProcessor::ImageProcessor(const YAML::Node &input_params,
   // Q_ = cv::Matx44d(interface_vec.data());
 
 
-  std::vector<float> imu_cam0_vec = stereo_calibration["debug_vec"].as<std::vector<float>>();
+  std::vector<float> imu_cam0_vec = stereo_calibration["R_imu_cam0"].as<std::vector<float>>();
   cv::Vec3f angles_imu_cam0 = {imu_cam0_vec[0], imu_cam0_vec[1], imu_cam0_vec[2]};
   cv::Rodrigues(angles_imu_cam0, R_imu_cam0_);
   cv::Matx33f R_cam0_cam1_f = R_cam0_cam1_;
