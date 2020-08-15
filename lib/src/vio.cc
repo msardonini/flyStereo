@@ -14,11 +14,15 @@
 #include "opengv/absolute_pose/NoncentralAbsoluteAdapter.hpp"
 #include "opengv/sac/Ransac.hpp"
 #include "opengv/sac_problems/absolute_pose/AbsolutePoseSacProblem.hpp"
+#include "opengv/point_cloud/methods.hpp"
+#include "opengv/point_cloud/PointCloudAdapter.hpp"
+#include "opengv/sac_problems/point_cloud/PointCloudSacProblem.hpp"
 
-
-
+constexpr unsigned int history_size = 10;
+constexpr unsigned int min_num_matches = 25;
 // Constructor with config params
-Vio::Vio(const YAML::Node &input_params, const YAML::Node &stereo_calibration) {
+Vio::Vio(const YAML::Node &input_params, const YAML::Node &stereo_calibration) :
+  kf_(input_params["kalman_filter"]) {
   // Parse params for the VIO node
   image_width_ = input_params["image_width"].as<unsigned int>();
   image_height_= input_params["image_height"].as<unsigned int>();
@@ -54,7 +58,20 @@ Vio::Vio(const YAML::Node &input_params, const YAML::Node &stereo_calibration) {
     P1_(i, 3) = T_cam0_cam1_[i];
   }
 
+  // Set the initial pose to identity
   pose_ = Eigen::Matrix4d::Identity();
+
+  point_history_index_ = 0;
+  point_history_.resize(history_size);
+  pose_history_.resize(history_size);
+
+
+
+  ofs_ = std::make_unique<std::ofstream> ("points.las", std::ios::out | std::ios::binary);
+  header_ = std::make_unique<liblas::Header>();
+  header_->SetDataFormatId(liblas::ePointFormat1); // Time only
+  header_->SetScale(0.0001, 0.0001, 0.0001);
+  writer_ = std::make_unique<liblas::Writer> (*ofs_.get(), *header_.get());
 }
 
 // Destructor
@@ -68,8 +85,56 @@ int Vio::ProcessPoints(const ImagePoints &pts, Eigen::Vector3d &pose) {
 
   BinFeatures(pts, grid);
 
-  Eigen::Matrix4d pose_update;
-  CalculatePoseUpdate(grid, pose_update);
+  Eigen::Vector3f position_vio;
+  if (CalculatePoseUpdate(grid, position_vio) == 0) {
+    // TODO: add imu prediction and vo measurement update
+    // ProcessImu(pts.imu_pts);
+    ProcessVio(position_vio, pts.timestamp_us);
+    Debug_SaveOutput();
+  }
+  return 0;
+}
+
+// int Vio::ProcessImu(const std::vector<mavlink_imu_t> &imu_pts) {
+//   for (int i = 0; i < imu_pts.size(); i++) {
+//     Eigen::Matrix3f m(Eigen::AngleAxisf(imu_pts[i].roll, Eigen::Vector3f::UnitX())
+//       * Eigen::AngleAxisf(imu_pts[i].pitch,  Eigen::Vector3f::UnitY())
+//       * Eigen::AngleAxisf(imu_pts[i].yaw, Eigen::Vector3f::UnitZ()));
+//     Eigen::Vector3f gravity_vec; gravity_vec << 0.0, 0.0, -9.81;
+//     Eigen::Vector3f gravity_vec_rotated = m * gravity_vec;
+
+//     Eigen::Array<double, 1, 6> u(Eigen::Matrix<double, 1, 6>::Zero());
+//     u(0) = imu_pts[i].accelXYZ[0] - gravity_vec_rotated(0);
+//     u(1) = imu_pts[i].accelXYZ[0] - gravity_vec_rotated(0);
+//     u(2) = imu_pts[i].accelXYZ[1] - gravity_vec_rotated(1);
+//     u(3) = imu_pts[i].accelXYZ[1] - gravity_vec_rotated(1);
+//     u(4) = imu_pts[i].accelXYZ[2] - gravity_vec_rotated(2);
+//     u(4) = imu_pts[i].accelXYZ[2] - gravity_vec_rotated(2);
+
+//     std::cout << "U!!! " << u << std::endl;
+//     if (last_timestamp_ != 0) {
+//       kf_.Predict(u, static_cast<double>(imu_pts[i].timestamp_us - last_timestamp_) / 1.0E6);
+//     }
+//     last_timestamp_ = imu_pts[i].timestamp_us;
+//   }
+//   return 0;
+// }
+
+int Vio::ProcessVio(const Eigen::Vector3f &position_vio, uint64_t image_timestamp) {
+  Eigen::Matrix<double, 1, 3> z(Eigen::Matrix<double, 1, 3>::Zero());
+
+  z(0) = position_vio(0);
+  z(1) = position_vio(1);
+  z(2) = position_vio(2);
+
+  if (last_timestamp_ == 0) {
+    kf_.Predict();
+  } else {
+    kf_.Predict(static_cast<double>(image_timestamp - last_timestamp_) / 1.0E6);
+  }
+  last_timestamp_ = image_timestamp;
+  kf_.Measure(z);
+  return 0;
 }
 
 int Vio::BinFeatures(const ImagePoints &pts, std::map<int, std::vector<ImagePoint> > &grid) {
@@ -94,8 +159,16 @@ int Vio::BinFeatures(const ImagePoints &pts, std::map<int, std::vector<ImagePoin
   return 0;
 }
 
+inline unsigned int Vio::Modulo(int value, unsigned m) {
+    int mod = value % (int)m;
+    if (value < 0) {
+        mod += m;
+    }
+    return mod;
+}
+
 int Vio::CalculatePoseUpdate(const std::map<int, std::vector<ImagePoint> > &grid,
-  Eigen::Matrix4d &pose_update) {
+  Eigen::Vector3f &position_update) {
   // Calculate the number of points in the grid
   unsigned int num_pts = 0;
   for (auto it = grid.begin(); it != grid.end(); it++) {
@@ -107,6 +180,7 @@ int Vio::CalculatePoseUpdate(const std::map<int, std::vector<ImagePoint> > &grid
   std::vector<cv::Point2d> pts_cam0_t1(num_pts);
   std::vector<cv::Point2d> pts_cam1_t0(num_pts);
   std::vector<cv::Point2d> pts_cam1_t1(num_pts);
+  std::vector<int> pts_ids(num_pts);
 
   // Take our points out of the grid and put into vectors for processing
   unsigned int index = 0;
@@ -116,6 +190,7 @@ int Vio::CalculatePoseUpdate(const std::map<int, std::vector<ImagePoint> > &grid
       pts_cam0_t1[index] = cv::Point2d(pt.cam0_t1[0], pt.cam0_t1[1]);
       pts_cam1_t0[index] = cv::Point2d(pt.cam1_t0[0], pt.cam1_t0[1]);
       pts_cam1_t1[index] = cv::Point2d(pt.cam1_t1[0], pt.cam1_t1[1]);
+      pts_ids[index] = pt.id;
       index++;
     }
   }
@@ -134,7 +209,7 @@ int Vio::CalculatePoseUpdate(const std::map<int, std::vector<ImagePoint> > &grid
 
   if (num_pts_cam0_t0 < 6) {
     std::cout << "Not enough points for algorithm!" << std::endl;
-    return 0;
+    return -1;
   }
 
   // Points that are measured to be 45 degrees off center, and 22.5 deg off center
@@ -217,7 +292,7 @@ int Vio::CalculatePoseUpdate(const std::map<int, std::vector<ImagePoint> > &grid
     cam_correspondences_cam1_t1.push_back(1);
   }
 
-  // Construct a vector of bearing vectors in timetemp T1 that points at 'points' in T0 
+  // Construct a vector of bearing vectors in timetemp T1 that points at 'points' in T0
   opengv::bearingVectors_t bearing_vectors_t1;
   bearing_vectors_t1.insert(std::end(bearing_vectors_t1), std::begin(bearing_vectors_cam0_t1),
     std::end(bearing_vectors_cam0_t1));
@@ -253,50 +328,227 @@ int Vio::CalculatePoseUpdate(const std::map<int, std::vector<ImagePoint> > &grid
     new opengv::sac_problems::absolute_pose::AbsolutePoseSacProblem(adapter,
       opengv::sac_problems::absolute_pose::AbsolutePoseSacProblem::GP3P));
   ransac.sac_model_ = absposeproblem_ptr;
-  ransac.threshold_ = 1.0 - cos(atan(sqrt(2.0)*0.5/800.0));
+  ransac.threshold_ = 1.0 - cos(atan(sqrt(2.0)*0.5/500.0));
   ransac.max_iterations_ = 200;
   ransac.computeModel();
 
-  //print the results
-  std::cout << "the ransac results is: " << std::endl;
-  std::cout << ransac.model_coefficients_ << std::endl << std::endl;
-  std::cout << "Ransac needed " << ransac.iterations_ << " iterations and ";
-  // std::cout << ransac_time << " seconds" << std::endl << std::endl;
-  std::cout << "the number of inliers is: " << ransac.inliers_.size();
-  std::cout << std::endl << std::endl;
-  std::cout << "the found inliers are: " << std::endl;
-  for(size_t i = 0; i < ransac.inliers_.size(); i++)
-    std::cout << points[ransac.inliers_[i]].transpose() << "\n";
-  std::cout << std::endl << std::endl;
+  // //print the results
+  // std::cout << "the ransac results is: " << std::endl;
+  // std::cout << ransac.model_coefficients_ << std::endl << std::endl;
+  // std::cout << "Ransac needed " << ransac.iterations_ << " iterations and ";
+  // // std::cout << ransac_time << " seconds" << std::endl << std::endl;
+  // std::cout << "the number of inliers is: " << ransac.inliers_.size();
+  // std::cout << std::endl << std::endl;
+  // std::cout << "the found inliers are: " << std::endl;
+  // for(size_t i = 0; i < ransac.inliers_.size(); i++)
+  //   std::cout << points[ransac.inliers_[i]].transpose() << "\n";
+  // std::cout << std::endl << std::endl;
 
   Eigen::Matrix4d delta_xform = Eigen::Matrix4d::Identity();
-  delta_xform.block<3,4>(0, 0) = ransac.model_coefficients_;
-  pose_ = pose_ * delta_xform ;
+  // pose_ = pose_ * delta_xform ;
+  // std::cout << "output transformation: \n" << pose_ << std::endl;
+
+  int index_hist = SaveInliers(ransac.inliers_, pts_ids, points);
+  std::cout << "index_hist: " << index_hist << std::endl;
+  if (index_hist >= 0 && 0) {
+    // // Get the points of the current timestep by triangulating 2D points in timestep t1
+    // cv::Mat pts_cam0_t1_mat(pts_cam0_t1_ud); pts_cam0_t1_mat.convertTo(pts_cam0_t1_mat, CV_64F);
+    // cv::Mat pts_cam1_t1_mat(pts_cam1_t1_ud); pts_cam1_t1_mat.convertTo(pts_cam1_t1_mat, CV_64F);
+    // cv::Mat triangulation_output_pts_t1_homo;
+    // cv::triangulatePoints(P0_, P1_, pts_cam0_t1_mat, pts_cam1_t1_mat,
+    //   triangulation_output_pts_t1_homo);
+
+    // // Convert points from homogeneous to 3D coords
+    // std::vector<cv::Vec3d> triangulation_output_pts_t1;
+    // cv::convertPointsFromHomogeneous(triangulation_output_pts_t1_homo.t(),
+    //   triangulation_output_pts_t1);
+
+    // // put the points into the opengv object
+    // opengv::points_t pts_t1_temp(num_pts);
+    // for(size_t i = 0; i < num_pts; i++) {
+    //   cv::cv2eigen(triangulation_output_pts_t1[i], pts_t1_temp[i]);
+    // }
+
+    opengv::points_t pts_t0; pts_t0.reserve(2 * pts_ids.size());
+    opengv::bearingVectors_t bvec_t1; bvec_t1.reserve(2 * pts_ids.size());
+    std::vector<int> corr_t1; corr_t1.reserve(2 * pts_ids.size());
+    for (unsigned int i = 0; i < pts_ids.size(); i++) {
+      if (point_history_[index_hist].count(pts_ids[i])) {
+        pts_t0.push_back(point_history_[index_hist][pts_ids[i]]);
+        pts_t0.push_back(point_history_[index_hist][pts_ids[i]]);
+        bvec_t1.push_back(bearing_vectors_cam0_t1[i]);
+        corr_t1.push_back(0);
+        bvec_t1.push_back(bearing_vectors_cam1_t1[i]);
+        corr_t1.push_back(1);
+      }
+    }
+
+    // Sanity check that we have enough points
+    if (pts_t0.size() < min_num_matches) {
+      std::cerr << "Error! Points should have at least " << min_num_matches << " matches!\n";
+      std::cerr << "index: " << index_hist << "\n";
+      std::exit(1);
+    }
+
+    // create the 3D-3D adapter
+    // opengv::point_cloud::PointCloudAdapter adapter_pt_cloud(pts_t0, pts_t1);
+    // // // run threept_arun
+    // // opengv::transformation_t threept_transformation = opengv::point_cloud::optimize_nonlinear(
+    // //   adapter_pt_cloud);
+
+    // // create a RANSAC object
+    // opengv::sac::Ransac<opengv::sac_problems::point_cloud::PointCloudSacProblem> ransac;
+    // // create the sample consensus problem
+    // std::shared_ptr<opengv::sac_problems::point_cloud::PointCloudSacProblem>
+    //     relposeproblem_ptr(
+    //     new opengv::sac_problems::point_cloud::PointCloudSacProblem(adapter_pt_cloud) );
+    // // run ransac
+    // ransac.sac_model_ = relposeproblem_ptr;
+    // ransac.threshold_ = 0.1;
+    // ransac.max_iterations_ = 500;
+    // ransac.computeModel(0);
+    // // return the result
+    // opengv::transformation_t best_transformation =
+    //     ransac.model_coefficients_;
+
+
+    // Create a non-central absolute adapter
+    opengv::absolute_pose::NoncentralAbsoluteAdapter adapter2(
+      bvec_t1,
+      corr_t1,
+      pts_t0,
+      camOffsets,
+      camRotations);
+
+    // Create the ransac model and compute
+    opengv::sac::Ransac<opengv::sac_problems::absolute_pose::AbsolutePoseSacProblem> ransac2;
+    std::shared_ptr<opengv::sac_problems::absolute_pose::AbsolutePoseSacProblem>
+      absposeproblem_ptr2(new opengv::sac_problems::absolute_pose::AbsolutePoseSacProblem(adapter,
+        opengv::sac_problems::absolute_pose::AbsolutePoseSacProblem::GP3P));
+    ransac2.sac_model_ = absposeproblem_ptr2;
+    ransac2.threshold_ = 1.0 - cos(atan(sqrt(2.0)*0.5/500.0));
+    ransac2.max_iterations_ = 200;
+    ransac2.computeModel();
+
+    delta_xform.block<3,4>(0, 0) = ransac2.model_coefficients_;
+
+    pose_ = pose_history_[index_hist] * delta_xform;
+    std::cout << "index_hist " << index_hist << std::endl;
+    std::cout << "\n " << pose_history_[index_hist] << std::endl;
+  } else {
+    delta_xform.block<3,4>(0, 0) = ransac.model_coefficients_;
+    //TODO remove!
+    delta_xform(0, 3) += 0.0021;
+    delta_xform(1, 3) -= 0.0004;
+    delta_xform(2, 3) += 0.0012;
+    pose_ = pose_ * delta_xform;
+  }
+
+
+
+  std::cout << "delta update: \n" << delta_xform << std::endl;
   std::cout << "output transformation: \n" << pose_ << std::endl;
 
+  pose_history_[Modulo(static_cast<int>(point_history_index_), history_size)] = pose_;
+  point_history_index_ = (point_history_index_ >= history_size - 1) ? 0 : point_history_index_ + 1;
+
+  for (int i = 0; i < 3; i++) {
+    position_update(i) = pose_(i, 3);
+  }
 
   // Debug statements
-  // static int g = 0;
   // // if (ransac.model_coefficients_(1,3) < -0.3) {
   // if (g++ == 99) {
   //   int p = 0;
   // }
 
-  // // if (ransac.model_coefficients_(0,3) > 5 || ransac.model_coefficients_(1,3) > 5 || ransac.model_coefficients_(2,3) > 5) {
-  // if (1) {
-
-  //   if (!ofs_) {
-  //     ofs_ = std::make_unique<std::ofstream> ("file.txt", std::ios::out);
-  //   }
-  //   Eigen::Map<Eigen::RowVectorXd> v(ransac.model_coefficients_.data(), ransac.model_coefficients_.size());
-  //   *ofs_ << v << std::endl;
-
-  //   // for (int i = 0; i < points.size(); i++) {
-  //   //   // ofs  << vec[i](0) << "," << vec[i](1) << "," << vec[i](2) << std::endl;
-  //   //   ofs  << points[i].transpose() << std::endl;
-  //   // }
-  //   // std::exit(1);
-  // }
   return 0;
 }
 
+int Vio::Debug_SaveOutput() {
+  static int g = 0;
+  // if (ransac.model_coefficients_(0,3) > 5 || ransac.model_coefficients_(1,3) > 5 || ransac.model_coefficients_(2,3) > 5) {
+  if (1) {
+    // unsigned int index_temp = Modulo(point_history_index_ - 2, history_size);
+    // Eigen::Matrix4d pose_inv = Eigen::Matrix4d::Identity();
+    // pose_inv.block<3, 3>(0,0) = pose_history_[index_temp].block<3, 3>(0, 0).transpose();
+    // pose_inv.block<3, 1>(0,3) = -pose_history_[index_temp].block<3, 1>(0, 3);
+
+    // for (int i = 0; i < ransac.inliers_.size(); i++) {
+    //   Eigen::Vector4d first_pt;
+    //   first_pt.head<3>() = points[ransac.inliers_[i]];
+    //   first_pt[3] = 1;
+
+    //   Eigen::Vector4d point_adj = pose_inv * first_pt;
+    //   liblas::Point point(header_.get());
+    //   // point.SetCoordinates(point_adj[0], point_adj[1], point_adj[2]);
+    //   point.SetCoordinates(first_pt[0], first_pt[1], first_pt[2]);
+    //   writer_->WritePoint(point);
+    // }
+
+    if (!trajecotry_file_) {
+      trajecotry_file_ = std::make_unique<std::ofstream> ("file.txt", std::ios::out);
+    }
+    Eigen::Matrix<double, 3, 4> writer_pose = pose_.block<3, 4> (0, 0);
+    Eigen::Map<Eigen::RowVectorXd> v(writer_pose.data(), writer_pose.size());
+    *trajecotry_file_ << v << kf_.GetState().transpose() << std::endl;
+
+    // for (int i = 0; i < points.size(); i++) {
+    //   // ofs  << vec[i](0) << "," << vec[i](1) << "," << vec[i](2) << std::endl;
+    //   ofs  << points[i].transpose() << std::endl;
+    // }
+    // std::exit(1);
+  }
+  return 0;
+}
+
+
+int Vio::SaveInliers(std::vector<int> inliers, std::vector<int> pt_ids, opengv::points_t pts) {
+  // Remove the duplicate points
+  unsigned int num_pts = pts.size();
+  for (unsigned int i = 0; i < inliers.size(); i++) {
+    inliers[i] = Modulo(inliers[i], (num_pts / 2));
+  }
+  // Erase duplicates caused from the modulo
+  std::sort(inliers.begin(), inliers.end());
+  inliers.erase(unique(inliers.begin(), inliers.end()), inliers.end());
+
+  // Take the inliers from the current interation and put them into the point history map
+  std::map<unsigned int, opengv::point_t> temp_map;
+  for (unsigned int i = 0; i < inliers.size(); i++) {
+    temp_map[pt_ids[inliers[i]]] = pts[inliers[i]];
+  }
+  point_history_[Modulo(point_history_index_, history_size)] = (temp_map);
+
+  // Create a vector of ids for the inlier points
+  std::vector<int> ids_inliers(inliers.size());
+  for (unsigned int i = 0; i < inliers.size(); i++) {
+    ids_inliers[i] = pt_ids[inliers[i]];
+  }
+
+  // Find how many of the points from the current iteration match previous iterations
+  std::array<unsigned int, history_size> num_matches; num_matches[0] = 0;
+  for (unsigned int i = 1; i < history_size; i++) {
+    const auto &temp_map = point_history_[Modulo((static_cast<int>(point_history_index_) - i), history_size)];
+
+    unsigned int num_matches_local = 0;
+    for (unsigned int j = 0; j < ids_inliers.size(); j++) {
+      if(temp_map.count(ids_inliers[j])) {
+        num_matches_local++;
+      }
+    }
+    // std::cout << "Num Matches: " << num_matches_local <<" temp map size " << temp_map.size() << std::endl;
+    num_matches[i] = num_matches_local;
+  }
+
+  // Find the point furthest back in the history that has the minimum number of matches points
+  for (int i = num_matches.size() - 1; i >= 0; i--) {
+    if (num_matches[i] >= min_num_matches) {
+      // std::cout << "i: " << i << " point history index: " << point_history_index_ << " output: " << Modulo((static_cast<int>(point_history_index_) - i), history_size) << std::endl;
+      // int temp_ind_val = Modulo((static_cast<int>(point_history_index_) - i), history_size);
+      return Modulo((static_cast<int>(point_history_index_) - i), history_size);
+    }
+  }
+
+  return -5;
+}

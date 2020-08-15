@@ -105,11 +105,12 @@ class ImageProcessor {
   pts_cam0_t1, std::vector<cv::Point2f> pts_cam1_t0, std::vector<cv::Point2f> pts_cam1_t1,
   std::vector<unsigned int> ids);
 
-  int OuputTrackedPoints(std::vector<cv::Point2f> pts_cam0_t0,
-    std::vector<cv::Point2f> pts_cam0_t1,
-    std::vector<cv::Point2f> pts_cam1_t0,
-    std::vector<cv::Point2f> pts_cam1_t1,
-    std::vector<unsigned int> ids);
+  int OuputTrackedPoints(const std::vector<cv::Point2f> &pts_cam0_t0,
+    const std::vector<cv::Point2f> &pts_cam0_t1,
+    const std::vector<cv::Point2f> &pts_cam1_t0,
+    const std::vector<cv::Point2f> &pts_cam1_t1,
+    const std::vector<unsigned int> &ids,
+    const std::vector<mavlink_imu_t> &imu_msgs);
 
   // Local version of input params
   YAML::Node input_params_;

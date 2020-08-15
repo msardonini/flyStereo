@@ -4,6 +4,7 @@
 #include <array>
 #include <vector>
 
+#include "fly_stereo/sensor_io/mavlink/fly_stereo/mavlink.h"
 #include "Eigen/Dense"
 
 struct ImagePoint {
@@ -28,10 +29,12 @@ struct ImagePoint {
 struct ImagePoints {
   // Default Constructor
   ImagePoints() {};
+  
   // Constructor with values
   ImagePoints(uint64_t _timestamp_us, std::vector<ImagePoint> _pts) :
-  timestamp_us(_timestamp_us),
-  pts(_pts) {}
+    timestamp_us(_timestamp_us),
+    pts(_pts) {}
+  
   // Copy Constructor
   ImagePoints(const ImagePoints &src) :
     timestamp_us(src.timestamp_us),
@@ -44,8 +47,10 @@ struct ImagePoints {
 
   // Stuct values
   uint64_t timestamp_us;
-  uint64_t timestamp_imu_us;;
   std::vector<ImagePoint> pts;
+
+  // Associated IMU measurments to this set of features
+  std::vector<mavlink_imu_t> imu_pts;
 };
 
 struct VisualOdom {

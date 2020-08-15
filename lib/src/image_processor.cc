@@ -281,11 +281,12 @@ int ImageProcessor::ProcessPoints(std::vector<cv::Point2f> pts_cam0_t0, std::vec
   pts_cam0_t1, std::vector<cv::Point2f> pts_cam1_t0, std::vector<cv::Point2f> pts_cam1_t1,
   std::vector<unsigned int> ids) {}
 
-int ImageProcessor::OuputTrackedPoints(std::vector<cv::Point2f> pts_cam0_t0,
-  std::vector<cv::Point2f> pts_cam0_t1,
-  std::vector<cv::Point2f> pts_cam1_t0,
-  std::vector<cv::Point2f> pts_cam1_t1,
-  std::vector<unsigned int> ids) {
+int ImageProcessor::OuputTrackedPoints(const std::vector<cv::Point2f> &pts_cam0_t0,
+  const std::vector<cv::Point2f> &pts_cam0_t1,
+  const std::vector<cv::Point2f> &pts_cam1_t0,
+  const std::vector<cv::Point2f> &pts_cam1_t1,
+  const std::vector<unsigned int> &ids,
+  const std::vector<mavlink_imu_t> &imu_msgs) {
   // Check to make sure that our input data is sized correctly
   unsigned int num_pts = pts_cam0_t0.size();
   if (num_pts != pts_cam0_t1.size() || 
@@ -310,6 +311,9 @@ int ImageProcessor::OuputTrackedPoints(std::vector<cv::Point2f> pts_cam0_t0,
       {pts_cam1_t1[i].x, pts_cam1_t1[i].y});
     output_points_.pts.push_back(pt);
   }
+
+  // Also save a copy of the imu messages that are associated to this camera frame
+  output_points_.imu_pts = imu_msgs;
 
   output_cond_var_.notify_one();
   return 0;
@@ -383,10 +387,11 @@ int ImageProcessor::ProcessThread() {
     SparsePyrLKOpticalFlow::create(cv::Size(21, 21), 3, 30, true);
 
   while (is_running_.load()) {
+    uint64_t current_time;
     // Trigger the camera to start acquiring an image
 
     // Read the frame and check for errors
-    if (sensor_interface_->GetSynchronizedData(d_frame_cam0_t1, d_frame_cam1_t1, imu_msgs)) {
+    if (sensor_interface_->GetSynchronizedData(d_frame_cam0_t1, d_frame_cam1_t1, imu_msgs, current_time)) {
       if (++error_counter >= max_error_counter_) {
         std::cerr << "Error! Failed to read more than " << max_error_counter_
           << " frames" << std::endl;
@@ -403,7 +408,7 @@ int ImageProcessor::ProcessThread() {
     cv::Matx33f rotation_t0_t1_cam0;
     cv::Matx33f rotation_t0_t1_cam1;
     int retval = sensor_interface_->GenerateImuXform(imu_msgs, R_imu_cam0_, R_imu_cam1_,
-      rotation_t0_t1_cam0, rotation_t0_t1_cam1);
+      rotation_t0_t1_cam0, current_time, rotation_t0_t1_cam1);
 
     // std::cout << rotation_t0_t1_cam0 << std::endl;
     // std::cout << imu_msgs.size() << std::endl;
@@ -601,7 +606,7 @@ int ImageProcessor::ProcessThread() {
     // Signal this loop has finished and output the tracked points
     if (tracked_pts_cam0_t1.size() > 1 && tracked_pts_cam1_t1.size() > 1) {
       OuputTrackedPoints(tracked_pts_cam0_t0, tracked_pts_cam0_t1, tracked_pts_cam1_t0,
-        tracked_pts_cam1_t1, ids_tracked_t1);
+        tracked_pts_cam1_t1, ids_tracked_t1, imu_msgs);
       // ProcessPoints(tracked_pts_cam0_t0, tracked_pts_cam0_t1, tracked_pts_cam1_t0,
       //   tracked_pts_cam1_t1, ids_tracked_t1);
     }

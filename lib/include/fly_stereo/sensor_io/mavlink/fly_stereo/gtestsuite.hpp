@@ -23,12 +23,13 @@ TEST(fly_stereo, IMU)
 
     mavlink::fly_stereo::msg::IMU packet_in{};
     packet_in.timestamp_us = 93372036854775807ULL;
-    packet_in.trigger_count = 963497880;
-    packet_in.roll = 101.0;
-    packet_in.pitch = 129.0;
-    packet_in.yaw = 157.0;
-    packet_in.gyroXYZ = {{ 185.0, 186.0, 187.0 }};
-    packet_in.accelXYZ = {{ 269.0, 270.0, 271.0 }};
+    packet_in.time_since_trigger_us = 963497880;
+    packet_in.trigger_count = 963498088;
+    packet_in.roll = 129.0;
+    packet_in.pitch = 157.0;
+    packet_in.yaw = 185.0;
+    packet_in.gyroXYZ = {{ 213.0, 214.0, 215.0 }};
+    packet_in.accelXYZ = {{ 297.0, 298.0, 299.0 }};
 
     mavlink::fly_stereo::msg::IMU packet1{};
     mavlink::fly_stereo::msg::IMU packet2{};
@@ -44,6 +45,7 @@ TEST(fly_stereo, IMU)
     packet2.deserialize(map2);
 
     EXPECT_EQ(packet1.timestamp_us, packet2.timestamp_us);
+    EXPECT_EQ(packet1.time_since_trigger_us, packet2.time_since_trigger_us);
     EXPECT_EQ(packet1.trigger_count, packet2.trigger_count);
     EXPECT_EQ(packet1.roll, packet2.roll);
     EXPECT_EQ(packet1.pitch, packet2.pitch);
@@ -61,17 +63,18 @@ TEST(fly_stereo_interop, IMU)
     memset(&msg, 0, sizeof(msg));
 
     mavlink_imu_t packet_c {
-         93372036854775807ULL, 963497880, 101.0, 129.0, 157.0, { 185.0, 186.0, 187.0 }, { 269.0, 270.0, 271.0 }
+         93372036854775807ULL, 963497880, 963498088, 129.0, 157.0, 185.0, { 213.0, 214.0, 215.0 }, { 297.0, 298.0, 299.0 }
     };
 
     mavlink::fly_stereo::msg::IMU packet_in{};
     packet_in.timestamp_us = 93372036854775807ULL;
-    packet_in.trigger_count = 963497880;
-    packet_in.roll = 101.0;
-    packet_in.pitch = 129.0;
-    packet_in.yaw = 157.0;
-    packet_in.gyroXYZ = {{ 185.0, 186.0, 187.0 }};
-    packet_in.accelXYZ = {{ 269.0, 270.0, 271.0 }};
+    packet_in.time_since_trigger_us = 963497880;
+    packet_in.trigger_count = 963498088;
+    packet_in.roll = 129.0;
+    packet_in.pitch = 157.0;
+    packet_in.yaw = 185.0;
+    packet_in.gyroXYZ = {{ 213.0, 214.0, 215.0 }};
+    packet_in.accelXYZ = {{ 297.0, 298.0, 299.0 }};
 
     mavlink::fly_stereo::msg::IMU packet2{};
 
@@ -85,6 +88,7 @@ TEST(fly_stereo_interop, IMU)
     } (&msg);
 
     EXPECT_EQ(packet_in.timestamp_us, packet2.timestamp_us);
+    EXPECT_EQ(packet_in.time_since_trigger_us, packet2.time_since_trigger_us);
     EXPECT_EQ(packet_in.trigger_count, packet2.trigger_count);
     EXPECT_EQ(packet_in.roll, packet2.roll);
     EXPECT_EQ(packet_in.pitch, packet2.pitch);

@@ -13,13 +13,14 @@ namespace msg {
  */
 struct IMU : mavlink::Message {
     static constexpr msgid_t MSG_ID = 0;
-    static constexpr size_t LENGTH = 48;
-    static constexpr size_t MIN_LENGTH = 48;
-    static constexpr uint8_t CRC_EXTRA = 32;
+    static constexpr size_t LENGTH = 52;
+    static constexpr size_t MIN_LENGTH = 52;
+    static constexpr uint8_t CRC_EXTRA = 181;
     static constexpr auto NAME = "IMU";
 
 
     uint64_t timestamp_us; /*< [us] timestamp since linux epoch */
+    uint32_t time_since_trigger_us; /*< [us] timestamp since trigger */
     uint32_t trigger_count; /*<  counter of trigger pulses */
     float roll; /*< [rad] Roll angle (-pi..+pi) */
     float pitch; /*< [rad] Pitch angle (-pi..+pi) */
@@ -44,6 +45,7 @@ struct IMU : mavlink::Message {
 
         ss << NAME << ":" << std::endl;
         ss << "  timestamp_us: " << timestamp_us << std::endl;
+        ss << "  time_since_trigger_us: " << time_since_trigger_us << std::endl;
         ss << "  trigger_count: " << trigger_count << std::endl;
         ss << "  roll: " << roll << std::endl;
         ss << "  pitch: " << pitch << std::endl;
@@ -59,23 +61,25 @@ struct IMU : mavlink::Message {
         map.reset(MSG_ID, LENGTH);
 
         map << timestamp_us;                  // offset: 0
-        map << trigger_count;                 // offset: 8
-        map << roll;                          // offset: 12
-        map << pitch;                         // offset: 16
-        map << yaw;                           // offset: 20
-        map << gyroXYZ;                       // offset: 24
-        map << accelXYZ;                      // offset: 36
+        map << time_since_trigger_us;         // offset: 8
+        map << trigger_count;                 // offset: 12
+        map << roll;                          // offset: 16
+        map << pitch;                         // offset: 20
+        map << yaw;                           // offset: 24
+        map << gyroXYZ;                       // offset: 28
+        map << accelXYZ;                      // offset: 40
     }
 
     inline void deserialize(mavlink::MsgMap &map) override
     {
         map >> timestamp_us;                  // offset: 0
-        map >> trigger_count;                 // offset: 8
-        map >> roll;                          // offset: 12
-        map >> pitch;                         // offset: 16
-        map >> yaw;                           // offset: 20
-        map >> gyroXYZ;                       // offset: 24
-        map >> accelXYZ;                      // offset: 36
+        map >> time_since_trigger_us;         // offset: 8
+        map >> trigger_count;                 // offset: 12
+        map >> roll;                          // offset: 16
+        map >> pitch;                         // offset: 20
+        map >> yaw;                           // offset: 24
+        map >> gyroXYZ;                       // offset: 28
+        map >> accelXYZ;                      // offset: 40
     }
 };
 

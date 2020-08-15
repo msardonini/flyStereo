@@ -93,15 +93,6 @@ int main(int argc, char *argv[]) {
   // Draw a box of points on the image
   std::vector<cv::Point3d> debug_pts_cam0;
 
-  // debug_pts_cam0.push_back(cv::Point2d(320, 180));
-  // debug_pts_cam0.push_back(cv::Point2d(640, 180));
-  // debug_pts_cam0.push_back(cv::Point2d(960, 180));
-  // debug_pts_cam0.push_back(cv::Point2d(320, 360));
-  // debug_pts_cam0.push_back(cv::Point2d(640, 360));
-  // debug_pts_cam0.push_back(cv::Point2d(960, 360));
-  // debug_pts_cam0.push_back(cv::Point2d(320, 540));
-  // debug_pts_cam0.push_back(cv::Point2d(640, 540));
-  // debug_pts_cam0.push_back(cv::Point2d(960, 540));
 
   debug_pts_cam0.push_back(cv::Point3d(-0.25, -0.25, 1));
   debug_pts_cam0.push_back(cv::Point3d(-0.25, 0.0, 1));
@@ -144,11 +135,12 @@ int main(int argc, char *argv[]) {
   cv::Matx33d R_imu_cam1 = R_imu_cam0 * R_cam0_cam1;
 
   cv::Matx33f R_t0_t1_cam0, R_t0_t1_cam1;
+  uint64_t current_frame_time;
   while (is_running.load()) {
     imu_msgs.clear();
-    sensor_interface.GetSynchronizedData(d_frame_cam0, d_frame_cam1, imu_msgs);
+    sensor_interface.GetSynchronizedData(d_frame_cam0, d_frame_cam1, imu_msgs, current_frame_time);
     if(sensor_interface.GenerateImuXform(imu_msgs, R_imu_cam0, R_imu_cam1, R_t0_t1_cam0,
-      R_t0_t1_cam1) != 0) {
+      current_frame_time, R_t0_t1_cam1) != 0) {
       continue;
     }
 

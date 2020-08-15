@@ -2,7 +2,7 @@ fly_stereo:
   mavlink_reader:
     # device: /dev/ttyTHS1
     # replay_mode: false
-    device: /root/fly_stereo/replay_data/downward/imu.dat
+    device: /root/fly_stereo/replay_data/walking_around/3/imu.dat
     replay_mode: true
     # replay_imu_data_file: /home/msardonini/git/fly_stereo/replay_data/test_replay/imu.dat
 
@@ -14,6 +14,21 @@ fly_stereo:
     bins_width: 20
     bins_height: 15
     max_pts_in_bin: 2
+    kalman_filter:
+        dt: 0.2
+        sigma_a: 0.1
+        f: [0.0, 1.0, 0.0, 0.0, 0.0, 0.0,
+            0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+            0.0, 0.0, 0.0, 1.0, 0.0, 0.0,
+            0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+            0.0, 0.0, 0.0, 0.0, 0.0, 1.0,
+            0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+        h:  [1.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+            0.0, 0.0, 1.0, 0.0, 0.0, 0.0,
+            0.0, 0.0, 0.0, 0.0, 1.0, 0.0]
+        r:  [0.001, 0.0, 0.0, 
+            0.0, 0.001, 0.0, 
+            0.0, 0.0, 0.001]
 
   image_processor:
     CameraTrigger:
@@ -28,9 +43,9 @@ fly_stereo:
       #   exposure_limits: [1250, 2500]
       #   num_frames_to_calc: 3
       device_num: 0
-      src_pipeline: "filesrc location=/root/fly_stereo/replay_data/downward/cam0.mp4 ! decodebin ! videoconvert ! video/x-raw, format=(string)GRAY8 ! appsink sync=true "
+      src_pipeline: "filesrc location=/root/fly_stereo/replay_data/walking_around/3/cam0.mp4 ! decodebin ! videoconvert ! video/x-raw, format=(string)GRAY8 ! appsink sync=true "
       # src_pipeline: "filesrc location=/root/fly_stereo/replay_data/test_replay/cam0.mp4 ! decodebin ! videoconvert ! appsink "
-      sink_pipeline: "appsrc ! videoconvert ! videoflip method=rotate-180 ! autovideosink "
+      sink_pipeline: "appsrc ! videoconvert ! videoflip method=rotate-180 ! tee name=t ! queue ! autovideosink t. ! queue ! jpegenc ! avimux ! filesink location=/root/fly_stereo/replay_data/walking_around/3/cam0_annotated.avi"
       framerate: 20
       width: 1280
       height: 720
@@ -44,9 +59,9 @@ fly_stereo:
       #   exposure_limits: [1250, 2500]
       #   num_frames_to_calc: 3
       device_num: 1
-      src_pipeline: "filesrc location=/root/fly_stereo/replay_data/downward/cam1.mp4 ! decodebin ! videoconvert ! video/x-raw, format=(string)GRAY8 ! appsink sync=true "
+      src_pipeline: "filesrc location=/root/fly_stereo/replay_data/walking_around/3/cam1.mp4 ! decodebin ! videoconvert ! video/x-raw, format=(string)GRAY8 ! appsink sync=true "
       # src_pipeline: "filesrc location=/root/fly_stereo/replay_data/test_replay/cam1.mp4 ! decodebin ! videoconvert ! appsink max-buffers=1"
-      sink_pipeline: "appsrc ! videoconvert ! videoflip method=rotate-180 ! autovideosink "
+      sink_pipeline: "appsrc ! videoconvert ! videoflip method=rotate-180 ! tee name=t ! queue ! autovideosink t. ! queue ! jpegenc ! avimux ! filesink location=/root/fly_stereo/replay_data/walking_around/3/cam1_annotated.avi"
       framerate: 20
       width: 1280
       height: 720
@@ -56,7 +71,7 @@ fly_stereo:
       exposure_time: 1500
     draw_points_to_frame: true
     max_error_counter: 2
-    stereo_threshold: 15
+    stereo_threshold: 20
     ransac_threshold: 5
 
     goodFeaturesToTrack:
@@ -77,63 +92,68 @@ fly_stereo:
     #    rows: 3
     #    cols: 3
     #    dt: d
-    #    data: [ 6.9632184047205578e+02, 0., 6.3263924331394639e+02, 0.,
-    #        6.9648166287751519e+02, 3.7464608815785658e+02, 0., 0., 1. ]
+    #    data: [ 6.9405104213644108e+02, 0., 6.2829447177361112e+02, 0.,
+    #        6.9435089917188429e+02, 3.8595932303228301e+02, 0., 0., 1. ]
     # D0: !!opencv-matrix
-    #    rows: 8
-    #    cols: 1
+    #    rows: 1
+    #    cols: 14
     #    dt: d
-    #    data: [ -3.6915844145066097e+00, 9.5385953725362320e+00,
-    #        1.1927450511754222e-03, -1.2791698668069085e-03,
-    #        1.4259838973378949e+00, -3.3323915245314222e+00,
-    #        8.1976561808903359e+00, 4.9885003263657781e+00 ]
+    #    data: [ 2.9172687627692741e-02, -1.6641312201850308e-01,
+    #        8.0842321202957605e-07, -4.3162167446279549e-04,
+    #        -7.1683190805320708e-03, 4.0002117134871995e-01,
+    #        -2.3670153598056326e-01, -4.1696875523209734e-02, 0., 0., 0., 0.,
+    #        0., 0. ]
+
     # K1: !!opencv-matrix
     #    rows: 3
     #    cols: 3
     #    dt: d
-    #    data: [ 6.9284400420743179e+02, 0., 6.3690343553023274e+02, 0.,
-    #        6.9417180869542221e+02, 3.9735682886238976e+02, 0., 0., 1. ]
+    #    data: [ 6.9515927299394002e+02, 0., 6.3824055289358103e+02, 0.,
+    #        6.9427497514517211e+02, 4.0611331039166436e+02, 0., 0., 1. ]
     # D1: !!opencv-matrix
-    #    rows: 8
-    #    cols: 1
+    #    rows: 1
+    #    cols: 14
     #    dt: d
-    #    data: [ 1.1885348670616791e+00, -1.1442558869943300e+00,
-    #        6.7301845801449932e-04, -9.1632937483168900e-05,
-    #        -1.7813801015866154e-01, 1.5677812191599769e+00,
-    #        -8.1449812038082126e-01, -6.1733691364118504e-01 ]
+    #    data: [ 1.8848754919589383e-01, -2.2244379845824566e-01,
+    #        3.9547898987299166e-05, -4.7494701014367123e-06,
+    #        -1.3842073392074933e-02, 5.6541773545986240e-01,
+    #        -2.4505940046126989e-01, -7.0794269370746607e-02, 0., 0., 0., 0.,
+    #        0., 0. ]
     # R: !!opencv-matrix
     #    rows: 3
     #    cols: 3
     #    dt: d
-    #    data: [ 9.9982676660917746e-01, -8.9941746491797123e-03,
-    #        1.6295447039509661e-02, 8.8700673844131304e-03,
-    #        9.9993122567914705e-01, 7.6724061672038745e-03,
-    #        -1.6363333292253802e-02, -7.5265353369681738e-03,
-    #        9.9983778313753879e-01 ]
+    #    data: [ 9.9962238130748282e-01, -2.3234866243113793e-02,
+    #        1.4670916120752124e-02, 2.3071858681481879e-02,
+    #        9.9967124825472176e-01, 1.1184129372830112e-02,
+    #        -1.4925954781495979e-02, -1.0841420733053539e-02,
+    #        9.9982982525545294e-01 ]
     # T: !!opencv-matrix
     #    rows: 3
     #    cols: 1
     #    dt: d
-    #    data: [ 3.4675201961119527e-02, 1.8888898321132341e-01,
-    #        -6.8925098843385822e-03 ]
+    #    data: [ 2.8004389377867561e-02, 1.8736948693613176e-01,
+    #        -7.4154875918668118e-05 ]
     # E: !!opencv-matrix
     #    rows: 3
     #    cols: 3
     #    dt: d
-    #    data: [ -3.0297163604000011e-03, 5.4703562497483010e-03,
-    #        1.8891122436845748e-01, -6.3239139848140285e-03,
-    #        3.2297657054781287e-04, -3.4781893588441720e-02,
-    #        -1.8854868995430943e-01, 3.6371717701962833e-02,
-    #        -2.8119881888914165e-03 ]
+    #    data: [ -2.7949575986230659e-03, -1.9572209430371943e-03,
+    #        1.8733843073928241e-01, 3.4386537588607764e-04,
+    #        3.0533034624096264e-04, -2.8000711658023536e-02,
+    #        -1.8665261940126998e-01, 3.2348687852986016e-02,
+    #        -2.4356773126191695e-03 ]
     # F: !!opencv-matrix
     #    rows: 3
     #    cols: 3
     #    dt: d
-    #    data: [ 8.0148560316298316e-07, -1.4468039780538996e-06,
-    #        -3.4763592692455110e-02, 1.6697374901756633e-06,
-    #        -8.5257696265469937e-08, 5.3703781665070914e-03,
-    #        3.3384378545979074e-02, -5.7095435676686552e-03, 1. ]
+    #    data: [ 6.1287952295396284e-07, 4.2892869872317678e-07,
+    #        -2.9047583342090736e-02, -7.5487952289483706e-08,
+    #        -6.6989159613934152e-08, 4.3373953248403863e-03,
+    #        2.8117420818811231e-02, -5.1787853745749023e-03, 1. ]
 
+
+# best calibration so far
     K0: !!opencv-matrix
        rows: 3
        cols: 3

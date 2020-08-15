@@ -1,6 +1,6 @@
 FROM nvidia/cuda:10.2-devel-ubuntu18.04
 
-RUN apt-get update && apt-get install -y libyaml-cpp-dev cmake vim xz-utils git libgstreamer1.0-dev gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly gstreamer1.0-plugins-base gstreamer1.0-tools gstreamer1.0-libav libgstreamer-plugins-base1.0-dev python3-dev python3-pip gdb
+RUN apt-get update && apt-get install -y libyaml-cpp-dev cmake vim xz-utils git libgstreamer1.0-dev gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly gstreamer1.0-plugins-base gstreamer1.0-tools gstreamer1.0-libav libgstreamer-plugins-base1.0-dev python3-dev python3-pip gdb liblas-dev liblas-c-dev
 RUN pip3 install numpy
 
 # Build and install Eigen
@@ -55,5 +55,6 @@ RUN cd /opt && \
   make -j$('nproc') && \
   make install
 
+# Install the python script that will show eigen matrices when running gdb
 COPY printers /opt/printers
 RUN mv /opt/printers/.gdbinit /root
