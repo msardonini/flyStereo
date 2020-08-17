@@ -5,7 +5,6 @@
 #include <iostream>
 
 #include "opencv2/calib3d.hpp"
-
 #include "opencv2/imgproc.hpp"
 
 SensorInterface::SensorInterface() {}
@@ -15,7 +14,6 @@ SensorInterface::~SensorInterface() {
     camera_trigger_->TriggerCamera();
   }
 }
-
 
 int SensorInterface::Init(YAML::Node input_params) {
   cam0_ = std::make_unique<Camera> (input_params["Camera0"]);
@@ -32,20 +30,35 @@ int SensorInterface::Init(YAML::Node input_params) {
     return -1;
   }
 
+  min_camera_dt_ms_ = input_params["min_camera_dt_ms"].as<uint64_t>();
+
   return 0;
 }
 
 int SensorInterface::GetSynchronizedData(cv::cuda::GpuMat &d_frame_cam0,
-    cv::cuda::GpuMat &d_frame_cam1, std::vector<mavlink_imu_t> &imu_data, uint64_t &current_frame_time) {
+    cv::cuda::GpuMat &d_frame_cam1, std::vector<mavlink_imu_t> &imu_data,
+    uint64_t &current_frame_time) {
+  // Check we aren't going to trigger the camera too soon. This can cause the program to hang
+  std::chrono::steady_clock::time_point time_now = std::chrono::steady_clock::now();
+  uint64_t delta_t = std::chrono::duration_cast<std::chrono::milliseconds>(
+    time_now - last_trigger_time_).count();
+  // sleep for the remaining time if we are here too soon
+  if (delta_t < min_camera_dt_ms_) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(min_camera_dt_ms_ - delta_t));
+  }
+
+  // Trigger the camera and set the time we did this
   camera_trigger_->TriggerCamera();
+  last_trigger_time_ = std::chrono::steady_clock::now();
+
   if (cam0_->GetFrame(d_frame_cam0) || cam1_->GetFrame(d_frame_cam1)) {
       return -1;
   }
-  
+
   imu_data.clear();
-  AssociateImuData(imu_data, current_frame_time);
+  int ret = AssociateImuData(imu_data, current_frame_time);
   image_counter_++;
-  return 0;
+  return ret;
 }
 
 void SensorInterface::DrawPoints(const std::vector<cv::Point2f> &mypoints,
@@ -71,9 +84,11 @@ int SensorInterface::ReceiveImu(mavlink_imu_t imu_msg) {
 
 int SensorInterface::AssociateImuData(std::vector<mavlink_imu_t> &imu_msgs,
   uint64_t &current_frame_time) {
+  std::queue<std::pair<uint32_t, uint64_t> > trigger_queue = camera_trigger_->GetTriggerCount();
+
   // The first image will not have relvant imu data
-  if (image_counter_ == 0) {
-    return 0;
+  if (image_counter_ <= 1) {
+    return 1;
   }
 
   if (imu_queue_.size() == 0) {
@@ -85,7 +100,6 @@ int SensorInterface::AssociateImuData(std::vector<mavlink_imu_t> &imu_msgs,
   //  roughly (IMU acquisition rate / image acquisition rate )
   imu_msgs.reserve(20);
 
-  std::queue<std::pair<uint32_t, uint64_t> > trigger_queue = camera_trigger_->GetTriggerCount();
 
   while(trigger_queue.size() > 1) {
     std::cerr << "Error! Mismatch between number of triggers and proccesed frames" << std::endl;
@@ -100,10 +114,10 @@ int SensorInterface::AssociateImuData(std::vector<mavlink_imu_t> &imu_msgs,
 
   // The objective is to get all the imu measurements that correspond to this frame,
   // take all the imu measurements that correspond to the current frame minus 1
-  int image_of_interest = image_counter_ - 1;
+  int image_of_interest = image_counter_ - 4;
   std::lock_guard<std::mutex> lock(imu_queue_mutex_);
 
-  // Do a sanity check that we didn't miss a bunch of IMU messages, or sometimes a message from a 
+  // Do a sanity check that we didn't miss a bunch of IMU messages, or sometimes a message from a
   // previous recording makes it into the front of our queueu
   if (image_of_interest + 3 < imu_queue_.front().trigger_count) {
     std::cerr << "Error! Missed IMU messages" << std::endl;
@@ -119,7 +133,7 @@ int SensorInterface::AssociateImuData(std::vector<mavlink_imu_t> &imu_msgs,
   if (imu_queue_.empty()) {
     current_frame_time = 0;
   } else{
-    mavlink_imu_t &msg = imu_msgs.front();
+    mavlink_imu_t &msg = imu_queue_.front();
     current_frame_time = msg.timestamp_us - msg.time_since_trigger_us;
   }
   return 0;
@@ -165,11 +179,11 @@ int SensorInterface::GenerateImuXform(const std::vector<mavlink_imu_t> &imu_msgs
       }
 
       delta_rpw -= cv::Vec3f(imu_msgs[i].gyroXYZ[0], imu_msgs[i].gyroXYZ[1],
-        imu_msgs[i].gyroXYZ[2]) * static_cast<float>(delta_t) / 1.0E6f;
+        imu_msgs[i].gyroXYZ[2]) * (static_cast<float>(delta_t) / 1.0E6f);
     }
   }
   cv::Rodrigues(R_imu_cam0 * delta_rpw, rotation_t0_t1_cam0);
   cv::Rodrigues(R_imu_cam1 * delta_rpw, rotation_t0_t1_cam1);
-  // std::cout << delta_rpw: " << delta_rpw << std::endl;
+  std::cout << "delta_rpw: " << delta_rpw << std::endl;
   return 0;
 }

@@ -93,7 +93,7 @@ fly_stereo:
       # 3.14159265359
       # 4.71238898038
       # debug_vec: [1.57, 0, 4.7123]
-      debug_vec: [0, 0, 4.71238898038]
+      R_imu_cam0: [0, 0, 4.71238898038]
       K1: !!opencv-matrix
          rows: 3
          cols: 3
