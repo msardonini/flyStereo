@@ -24,7 +24,7 @@ class Vio {
 
   inline unsigned int Modulo( int value, unsigned m);
   int SaveInliers(std::vector<int> inliers, std::vector<int> pt_ids, opengv::points_t pts);
- 
+
 
   int BinFeatures(const ImagePoints &pts, std::map<int, std::vector<ImagePoint> > &grid);
 
@@ -34,6 +34,11 @@ class Vio {
   int ProcessImu(const std::vector<mavlink_imu_t> &imu_pts);
   int ProcessVio(const Eigen::Vector3f &position_vio, uint64_t image_timestamp);
   int Debug_SaveOutput();
+
+  // The calibrated offsets for vio. These numbers will be subtracted off the result of the VIO
+  // calculation to lower the drift
+  Eigen::Matrix<double, 3, 1> vio_calibration_;
+
   // Object to hold all of the binned features
   unsigned int image_width_;
   unsigned int image_height_;
@@ -41,7 +46,7 @@ class Vio {
   unsigned int bins_height_;
   unsigned int max_pts_in_bin_;
 
-  // All points are placed in bins, sections of the image. The key to this map is the row-major 
+  // All points are placed in bins, sections of the image. The key to this map is the row-major
   // index of the bin. The value is a vector of image points, which holds points from both cameras
   // in the current frame and the previos one
   std::map<int, std::vector<ImagePoint> > grid;

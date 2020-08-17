@@ -23,6 +23,11 @@ constexpr unsigned int min_num_matches = 25;
 // Constructor with config params
 Vio::Vio(const YAML::Node &input_params, const YAML::Node &stereo_calibration) :
   kf_(input_params["kalman_filter"]) {
+
+  std::vector<double> vio_calibration_vec = input_params["vio_calibration"].as<
+    std::vector<double>>();
+  vio_calibration_ = Eigen::Matrix<double, 3, 1>(vio_calibration_vec.data());
+
   // Parse params for the VIO node
   image_width_ = input_params["image_width"].as<unsigned int>();
   image_height_= input_params["image_height"].as<unsigned int>();
@@ -436,11 +441,13 @@ int Vio::CalculatePoseUpdate(const std::map<int, std::vector<ImagePoint> > &grid
     std::cout << "index_hist " << index_hist << std::endl;
     std::cout << "\n " << pose_history_[index_hist] << std::endl;
   } else {
+    // Put the ransc output pose update into a 4x4 Matrix
     delta_xform.block<3,4>(0, 0) = ransac.model_coefficients_;
-    //TODO remove!
-    delta_xform(0, 3) += 0.0021;
-    delta_xform(1, 3) -= 0.0004;
-    delta_xform(2, 3) += 0.0012;
+
+    // Apply the user calibration
+    delta_xform.block<3,1>(0, 3) -= vio_calibration_;
+
+    // Calculate the updated pose
     pose_ = pose_ * delta_xform;
   }
 

@@ -10,6 +10,18 @@ find_package(Eigen3 3.3.7 REQUIRED NO_MODULE)
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 find_package(libLAS)
 
+find_package(PkgConfig)
+pkg_check_modules(GST gstreamer-1.0>=1.4
+  gstreamer-video-1.0>=1.4
+  gstreamer-app-1.0>=1.4)
+
+if(NOT GST_FOUND)
+  message(FATAL_ERROR "Did not find gstreamer libraries, try: \n
+  ' $ sudo apt-get install libgstreamer-plugins-base1.0-dev' ")
+endif()
+
+
+
 add_definitions(-march=native)
 add_library(fly_stereo_lib
   src/image_processor.cc
@@ -25,6 +37,7 @@ target_include_directories(fly_stereo_lib
   PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/include
     ${SPQR_INCLUDES}
+    ${GST_INCLUDE_DIRS}
 )
 
 target_link_libraries(fly_stereo_lib
@@ -37,6 +50,7 @@ target_link_libraries(fly_stereo_lib
     ${libLAS_LIBRARIES}
     yaml-cpp
     opengv
+    ${GST_LIBRARIES}
 )
 
 set_property(TARGET fly_stereo_lib PROPERTY CXX_STANDARD 17)

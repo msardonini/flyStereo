@@ -139,8 +139,7 @@ void MavlinkReader::SerialReadThread() {
     for (int i = 0; i < ret; i++) {
       mavlink_status_t mav_status;
       mavlink_message_t mav_message;
-      uint8_t msg_received = mavlink_parse_char(MAVLINK_COMM_1, buf[i],
-        &mav_message, &mav_status);
+      uint8_t msg_received = mavlink_parse_char(MAVLINK_COMM_1, buf[i], &mav_message, &mav_status);
 
       if (msg_received) {
         switch(mav_message.msgid) {
@@ -165,7 +164,6 @@ void MavlinkReader::SerialReadThread() {
     if (replay_file_fd_ > 0) {
       write(replay_file_fd_, buf, ret);
     }
-
 
     // Sleep so we don't overload the CPU. This isn't an ideal method, but if
     // use a blocking call on read(), we can't break out of it on the

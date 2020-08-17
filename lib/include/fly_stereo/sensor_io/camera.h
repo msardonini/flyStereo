@@ -7,6 +7,25 @@
 #include "yaml-cpp/yaml.h"
 #include "opencv2/core.hpp"
 #include "opencv2/videoio.hpp"
+#include "gst/gst.h"
+#include "gst/app/gstappsink.h"
+#include "gst/video/video.h"
+
+
+
+struct GstParams {
+  GMainLoop *loop;
+  GstElement *pipeline;
+  GstElement *v4l2src;
+  GstElement *capsfilter;
+  GstElement *nvvidconv;
+  GstElement *capsfilter2;
+  GstElement *appsink;
+
+  // Params
+  int appsink_max_buffers;
+};
+
 
 class Camera {
  public:
@@ -32,6 +51,8 @@ class Camera {
   int InitSink(bool is_color);
   int UpdateGain();
   int UpdateExposure();
+  int InitGstPipeline();
+  int GetFrameGst(cv::Mat &frame);
 
   int flip_method_;
   bool hardware_trigger_mode_;
@@ -53,6 +74,9 @@ class Camera {
 
   std::unique_ptr<cv::VideoCapture> cam_src_;
   std::unique_ptr<cv::VideoWriter> cam_sink_;
+
+  bool use_gstreamer_pipeline_;
+  struct GstParams gst_params_;
 };
 
 #endif  // FLY_STEREO_INCLUDE_CAMERA_H_

@@ -11,6 +11,7 @@ Camera::Camera(YAML::Node input_params) {
   exposure_time_ = input_params["exposure_time"].as<int>();
   device_num_ = input_params["device_num"].as<int>();
   src_pipeline_ = input_params["src_pipeline"].as<std::string>();
+  use_gstreamer_pipeline_ = input_params["use_gstreamer_pipeline"].as<bool>();
   if (input_params["sink_pipeline"]) {
     sink_pipeline_ = input_params["sink_pipeline"].as<std::string>();
   }
@@ -18,7 +19,7 @@ Camera::Camera(YAML::Node input_params) {
   width_ = input_params["width"].as<int>();
   framerate_ = input_params["framerate"].as<int>();
   if (input_params["auto_exposure"]) {
-    YAML::Node auto_exposure_node = input_params["auto_exposure"]; 
+    YAML::Node auto_exposure_node = input_params["auto_exposure"];
     auto_exposure_ = true;
     std::vector<unsigned int> tmp_vec;
     tmp_vec = auto_exposure_node["pixel_range_limits"].as<std::vector<unsigned int> >();
@@ -37,19 +38,24 @@ Camera::Camera(YAML::Node input_params) {
 Camera::~Camera() {}
 
 int Camera::Init() {
-  std::cout << "pipeline is " << src_pipeline_ << std::endl;
-  cam_src_ = std::make_unique<cv::VideoCapture> (src_pipeline_);
-  if (!cam_src_->isOpened()) {
-    std::cerr << "Error! VideoCapture on cam" << device_num_ << " did not open"
-      << std::endl;
-    return -1;
-  }
 
-  // Enable the hardware trigger mode if requested
-  if (hardware_trigger_mode_) {
-    std::string trigger_cmd("v4l2-ctl -d " + std::to_string(device_num_) +
-      " -c trigger_mode=1");
-    system(trigger_cmd.c_str());
+  if (use_gstreamer_pipeline_) {
+    InitGstPipeline();
+  } else {
+    std::cout << "pipeline is " << src_pipeline_ << std::endl;
+    cam_src_ = std::make_unique<cv::VideoCapture> (src_pipeline_);
+    if (!cam_src_->isOpened()) {
+      std::cerr << "Error! VideoCapture on cam" << device_num_ << " did not open"
+        << std::endl;
+      return -1;
+    }
+
+    // Enable the hardware trigger mode if requested
+    if (hardware_trigger_mode_) {
+      std::string trigger_cmd("v4l2-ctl -d " + std::to_string(device_num_) +
+        " -c trigger_mode=1");
+      system(trigger_cmd.c_str());
+    }
   }
 
   UpdateGain();
@@ -92,8 +98,12 @@ int Camera::InitSink(bool is_color) {
 
 
 int Camera::GetFrame(cv::Mat &frame) {
-  if (!cam_src_->read(frame)) {
-    return -1;
+  if (use_gstreamer_pipeline_) {
+    GetFrameGst(frame);
+  } else {
+    if (!cam_src_->read(frame)) {
+      return -1;
+    }
   }
 
   // cv::flip(frame, frame, flip_method_);
@@ -147,3 +157,110 @@ int Camera::SendFrame(cv::Mat &frame) {
   }
   return 0;
 }
+
+// "v4l2src device=/dev/video0 ! video/x-raw,width=1280,height=720 ! nvvidconv flip-method=0 ! video/x-raw, format=(string)GRAY8 ! appsink max-buffers=1 drop=true"
+
+int Camera::InitGstPipeline() {
+  // Initialize GStreamer
+  gst_init(nullptr, nullptr);
+
+  // Create the main loop
+  gst_params_.loop = g_main_loop_new(NULL, FALSE);
+
+  // Create the pipeline
+  gst_params_.pipeline = gst_pipeline_new("fly_stereo_src");
+
+  gst_params_.v4l2src = gst_element_factory_make("v4l2src", NULL);
+  gst_params_.capsfilter = gst_element_factory_make("capsfilter", NULL);
+  gst_params_.nvvidconv = gst_element_factory_make("nvvidconv", NULL);
+  // Set convert caps
+  gst_params_.capsfilter2 = gst_element_factory_make("capsfilter", NULL);
+  gst_params_.appsink = gst_element_factory_make("appsink", NULL);
+  gst_bin_add_many(GST_BIN(gst_params_.pipeline), gst_params_.v4l2src, gst_params_.capsfilter,
+    gst_params_.nvvidconv, gst_params_.appsink, NULL);
+
+  // Check the elements were created
+  if (!gst_params_.v4l2src || !gst_params_.nvvidconv || !gst_params_.capsfilter ||
+    !gst_params_.appsink ) {
+    g_warning("Could not create the elements\n");
+    return -1;
+  }
+
+  // v4l2src configuration
+  g_object_set(G_OBJECT(gst_params_.v4l2src), "device", std::string("/dev/video" +
+    std::to_string(device_num_)), NULL);
+
+  // Caps filter for v4l2src
+  const GstCaps *caps = gst_caps_new_simple("video/x-raw", "width", G_TYPE_INT, 1280, "height",
+    G_TYPE_INT, 720, NULL);
+  g_object_set(gst_params_.capsfilter, "caps", caps, NULL);
+
+  // Appsink configuration
+  g_object_set(G_OBJECT(gst_params_.appsink), "max-buffers", gst_params_.appsink_max_buffers,
+    NULL);
+  g_object_set(G_OBJECT(gst_params_.appsink), "drop", false, NULL);
+
+  // Set the params for the caps filters
+  const GstCaps *caps2 = gst_caps_new_simple("video/x-raw", "format", G_TYPE_STRING, "GRAY8",
+    NULL);
+  gst_app_sink_set_caps(reinterpret_cast<GstAppSink *>(gst_params_.appsink), caps2);
+
+  int ret = gst_element_link_many(gst_params_.v4l2src, gst_params_.capsfilter,
+    gst_params_.nvvidconv, gst_params_.appsink, NULL);
+
+  if (!ret) {
+    g_warning("Failed to link the elements!");
+    return ret;
+  }
+
+  GstStateChangeReturn ret_state = gst_element_set_state(gst_params_.pipeline, GST_STATE_PLAYING);
+  if (ret_state != GST_STATE_CHANGE_SUCCESS) {
+    std::cerr << "Error changing gstreamer state!" << std::endl;
+    return -1;
+  }
+
+
+  return 0;
+}
+
+int Camera::GetFrameGst(cv::Mat &frame) {
+  // Pull in the next sample
+  GstAppSink *appsink = reinterpret_cast<GstAppSink *>(gst_params_.appsink);
+  GstSample *sample = gst_app_sink_pull_sample(appsink);
+
+  // At EOS this will return NULL
+  if (sample == NULL) {
+    return -1;
+  }
+
+  // Take the buffer from the supplied sample
+  GstBuffer *buffer = gst_sample_get_buffer(sample);
+
+  // Get the caps & structure objects from the GstSample
+  GstCaps* caps = gst_sample_get_caps(sample);
+  GstStructure* structure = gst_caps_get_structure(caps, 0);
+
+  // Extract the info we need from this caps object
+  gint width, height, framerate_numerator, framerate_denominator;
+  if (!(gst_structure_get_int(structure, "width", &width)
+    && gst_structure_get_int(structure, "height", &height)
+    && gst_structure_get_fraction(structure, "framerate", &framerate_numerator,
+      &framerate_denominator))) {
+    return -1;
+  }
+
+  // Get the frame from gstreamer
+  GstMapInfo info;
+  if (gst_buffer_map(buffer, &info, GST_MAP_READ)) {
+    // Copy the buffer
+    memcpy(frame.ptr(), info.data, info.size);
+
+    gst_buffer_unmap(buffer, &info);
+    gst_sample_unref(sample);
+  } else {
+    return -1;
+  }
+
+  return 0;
+}
+
