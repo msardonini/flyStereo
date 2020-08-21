@@ -29,10 +29,10 @@ class Vio {
   int BinFeatures(const ImagePoints &pts, std::map<int, std::vector<ImagePoint> > &grid);
 
   int CalculatePoseUpdate(const std::map<int, std::vector<ImagePoint> > &grid,
-    Eigen::Vector3f &pose_update);
+    Eigen::Matrix4d &pose_update);
 
   int ProcessImu(const std::vector<mavlink_imu_t> &imu_pts);
-  int ProcessVio(const Eigen::Vector3f &position_vio, uint64_t image_timestamp);
+  int ProcessVio(const Eigen::Matrix4d &pose_update, uint64_t image_timestamp);
   int Debug_SaveOutput();
 
   // The calibrated offsets for vio. These numbers will be subtracted off the result of the VIO
@@ -57,12 +57,14 @@ class Vio {
   std::vector<double> D_cam0_;
   std::vector<double> D_cam1_;
   cv::Matx33d R_cam0_cam1_;
+  cv::Matx33d R_imu_cam0_;
   cv::Vec3d T_cam0_cam1_;
   cv::Matx34d P0_;
   cv::Matx34d P1_;
 
   // The estimated pose after VIO is run
   Eigen::MatrixXd pose_;
+  bool first_iteration_;
 
   // Output file stream for debugging output
   std::unique_ptr<std::ofstream> ofs_;

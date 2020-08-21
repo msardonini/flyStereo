@@ -150,6 +150,7 @@ void MavlinkReader::SerialReadThread() {
             // Push the message to our output queue
             std::lock_guard<std::mutex> lock(queue_mutex_);
             output_queue_.push(attitude_msg);
+            std::cout << "push!! " << attitude_msg.trigger_count << "\n";
             cond_var_.notify_one();
             break;
           }

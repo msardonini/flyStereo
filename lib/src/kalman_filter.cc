@@ -72,14 +72,14 @@ void KalmanFilter::Predict(double dt) {
   covariance_ = mod_f * covariance_ * mod_f.transpose()  + q_;
 }
 
-int KalmanFilter::Measure(const Eigen::Matrix<double, 1, num_measurements> &z) {
-  if (z.cols() != num_measurements) {
+int KalmanFilter::Measure(const Eigen::Matrix<double, num_measurements, 1> &z) {
+  if (z.rows() != num_measurements) {
     std::cerr << "Bad measurement vector length!" << std::endl;
     return -1;
   }
 
   // with Z as the given measurement
-  Eigen::Matrix<double, num_measurements, 1> y = z.transpose() - (h_ * state_);
+  Eigen::Matrix<double, num_measurements, 1> y = z - (h_ * state_);
 
   Eigen::Matrix<double, num_measurements, num_measurements> s = h_ * covariance_ * h_.transpose() + r_;
 

@@ -55,7 +55,6 @@ int SensorInterface::GetSynchronizedData(cv::cuda::GpuMat &d_frame_cam0,
   ret_frame |= cam1_->GetFrame(d_frame_cam1);
   if (ret_frame) {
       image_counter_++;
-      std::exit(1);
       return -1;
   }
 

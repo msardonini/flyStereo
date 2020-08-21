@@ -43,7 +43,7 @@ class KalmanFilter {
     *
     * @return     Returns 0 on success, -1 on error
     */
-  int Measure(const Eigen::Matrix<double, 1, num_measurements> &z);
+  int Measure(const Eigen::Matrix<double, num_measurements, 1> &z);
 
   // Accessors
   Eigen::MatrixXd GetState();

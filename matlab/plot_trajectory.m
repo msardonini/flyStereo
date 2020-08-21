@@ -29,11 +29,11 @@ figure
 scatter3(points(1,:), points(2,:), points(3,:))
 hold on
 % Orientation of the camera
-% quiver3(points(1,:), points(2,:), points(3,:), bearing(1,:), bearing(2,:),...
-%     bearing(3,:))
+quiver3(points(1,:), points(2,:), points(3,:), bearing(1,:), bearing(2,:),...
+    bearing(3,:))
 % Velocity
-quiver3(points(1,:), points(2,:), points(3,:), velocity(1,:), velocity(2,:),...
-    velocity(3,:))
+% quiver3(points(1,:), points(2,:), points(3,:), velocity(1,:), velocity(2,:),...
+%     velocity(3,:))
 
 
 xlabel('X axis'); ylabel('Y axis'); zlabel('Z axis'); axis equal

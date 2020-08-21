@@ -46,6 +46,10 @@ Vio::Vio(const YAML::Node &input_params, const YAML::Node &stereo_calibration) :
 
   D_cam1_ = stereo_calibration["D1"]["data"].as<std::vector<double>>();
 
+  interface_vec = stereo_calibration["R_imu_cam0"].as<std::vector<double>>();
+  cv::Vec3d R_imu_cam0_vec = cv::Vec3d(interface_vec.data());
+  cv::Rodrigues(R_imu_cam0_vec, R_imu_cam0_); 
+
   interface_vec = stereo_calibration["R"]["data"].as<std::vector<double>>();
   R_cam0_cam1_ = cv::Matx33d(interface_vec.data());
 
@@ -65,6 +69,7 @@ Vio::Vio(const YAML::Node &input_params, const YAML::Node &stereo_calibration) :
 
   // Set the initial pose to identity
   pose_ = Eigen::Matrix4d::Identity();
+  first_iteration_ = true;
 
   point_history_index_ = 0;
   point_history_.resize(history_size);
@@ -83,6 +88,27 @@ Vio::Vio(const YAML::Node &input_params, const YAML::Node &stereo_calibration) :
 Vio::~Vio() {}
 
 int Vio::ProcessPoints(const ImagePoints &pts, Eigen::Vector3d &pose) {
+  // If this is our first update, set our initial pose by the rotation of the imu
+
+  // Calculate the updated pose
+  if (first_iteration_) {
+    if (pts.imu_pts.size() == 0) {
+      return 0;
+    }
+    first_iteration_ = false;
+ 
+      // Eigen::AngleAxisd(pts.imu_pts[0].yaw, Eigen::Vector3d::UnitZ()).toRotationMatrix()
+    Eigen::Matrix3d initial_rotation =
+      Eigen::AngleAxisd(pts.imu_pts[0].roll, Eigen::Vector3d::UnitX()) *
+      Eigen::AngleAxisd(pts.imu_pts[0].pitch,  Eigen::Vector3d::UnitY()) *
+      Eigen::AngleAxisd(0.0, Eigen::Vector3d::UnitZ()).toRotationMatrix()
+      .transpose();
+
+    Eigen::Matrix3d R_imu_cam0_eigen;
+    cv::cv2eigen(R_imu_cam0_, R_imu_cam0_eigen);
+    pose_.block<3, 3>(0, 0) = initial_rotation * R_imu_cam0_eigen.transpose();
+  }
+
   // All points are placed in bins, sections of the image. The key to this map is the row-major
   // index of the bin. The value is a vector of image points, which holds points from both cameras
   // in the current frame and the previos one
@@ -90,11 +116,11 @@ int Vio::ProcessPoints(const ImagePoints &pts, Eigen::Vector3d &pose) {
 
   BinFeatures(pts, grid);
 
-  Eigen::Vector3f position_vio;
-  if (CalculatePoseUpdate(grid, position_vio) == 0) {
+  Eigen::Matrix4d pose_update;
+  if (CalculatePoseUpdate(grid, pose_update) == 0) {
     // TODO: add imu prediction and vo measurement update
     // ProcessImu(pts.imu_pts);
-    ProcessVio(position_vio, pts.timestamp_us);
+    ProcessVio(pose_update, pts.timestamp_us);
     Debug_SaveOutput();
   }
   return 0;
@@ -125,12 +151,12 @@ int Vio::ProcessPoints(const ImagePoints &pts, Eigen::Vector3d &pose) {
 //   return 0;
 // }
 
-int Vio::ProcessVio(const Eigen::Vector3f &position_vio, uint64_t image_timestamp) {
-  Eigen::Matrix<double, 1, 3> z(Eigen::Matrix<double, 1, 3>::Zero());
+int Vio::ProcessVio(const Eigen::Matrix4d &pose_update, uint64_t image_timestamp) {
+  // Update our Pose
+  pose_ = pose_ * pose_update;
 
-  z(0) = position_vio(0);
-  z(1) = position_vio(1);
-  z(2) = position_vio(2);
+  Eigen::Matrix<double, 3, 1> z(Eigen::Matrix<double, 3, 1>::Zero());
+  z = pose_.block<3, 1>(0, 3);
 
   if (last_timestamp_ == 0) {
     kf_.Predict();
@@ -173,7 +199,7 @@ inline unsigned int Vio::Modulo(int value, unsigned m) {
 }
 
 int Vio::CalculatePoseUpdate(const std::map<int, std::vector<ImagePoint> > &grid,
-  Eigen::Vector3f &position_update) {
+  Eigen::Matrix4d &pose_update) {
   // Calculate the number of points in the grid
   unsigned int num_pts = 0;
   for (auto it = grid.begin(); it != grid.end(); it++) {
@@ -349,7 +375,7 @@ int Vio::CalculatePoseUpdate(const std::map<int, std::vector<ImagePoint> > &grid
   //   std::cout << points[ransac.inliers_[i]].transpose() << "\n";
   // std::cout << std::endl << std::endl;
 
-  Eigen::Matrix4d delta_xform = Eigen::Matrix4d::Identity();
+  pose_update = Eigen::Matrix4d::Identity();
   // pose_ = pose_ * delta_xform ;
   // std::cout << "output transformation: \n" << pose_ << std::endl;
 
@@ -435,39 +461,26 @@ int Vio::CalculatePoseUpdate(const std::map<int, std::vector<ImagePoint> > &grid
     ransac2.max_iterations_ = 200;
     ransac2.computeModel();
 
-    delta_xform.block<3,4>(0, 0) = ransac2.model_coefficients_;
+    pose_update.block<3,4>(0, 0) = ransac2.model_coefficients_;
 
-    pose_ = pose_history_[index_hist] * delta_xform;
+    pose_ = pose_history_[index_hist] * pose_update;
     std::cout << "index_hist " << index_hist << std::endl;
     std::cout << "\n " << pose_history_[index_hist] << std::endl;
   } else {
     // Put the ransc output pose update into a 4x4 Matrix
-    delta_xform.block<3,4>(0, 0) = ransac.model_coefficients_;
+    pose_update.block<3,4>(0, 0) = ransac.model_coefficients_;
 
     // Apply the user calibration
-    delta_xform.block<3,1>(0, 3) -= vio_calibration_;
-
-    // Calculate the updated pose
-    pose_ = pose_ * delta_xform;
+    pose_update.block<3,1>(0, 3) -= vio_calibration_;
   }
 
 
 
-  std::cout << "delta update: \n" << delta_xform << std::endl;
+  std::cout << "delta update: \n" << pose_update << std::endl;
   std::cout << "output transformation: \n" << pose_ << std::endl;
 
   pose_history_[Modulo(static_cast<int>(point_history_index_), history_size)] = pose_;
   point_history_index_ = (point_history_index_ >= history_size - 1) ? 0 : point_history_index_ + 1;
-
-  for (int i = 0; i < 3; i++) {
-    position_update(i) = pose_(i, 3);
-  }
-
-  // Debug statements
-  // // if (ransac.model_coefficients_(1,3) < -0.3) {
-  // if (g++ == 99) {
-  //   int p = 0;
-  // }
 
   return 0;
 }
