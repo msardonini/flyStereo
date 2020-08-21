@@ -22,20 +22,22 @@ void SignalHandler(int signal_num) {
 
 
 int UpdatePointsViaImu(const std::vector<cv::Point3d> &current_pts, const cv::Matx33d &rotation,
-  const cv::Matx33d &camera_matrix, std::vector<cv::Point3d> &updated_pts) {
+  const cv::Matx33d &camera_matrix, std::vector<cv::Point3d> &updated_pts,
+  bool project_forward = true) {
   if (current_pts.size() == 0) {
     return -1;
   }
 
-  cv::Matx33d H = camera_matrix * rotation.t() * camera_matrix.inv();
+  cv::Matx33d H;
+  if (project_forward) {
+    H = camera_matrix * rotation * camera_matrix.inv();
+  } else {
+    H = camera_matrix * rotation.t() * camera_matrix.inv();
+  }
 
   updated_pts.resize(current_pts.size());
   for (int i = 0; i < current_pts.size(); i++) {
-    cv::Vec3d temp_current(current_pts[i].x, current_pts[i].y, current_pts[i].z);
-    cv::Vec3d temp_updated = H * temp_current;
-    // updated_pts[i].x = temp_updated[0] / temp_updated[2];
-    // updated_pts[i].y = temp_updated[1] / temp_updated[2];
-    updated_pts[i] = rotation * temp_current;
+    updated_pts[i] = H * current_pts[i];
   }
   return 0;
 }
@@ -90,7 +92,7 @@ int main(int argc, char *argv[]) {
   // Draw a box of points on the image
   std::vector<cv::Point3d> debug_pts_cam0;
 
-  const float grid_size = 0.4;
+  const float grid_size = 0.33;
   debug_pts_cam0.push_back(cv::Point3d(-grid_size, -grid_size, 1));
   debug_pts_cam0.push_back(cv::Point3d(-grid_size, 0.0, 1));
   debug_pts_cam0.push_back(cv::Point3d(-grid_size, grid_size, 1));
@@ -140,9 +142,8 @@ int main(int argc, char *argv[]) {
     }
 
     cv::Mat show_frame_cam0, show_frame_cam1;
-
-    UpdatePointsViaImu(debug_pts_cam0, R_t0_t1_cam0, K_cam0, debug_pts_cam0);
-    UpdatePointsViaImu(debug_pts_cam1, R_t0_t1_cam1, K_cam1, debug_pts_cam1);
+    UpdatePointsViaImu(debug_pts_cam0, R_t0_t1_cam0, cv::Matx33d::eye(), debug_pts_cam0, false);
+    UpdatePointsViaImu(debug_pts_cam1, R_t0_t1_cam1, cv::Matx33d::eye(), debug_pts_cam1, false);
 
     if (imu_msgs.size() > 0) {
       std::cout << "imu message size: " << imu_msgs.size() << std::endl;
@@ -154,9 +155,7 @@ int main(int argc, char *argv[]) {
     cv::Vec3d rvec(0.0, 0.0, 0.0);
     if (sensor_interface.cam0_->OutputEnabled()) {
       std::vector<cv::Point2d> show_pts;
-      // std::vector<cv::Point2f> show_pts_inf(debug_pts_cam0.begin(), debug_pts_cam0.end());
-      cv::projectPoints(debug_pts_cam0, rvec, tvec, K_cam0, D_cam0,
-        show_pts);
+      cv::projectPoints(debug_pts_cam0, rvec, tvec, K_cam0, D_cam0, show_pts);
       std::vector<cv::Point2f> show_pts_f(show_pts.begin(), show_pts.end());
       cv::Mat show_frame, show_frame_color;
       d_frame_cam0.download(show_frame);
@@ -165,10 +164,9 @@ int main(int argc, char *argv[]) {
       sensor_interface.cam0_->SendFrame(show_frame_color);
     }
 
-    if (sensor_interface.cam1_->OutputEnabled() && 0) {
+    if (sensor_interface.cam1_->OutputEnabled()) {
       std::vector<cv::Point2d> show_pts;
-      cv::projectPoints(debug_pts_cam1, cv::Mat(), cv::Mat(), K_cam1, D_cam1,
-        show_pts);
+      cv::projectPoints(debug_pts_cam1, rvec, tvec, K_cam1, D_cam1, show_pts);
       std::vector<cv::Point2f> show_pts_f(show_pts.begin(), show_pts.end());
       cv::Mat show_frame, show_frame_color;
       d_frame_cam1.download(show_frame);
@@ -178,7 +176,7 @@ int main(int argc, char *argv[]) {
     }
 
     // Sleep to limit the FPS
-    std::this_thread::sleep_for(std::chrono::microseconds(10000));
+    // std::this_thread::sleep_for(std::chrono::microseconds(10000));
   }
 
   if (imu_thread_obj.joinable()) {

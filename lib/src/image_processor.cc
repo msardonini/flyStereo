@@ -289,9 +289,9 @@ int ImageProcessor::OuputTrackedPoints(const std::vector<cv::Point2f> &pts_cam0_
   const std::vector<mavlink_imu_t> &imu_msgs) {
   // Check to make sure that our input data is sized correctly
   unsigned int num_pts = pts_cam0_t0.size();
-  if (num_pts != pts_cam0_t1.size() || 
-      num_pts != pts_cam1_t0.size() || 
-      num_pts != pts_cam1_t1.size() || 
+  if (num_pts != pts_cam0_t1.size() ||
+      num_pts != pts_cam1_t0.size() ||
+      num_pts != pts_cam1_t1.size() ||
       num_pts != ids.size()) {
     std::cerr << "Error! Vectors do not match in OutputTrackedPoints" << std::endl;
     return -1;
@@ -388,19 +388,23 @@ int ImageProcessor::ProcessThread() {
 
   while (is_running_.load()) {
     uint64_t current_time;
-    // Trigger the camera to start acquiring an image
-
-    // Read the frame and check for errors
-    if (sensor_interface_->GetSynchronizedData(d_frame_cam0_t1, d_frame_cam1_t1, imu_msgs, current_time)) {
+    // Read the frames and check for errors
+    int ret_val = sensor_interface_->GetSynchronizedData(d_frame_cam0_t1, d_frame_cam1_t1,
+      imu_msgs, current_time);
+    if (ret_val < 0) {
       if (++error_counter >= max_error_counter_) {
         std::cerr << "Error! Failed to read more than " << max_error_counter_
-          << " frames" << std::endl;
+          << " consecutive frames" << std::endl;
         is_running_.store(false);
         return -1;
       } else {
         continue;
       }
+    } else if (ret_val == 1) {
+      // This will happen if we don't have IMU data, for now continue on as is
     }
+    // Reset the Error Counter
+    error_counter = 0;
 
     uint64_t timestamp_us = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::
       steady_clock::now().time_since_epoch()).count();
@@ -423,8 +427,7 @@ int ImageProcessor::ProcessThread() {
     // }
 
 
-    std::cout << counter << std::endl;
-
+    // std::cout << counter << std::endl;
 
     // Append the kepypoints from the previous iteration to the tracked points of the current
     // iteration. Points that pass through all the outlier checks will remain as tracked points
@@ -598,10 +601,10 @@ int ImageProcessor::ProcessThread() {
       ids_detected_t1.push_back(current_id++);
     }
 
-    std::cout << "num points: cam0 " << d_tracked_pts_cam0_t1.cols << " cam1 " <<
-      d_tracked_pts_cam1_t1.cols << " start: " << debug_num_pts[0] << " tracking: " <<
-      debug_num_pts[1] << " matching: " << debug_num_pts[2] << " ransac: " << debug_num_pts[3] << " detection: " << debug_num_pts[4] << " detection matching: " << debug_num_pts[5]
-      << std::endl;
+    // std::cout << "num points: cam0 " << d_tracked_pts_cam0_t1.cols << " cam1 " <<
+    //   d_tracked_pts_cam1_t1.cols << " start: " << debug_num_pts[0] << " tracking: " <<
+    //   debug_num_pts[1] << " matching: " << debug_num_pts[2] << " ransac: " << debug_num_pts[3] << " detection: " << debug_num_pts[4] << " detection matching: " << debug_num_pts[5]
+    //   << std::endl;
 
     // Signal this loop has finished and output the tracked points
     if (tracked_pts_cam0_t1.size() > 1 && tracked_pts_cam1_t1.size() > 1) {
@@ -615,7 +618,6 @@ int ImageProcessor::ProcessThread() {
     * Output Images to the sink, if requested
     *********************************************************************/
     if (sensor_interface_->cam0_->OutputEnabled()) {
-      std::cout << "camera 0 \n";
       cv::Mat show_frame, show_frame_color;
       d_frame_cam0_t1.download(show_frame);
       if (draw_points_to_frame) {
@@ -628,7 +630,6 @@ int ImageProcessor::ProcessThread() {
       sensor_interface_->cam0_->SendFrame(show_frame_color);
     }
     if (sensor_interface_->cam1_->OutputEnabled()) {
-      std::cout << "camera 1 \n";
       cv::Mat show_frame, show_frame_color;
       d_frame_cam1_t1.download(show_frame);
       if (draw_points_to_frame) {
@@ -639,7 +640,6 @@ int ImageProcessor::ProcessThread() {
       }
       sensor_interface_->cam1_->SendFrame(show_frame_color);
     }
-
 
     // Set the current t1 values to t0 for the next iteration
     d_frame_cam0_t0 = d_frame_cam0_t1.clone();
@@ -787,7 +787,7 @@ int ImageProcessor::DetectNewFeatures(const cv::Ptr<cv::cuda::FastFeatureDetecto
   const cv::cuda::GpuMat &d_input_corners,
   cv::cuda::GpuMat &d_output) {
   // Create a mask to avoid redetecting existing features.
-  
+
   cv::Mat mask;
   GetInputMaskFromPoints(d_input_corners, d_frame.size(), mask);
 
@@ -808,7 +808,7 @@ int ImageProcessor::DetectNewFeatures(const cv::Ptr<cv::cuda::CornersDetector> &
   const cv::cuda::GpuMat &d_input_corners,
   cv::cuda::GpuMat &d_output) {
   // Create a mask to avoid redetecting existing features.
-  
+
   cv::Mat mask;
   GetInputMaskFromPoints(d_input_corners, d_frame.size(), mask);
 

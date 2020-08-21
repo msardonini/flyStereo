@@ -1,5 +1,6 @@
 fly_stereo:
   vio:
+    vio_calibration: [-0.0021, 0.0004, -0.0012]
     image_width: 1280
     image_height: 720
     # bins_width: 40
@@ -7,6 +8,21 @@ fly_stereo:
     bins_width: 20
     bins_height: 15
     max_pts_in_bin: 2
+    kalman_filter:
+        dt: 0.2
+        sigma_a: 0.1
+        f: [0.0, 1.0, 0.0, 0.0, 0.0, 0.0,
+            0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+            0.0, 0.0, 0.0, 1.0, 0.0, 0.0,
+            0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+            0.0, 0.0, 0.0, 0.0, 0.0, 1.0,
+            0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+        h:  [1.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+            0.0, 0.0, 1.0, 0.0, 0.0, 0.0,
+            0.0, 0.0, 0.0, 0.0, 1.0, 0.0]
+        r:  [0.001, 0.0, 0.0,
+            0.0, 0.001, 0.0,
+            0.0, 0.0, 0.001]
 
 
   mavlink_reader:
@@ -23,13 +39,14 @@ fly_stereo:
       auto_trigger_async_rate_hz: 20
       replay_mode: false
     Camera0:
-      # auto_exposure:
-      #   pixel_range_limits: [78, 118]
-      #   exposure_limits: [1250, 2500]
-      #   num_frames_to_calc: 3
+      auto_exposure:
+        pixel_range_limits: [78, 118]
+        exposure_limits: [500, 2500]
+        num_frames_to_calc: 3
+      use_gstreamer_pipeline: true
       device_num: 0
-      src_pipeline: "v4l2src device=/dev/video0 ! video/x-raw,width=1280,height=720 ! nvvidconv ! video/x-raw, format=(string)GRAY8 ! appsink max-buffers=1 drop=true"
-      sink_pipeline: "appsrc do-timestamp=true ! nvvidconv ! nvv4l2h264enc maxperf-enable=true insert-sps-pps=true bitrate=107456000 ! h264parse ! qtmux ! filesink location=/tmp/test/cam0.mp4 "
+      src_pipeline: "v4l2src device=/dev/video0 ! video/x-raw,width=1280,height=720 ! nvvidconv ! video/x-raw, format=(string)GRAY8 ! appsink max-buffers=10 drop=false"
+      sink_pipeline: "appsrc do-timestamp=true ! queue max-size-buffers=1000 ! nvvidconv ! nvv4l2h264enc maxperf-enable=true bitrate=107456000 ! h264parse ! qtmux ! filesink location=/tmp/test/cam0.mp4 "
       framerate: 20
       width: 1280
       height: 720
@@ -38,13 +55,14 @@ fly_stereo:
       gain: 3
       exposure_time: 1500
     Camera1:
-      # auto_exposure:
-      #   pixel_range_limits: [78, 118]
-      #   exposure_limits: [1250, 2500]
-      #   num_frames_to_calc: 3
+      auto_exposure:
+        pixel_range_limits: [78, 118]
+        exposure_limits: [500, 2500]
+        num_frames_to_calc: 3
+      use_gstreamer_pipeline: true
       device_num: 1
-      src_pipeline: "v4l2src device=/dev/video1 ! video/x-raw,width=1280,height=720 ! nvvidconv ! video/x-raw, format=(string)GRAY8 ! appsink max-buffers=1 drop=true"
-      sink_pipeline: "appsrc do-timestamp=true ! nvvidconv ! nvv4l2h264enc maxperf-enable=true insert-sps-pps=true bitrate=107456000 ! h264parse ! qtmux ! filesink location=/tmp/test/cam1.mp4 "
+      src_pipeline: "v4l2src device=/dev/video1 ! video/x-raw,width=1280,height=720 ! nvvidconv ! video/x-raw, format=(string)GRAY8 ! appsink max-buffers=10 drop=false"
+      sink_pipeline: "appsrc do-timestamp=true ! queue max-size-buffers=1000 ! nvvidconv ! nvv4l2h264enc maxperf-enable=true bitrate=107456000 ! h264parse ! qtmux ! filesink location=/tmp/test/cam1.mp4 "
       framerate: 20
       width: 1280
       height: 720
@@ -53,7 +71,7 @@ fly_stereo:
       gain: 3
       exposure_time: 1500
     draw_points_to_frame: false
-    max_error_counter: 2
+    max_error_counter: 10
     stereo_threshold: 15
     ransac_threshold: 5
 
@@ -73,7 +91,7 @@ fly_stereo:
     # 3.14159265359
     # 4.71238898038
     # debug_vec: [1.57, 0, 4.7123]
-    debug_vec: [0, 0, 4.71238898038]
+    R_imu_cam0: [0, 0, 4.71238898038]
     K0: !!opencv-matrix
        rows: 3
        cols: 3

@@ -88,7 +88,7 @@ std::queue<std::pair<uint32_t, uint64_t> > CameraTrigger::GetTriggerCount() {
 
   std::lock_guard<std::mutex> lock(trigger_count_mutex_);
 
-  std::cout << "counter " << std::get<0>(time_counter_queue_.front()) << std::endl;
+  // std::cout << "counter " << std::get<0>(time_counter_queue_.front()) << std::endl;
   std::queue<std::pair<uint32_t, uint64_t> > temp;
   std::swap(temp, time_counter_queue_);
   return temp;

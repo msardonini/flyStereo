@@ -46,6 +46,10 @@ class Camera {
     return static_cast<bool>(!sink_pipeline_.empty());
   }
 
+  uint64_t GetTimestampNs() const {
+    return timestamp_ns_;
+  }
+
  private:
   // Initialize the image sink object
   int InitSink(bool is_color);
@@ -77,6 +81,7 @@ class Camera {
 
   bool use_gstreamer_pipeline_;
   struct GstParams gst_params_;
+  uint64_t timestamp_ns_ = 0;
 };
 
 #endif  // FLY_STEREO_INCLUDE_CAMERA_H_

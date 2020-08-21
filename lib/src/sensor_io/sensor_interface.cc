@@ -51,9 +51,19 @@ int SensorInterface::GetSynchronizedData(cv::cuda::GpuMat &d_frame_cam0,
   camera_trigger_->TriggerCamera();
   last_trigger_time_ = std::chrono::steady_clock::now();
 
-  if (cam0_->GetFrame(d_frame_cam0) || cam1_->GetFrame(d_frame_cam1)) {
+  int ret_frame = cam0_->GetFrame(d_frame_cam0);
+  ret_frame |= cam1_->GetFrame(d_frame_cam1);
+  if (ret_frame) {
+      image_counter_++;
+      std::exit(1);
       return -1;
   }
+
+  uint64_t ts_frame0 = cam0_->GetTimestampNs();
+  uint64_t ts_frame1 = cam1_->GetTimestampNs();
+  double time_diff = static_cast<double>(abs(static_cast<int64_t>(ts_frame1 - ts_frame0))) / 1.0E9;
+
+  // std::cout << "TIME DIFF: " << time_diff << std::endl << std::endl;
 
   imu_data.clear();
   int ret = AssociateImuData(imu_data, current_frame_time);
@@ -71,8 +81,7 @@ void SensorInterface::DrawPoints(const std::vector<cv::Point2f> &mypoints,
     } else {
       color = CV_RGB(0, 0, 0);
     }
-    circle(myimage, cv::Point(mypoints[i].x, mypoints[i].y), myradius, color,
-      -1, 8, 0);
+    circle(myimage, cv::Point(mypoints[i].x, mypoints[i].y), myradius, color, -1, 8, 0);
   }
 }
 
@@ -93,7 +102,7 @@ int SensorInterface::AssociateImuData(std::vector<mavlink_imu_t> &imu_msgs,
 
   if (imu_queue_.size() == 0) {
     std::cerr << "Imu queue empty!" << std::endl;
-    return -1;
+    return 1;
   }
 
   // Reserve some memory in our vector to prevent copies. We should expect this to fill up to
@@ -161,7 +170,7 @@ int SensorInterface::GenerateImuXform(const std::vector<mavlink_imu_t> &imu_msgs
   if (imu_msgs.size() == 1) {
     uint64_t delta_t = current_frame_time - (imu_msgs[0].timestamp_us - imu_msgs[0].
       time_since_trigger_us);
-    delta_rpw -= cv::Vec3f(imu_msgs[0].gyroXYZ[0], imu_msgs[0].gyroXYZ[1], imu_msgs[0].gyroXYZ[2])
+    delta_rpw += cv::Vec3f(imu_msgs[0].gyroXYZ[0], imu_msgs[0].gyroXYZ[1], imu_msgs[0].gyroXYZ[2])
       * static_cast<float>(delta_t) / 1.0E6f;
   } else {  
     for (int i = 0; i < imu_msgs.size(); i++) {
@@ -178,12 +187,12 @@ int SensorInterface::GenerateImuXform(const std::vector<mavlink_imu_t> &imu_msgs
         delta_t = imu_msgs[i].timestamp_us - imu_msgs[i - 1].timestamp_us; 
       }
 
-      delta_rpw -= cv::Vec3f(imu_msgs[i].gyroXYZ[0], imu_msgs[i].gyroXYZ[1],
+      delta_rpw += cv::Vec3f(imu_msgs[i].gyroXYZ[0], imu_msgs[i].gyroXYZ[1],
         imu_msgs[i].gyroXYZ[2]) * (static_cast<float>(delta_t) / 1.0E6f);
     }
   }
   cv::Rodrigues(R_imu_cam0 * delta_rpw, rotation_t0_t1_cam0);
   cv::Rodrigues(R_imu_cam1 * delta_rpw, rotation_t0_t1_cam1);
-  std::cout << "delta_rpw: " << delta_rpw << std::endl;
+  // std::cout << "delta_rpw: " << delta_rpw << std::endl;
   return 0;
 }

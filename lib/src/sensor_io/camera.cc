@@ -38,7 +38,6 @@ Camera::Camera(YAML::Node input_params) {
 Camera::~Camera() {}
 
 int Camera::Init() {
-
   if (use_gstreamer_pipeline_) {
     InitGstPipeline();
   } else {
@@ -125,18 +124,22 @@ int Camera::GetFrame(cv::cuda::GpuMat &frame) {
 
       if (mean(0) < pixel_range_limits_[0]) {
         if (exposure_time_ >= exposure_limits_[1]) {
-          gain_++;
-          UpdateGain();
+          if (gain_ < 15) {
+            gain_++;
+            UpdateGain();
+          }
         } else {
-          exposure_time_ += 250;
+          exposure_time_ += 100;
           UpdateExposure();
         }
       } else if (mean(0) > pixel_range_limits_[1]) {
         if (exposure_time_ <= exposure_limits_[0]) {
-          gain_--;
-          UpdateGain();
+          if (gain_ > 1) {
+            gain_--;
+            UpdateGain();
+          }
         } else {
-          exposure_time_ -= 250;
+          exposure_time_ -= 100;
           UpdateExposure();
         }
       }
@@ -188,7 +191,7 @@ int Camera::InitGstPipeline() {
 
   // v4l2src configuration
   g_object_set(G_OBJECT(gst_params_.v4l2src), "device", std::string("/dev/video" +
-    std::to_string(device_num_)), NULL);
+    std::to_string(device_num_)).c_str(), NULL);
 
   // Caps filter for v4l2src
   const GstCaps *caps = gst_caps_new_simple("video/x-raw", "width", G_TYPE_INT, 1280, "height",
@@ -249,11 +252,18 @@ int Camera::GetFrameGst(cv::Mat &frame) {
     return -1;
   }
 
+  // Check to see if the frame has been initialized
+  if (frame.empty()) {
+    frame = cv::Mat(720, 1280, CV_8UC1);
+  }
+
   // Get the frame from gstreamer
   GstMapInfo info;
   if (gst_buffer_map(buffer, &info, GST_MAP_READ)) {
     // Copy the buffer
     memcpy(frame.ptr(), info.data, info.size);
+
+    timestamp_ns_ = static_cast<uint64_t>(GST_BUFFER_PTS(buffer));
 
     gst_buffer_unmap(buffer, &info);
     gst_sample_unref(sample);
