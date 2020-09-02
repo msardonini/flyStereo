@@ -217,8 +217,8 @@ int Camera::InitGstPipeline() {
   }
 
   GstStateChangeReturn ret_state = gst_element_set_state(gst_params_.pipeline, GST_STATE_PLAYING);
-  if (ret_state != GST_STATE_CHANGE_SUCCESS) {
-    std::cerr << "Error changing gstreamer state!" << std::endl;
+  if (ret_state != GST_STATE_CHANGE_SUCCESS && ret_state != GST_STATE_CHANGE_ASYNC) {
+    std::cerr << "Error changing gstreamer state! Ret state is " << ret_state << std::endl;
     return -1;
   }
 
