@@ -7,6 +7,7 @@ acquire_calib_images:
     auto_trigger_async_rate_hz: 20
     replay_mode: false
   Camera0:
+    use_gstreamer_pipeline: false
     auto_exposure:
         pixel_range_limits: [108, 148]
         exposure_limits: [1250, 2500]
@@ -22,6 +23,7 @@ acquire_calib_images:
     gain: 3
     exposure_time: 1500
   Camera1:
+    use_gstreamer_pipeline: false
     auto_exposure:
         pixel_range_limits: [108, 148]
         exposure_limits: [1250, 2500]
