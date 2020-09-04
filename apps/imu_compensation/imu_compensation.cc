@@ -20,7 +20,6 @@ void SignalHandler(int signal_num) {
   is_running.store(false);
 }
 
-
 int UpdatePointsViaImu(const std::vector<cv::Point3d> &current_pts, const cv::Matx33d &rotation,
   const cv::Matx33d &camera_matrix, std::vector<cv::Point3d> &updated_pts,
   bool project_forward = true) {

@@ -97,16 +97,18 @@ int Vio::ProcessPoints(const ImagePoints &pts, Eigen::Vector3d &pose) {
     }
     first_iteration_ = false;
  
-      // Eigen::AngleAxisd(pts.imu_pts[0].yaw, Eigen::Vector3d::UnitZ()).toRotationMatrix()
+    // Eigen::AngleAxisd(pts.imu_pts[0].yaw, Eigen::Vector3d::UnitZ()).toRotationMatrix()
     Eigen::Matrix3d initial_rotation =
       Eigen::AngleAxisd(pts.imu_pts[0].roll, Eigen::Vector3d::UnitX()) *
       Eigen::AngleAxisd(pts.imu_pts[0].pitch,  Eigen::Vector3d::UnitY()) *
-      Eigen::AngleAxisd(0.0, Eigen::Vector3d::UnitZ()).toRotationMatrix()
-      .transpose();
+      Eigen::AngleAxisd(0.0, Eigen::Vector3d::UnitZ()).toRotationMatrix();
 
     Eigen::Matrix3d R_imu_cam0_eigen;
     cv::cv2eigen(R_imu_cam0_, R_imu_cam0_eigen);
-    pose_.block<3, 3>(0, 0) = initial_rotation * R_imu_cam0_eigen.transpose();
+    pose_.block<3, 3>(0, 0) = R_imu_cam0_eigen.transpose() * initial_rotation;
+    std::cout << "first imu point: " << pts.imu_pts[0].roll << " " << pts.imu_pts[0].pitch << " " << pts.imu_pts[0].yaw << " " << std::endl;
+    std::cout << "Mat1: " << initial_rotation << std::endl;
+    std::cout << "Mat2: " << R_imu_cam0_eigen << std::endl;
   }
 
   // All points are placed in bins, sections of the image. The key to this map is the row-major

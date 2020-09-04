@@ -8,11 +8,11 @@ from threading import Thread
 # All user config params here
 pattern_width = 9
 pattern_height = 6
-square_size = 0.038
+square_size = 0.058
 # square_size = 0.028 # square size for the 5x8 board
-folderpath = "/home/msardonini/git/external/stereo-calibration/calib_imgs/cal_new_board/"
+folderpath = "/home/msardonini/Pictures/flight_vehicle_cal_imgs/cal_new_board/"
 visualize_images = True
-num_images = 245
+num_images = 140
 # num_images = 15
 cam0_prefix = 'cam0_'
 cam1_prefix = 'cam1_'
@@ -108,6 +108,8 @@ def get_single_cam_points(cam_num):
                     imgpoints1.append(corners)
                     objpoints1.append(objp)
                     points_index1.append(i)
+        else:
+            os.remove(img_path)
 
 
 

@@ -1,4 +1,5 @@
 clear all; clc; close all
+clear all; clc;
 
 data = dlmread('../build_docker/file.txt');
 
@@ -34,9 +35,22 @@ quiver3(points(1,:), points(2,:), points(3,:), bearing(1,:), bearing(2,:),...
 % Velocity
 % quiver3(points(1,:), points(2,:), points(3,:), velocity(1,:), velocity(2,:),...
 %     velocity(3,:))
-
-
 xlabel('X axis'); ylabel('Y axis'); zlabel('Z axis'); axis equal
+
+
+
+% figure
+% scatter3(points(1,:), points(2,:), points(3,:))
+% hold on
+% Orientation of the camera
+% bsize = size(bearing,2);
+% quiver3(zeros(bsize,1)', zeros(bsize,1)', zeros(bsize,1)', bearing(1,:),...
+%     bearing(2,:), bearing(3,:))
+% Velocity
+% quiver3(points(1,:), points(2,:), points(3,:), velocity(1,:), velocity(2,:),...
+%     velocity(3,:))
+% xlabel('X axis'); ylabel('Y axis'); zlabel('Z axis'); axis equal
+
 
 
 
@@ -48,8 +62,3 @@ quiver3(kalman_output(:,1),kalman_output(:,3), kalman_output(:,5), ...
 scatter3(points(1,:), points(2,:), points(3,:))
 xlabel('X axis'); ylabel('Y axis'); zlabel('Z axis'); axis equal
  
-
-figure
-plot(kalman_output(:,3))
-hold on
-plot(kalman_output(:,4))
