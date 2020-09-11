@@ -29,7 +29,7 @@ acquire_calib_images:
         exposure_limits: [1250, 2500]
         num_frames_to_calc: 3
     device_num: 1
-    src_pipeline: "v4l2src device=/dev/video1 ! video/x-raw,width=1280,height=720 ! nvvidconv flip-method=0 ! video/x-raw, format=(string)GRAY8 ! appsink max-buffers=1 drop=true"
+    src_pipeline: "v4l2src device=/dev/video1 ! video/x-raw,width=1280,height=720 ! nvvidconv flip-method=2 ! video/x-raw, format=(string)GRAY8 ! appsink max-buffers=1 drop=true"
     framerate: 10
     width: 1280
     height: 720

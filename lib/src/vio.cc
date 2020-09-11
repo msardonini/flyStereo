@@ -381,9 +381,10 @@ int Vio::CalculatePoseUpdate(const std::map<int, std::vector<ImagePoint> > &grid
   // pose_ = pose_ * delta_xform ;
   // std::cout << "output transformation: \n" << pose_ << std::endl;
 
-  int index_hist = SaveInliers(ransac.inliers_, pts_ids, points);
-  std::cout << "index_hist: " << index_hist << std::endl;
-  if (index_hist >= 0 && 0) {
+  // int index_hist = SaveInliers(ransac.inliers_, pts_ids, points);
+  int index_hist;
+  // std::cout << "index_hist: " << index_hist << std::endl;
+  if (0) {
     // // Get the points of the current timestep by triangulating 2D points in timestep t1
     // cv::Mat pts_cam0_t1_mat(pts_cam0_t1_ud); pts_cam0_t1_mat.convertTo(pts_cam0_t1_mat, CV_64F);
     // cv::Mat pts_cam1_t1_mat(pts_cam1_t1_ud); pts_cam1_t1_mat.convertTo(pts_cam1_t1_mat, CV_64F);
@@ -476,13 +477,17 @@ int Vio::CalculatePoseUpdate(const std::map<int, std::vector<ImagePoint> > &grid
     pose_update.block<3,1>(0, 3) -= vio_calibration_;
   }
 
+  if (pose_update.block<3, 1>(0, 3).norm() > 1) {
+    pose_update = Eigen::Matrix4d::Identity();
+    std::cerr << "Error! Single frame distance over threshold. Discarding update\n";
+  }
 
 
   std::cout << "delta update: \n" << pose_update << std::endl;
   std::cout << "output transformation: \n" << pose_ << std::endl;
 
-  pose_history_[Modulo(static_cast<int>(point_history_index_), history_size)] = pose_;
-  point_history_index_ = (point_history_index_ >= history_size - 1) ? 0 : point_history_index_ + 1;
+  // pose_history_[Modulo(static_cast<int>(point_history_index_), history_size)] = pose_;
+  // point_history_index_ = (point_history_index_ >= history_size - 1) ? 0 : point_history_index_ + 1;
 
   return 0;
 }
