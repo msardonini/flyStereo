@@ -160,3 +160,82 @@ TEST(fly_stereo_interop, RESET_COUNTERS)
 #endif
 }
 #endif
+
+TEST(fly_stereo, COMMAND)
+{
+    mavlink::mavlink_message_t msg;
+    mavlink::MsgMap map1(msg);
+    mavlink::MsgMap map2(msg);
+
+    mavlink::fly_stereo::msg::COMMAND packet_in{};
+    packet_in.timestamp_us = 93372036854775807ULL;
+    packet_in.engage = 65;
+    packet_in.shutdown = 132;
+    packet_in.custom_cmd1 = 963497880;
+    packet_in.custom_cmd2 = 963498088;
+    packet_in.custom_cmd3 = 963498296;
+
+    mavlink::fly_stereo::msg::COMMAND packet1{};
+    mavlink::fly_stereo::msg::COMMAND packet2{};
+
+    packet1 = packet_in;
+
+    //std::cout << packet1.to_yaml() << std::endl;
+
+    packet1.serialize(map1);
+
+    mavlink::mavlink_finalize_message(&msg, 1, 1, packet1.MIN_LENGTH, packet1.LENGTH, packet1.CRC_EXTRA);
+
+    packet2.deserialize(map2);
+
+    EXPECT_EQ(packet1.timestamp_us, packet2.timestamp_us);
+    EXPECT_EQ(packet1.engage, packet2.engage);
+    EXPECT_EQ(packet1.shutdown, packet2.shutdown);
+    EXPECT_EQ(packet1.custom_cmd1, packet2.custom_cmd1);
+    EXPECT_EQ(packet1.custom_cmd2, packet2.custom_cmd2);
+    EXPECT_EQ(packet1.custom_cmd3, packet2.custom_cmd3);
+}
+
+#ifdef TEST_INTEROP
+TEST(fly_stereo_interop, COMMAND)
+{
+    mavlink_message_t msg;
+
+    // to get nice print
+    memset(&msg, 0, sizeof(msg));
+
+    mavlink_command_t packet_c {
+         93372036854775807ULL, 963497880, 963498088, 963498296, 65, 132
+    };
+
+    mavlink::fly_stereo::msg::COMMAND packet_in{};
+    packet_in.timestamp_us = 93372036854775807ULL;
+    packet_in.engage = 65;
+    packet_in.shutdown = 132;
+    packet_in.custom_cmd1 = 963497880;
+    packet_in.custom_cmd2 = 963498088;
+    packet_in.custom_cmd3 = 963498296;
+
+    mavlink::fly_stereo::msg::COMMAND packet2{};
+
+    mavlink_msg_command_encode(1, 1, &msg, &packet_c);
+
+    // simulate message-handling callback
+    [&packet2](const mavlink_message_t *cmsg) {
+        MsgMap map2(cmsg);
+
+        packet2.deserialize(map2);
+    } (&msg);
+
+    EXPECT_EQ(packet_in.timestamp_us, packet2.timestamp_us);
+    EXPECT_EQ(packet_in.engage, packet2.engage);
+    EXPECT_EQ(packet_in.shutdown, packet2.shutdown);
+    EXPECT_EQ(packet_in.custom_cmd1, packet2.custom_cmd1);
+    EXPECT_EQ(packet_in.custom_cmd2, packet2.custom_cmd2);
+    EXPECT_EQ(packet_in.custom_cmd3, packet2.custom_cmd3);
+
+#ifdef PRINT_MSG
+    PRINT_MSG(msg);
+#endif
+}
+#endif

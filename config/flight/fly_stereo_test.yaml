@@ -71,7 +71,7 @@ fly_stereo:
       exposure_time: 1500
     draw_points_to_frame: true
     max_error_counter: 5
-    stereo_threshold: 15000
+    stereo_threshold: 30
     ransac_threshold: 5
 
     goodFeaturesToTrack:

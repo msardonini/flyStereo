@@ -20,14 +20,11 @@ void SignalHandler(int signal_num) {
 }
 
 // Thread to collect the imu data and disperse it to all objects that need it
-void imu_thread(YAML::Node imu_reader_params, ImageProcessor *image_processor) {
-  MavlinkReader mavlink_reader;
-  mavlink_reader.Init(imu_reader_params);
-
+void imu_thread(MavlinkReader *mavlink_reader, ImageProcessor *image_processor) {
   while(is_running.load()) {
     mavlink_imu_t attitude;
     // Get the next attitude message, block until we have one
-    if(mavlink_reader.GetAttitudeMsg(&attitude, true)) {
+    if(mavlink_reader->GetAttitudeMsg(&attitude, true)) {
       // Send the imu message to the image processor
       image_processor->ReceiveImu(attitude);
 
@@ -76,11 +73,22 @@ int main(int argc, char* argv[]) {
 
   YAML::Node fly_stereo_params = YAML::LoadFile(config_file)["fly_stereo"];
 
+  MavlinkReader mavlink_reader;
+  mavlink_reader.Init(fly_stereo_params["mavlink_reader"]);
+
+  while(is_running.load()) {
+    if(mavlink_reader.WaitForStartCmd() == true) {
+      break;
+    }
+  }
+
+
   ImageProcessor image_processor(fly_stereo_params["image_processor"], 
     fly_stereo_params["stereo_calibration"]);
   image_processor.Init();
 
-  std::thread imu_thread_obj(imu_thread, fly_stereo_params["mavlink_reader"], &image_processor);
+  std::thread imu_thread_obj(imu_thread, &mavlink_reader,
+    &image_processor);
 
 
   Vio vio(fly_stereo_params["vio"], fly_stereo_params["stereo_calibration"]);

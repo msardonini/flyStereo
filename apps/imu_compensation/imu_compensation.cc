@@ -145,9 +145,10 @@ int main(int argc, char *argv[]) {
     UpdatePointsViaImu(debug_pts_cam1, R_t0_t1_cam1, cv::Matx33d::eye(), debug_pts_cam1, false);
 
     if (imu_msgs.size() > 0) {
-      std::cout << "imu message size: " << imu_msgs.size() << std::endl;
-      std::cout << "xform " << R_t0_t1_cam0 << std::endl;
-      std::cout << "debug_pts_cam0 " << debug_pts_cam0[0] << std::endl;
+      std::cout << "imu message: " << imu_msgs[0].gyroXYZ[0] << " " << imu_msgs[0].gyroXYZ[1] << " " << imu_msgs[0].gyroXYZ[2] << " " << std::endl;
+      // std::cout << "imu message size: " << imu_msgs.size() << std::endl;
+      // std::cout << "xform " << R_t0_t1_cam0 << std::endl;
+      // std::cout << "debug_pts_cam0 " << debug_pts_cam0[0] << std::endl;
     }
 
     cv::Vec3d tvec(0.0, 0.0, 0.0);

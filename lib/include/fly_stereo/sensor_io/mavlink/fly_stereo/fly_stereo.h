@@ -24,7 +24,7 @@ extern "C" {
 #endif
 
 #ifndef MAVLINK_MESSAGE_CRCS
-#define MAVLINK_MESSAGE_CRCS {{0, 181, 52, 52, 0, 0, 0}, {1, 68, 8, 8, 0, 0, 0}}
+#define MAVLINK_MESSAGE_CRCS {{0, 181, 52, 52, 0, 0, 0}, {1, 68, 8, 8, 0, 0, 0}, {2, 12, 22, 22, 0, 0, 0}}
 #endif
 
 #include "../protocol.h"
@@ -49,6 +49,7 @@ extern "C" {
 // MESSAGE DEFINITIONS
 #include "./mavlink_msg_imu.h"
 #include "./mavlink_msg_reset_counters.h"
+#include "./mavlink_msg_command.h"
 
 // base include
 
@@ -57,8 +58,8 @@ extern "C" {
 #define MAVLINK_THIS_XML_IDX 0
 
 #if MAVLINK_THIS_XML_IDX == MAVLINK_PRIMARY_XML_IDX
-# define MAVLINK_MESSAGE_INFO {MAVLINK_MESSAGE_INFO_IMU, MAVLINK_MESSAGE_INFO_RESET_COUNTERS}
-# define MAVLINK_MESSAGE_NAMES {{ "IMU", 0 }, { "RESET_COUNTERS", 1 }}
+# define MAVLINK_MESSAGE_INFO {MAVLINK_MESSAGE_INFO_IMU, MAVLINK_MESSAGE_INFO_RESET_COUNTERS, MAVLINK_MESSAGE_INFO_COMMAND}
+# define MAVLINK_MESSAGE_NAMES {{ "COMMAND", 2 }, { "IMU", 0 }, { "RESET_COUNTERS", 1 }}
 # if MAVLINK_COMMAND_24BIT
 #  include "../mavlink_get_info.h"
 # endif
