@@ -61,7 +61,7 @@ fly_stereo:
         num_frames_to_calc: 3
       use_gstreamer_pipeline: true
       device_num: 1
-      src_pipeline: "v4l2src device=/dev/video1 ! video/x-raw,width=1280,height=720 ! nvvidconv ! video/x-raw, format=(string)GRAY8 ! appsink max-buffers=10 drop=false"
+      src_pipeline: "v4l2src device=/dev/video1 ! video/x-raw,width=1280,height=720 ! nvvidconv ! video/x-raw, format=(string)GRAY8 ! videoflip method=rotate-180 ! appsink max-buffers=10 drop=false"
       sink_pipeline: "appsrc do-timestamp=true ! queue max-size-buffers=400 ! nvvidconv ! nvv4l2h264enc maxperf-enable=true bitrate=107456000 ! h264parse ! qtmux ! filesink location=/tmp/test/cam1.mp4 "
       framerate: 20
       width: 1280

@@ -58,8 +58,8 @@ class ImageProcessor {
   int ProcessThread();
 
   int StereoMatch(cv::Ptr<cv::cuda::SparsePyrLKOpticalFlow> opt,
-    const cv::cuda::GpuMat &d_frame_cam0,
-    const cv::cuda::GpuMat &d_frame_cam1, 
+     cv::cuda::GpuMat &d_frame_cam0,
+     cv::cuda::GpuMat &d_frame_cam1,
     cv::cuda::GpuMat &d_tracked_pts_cam0,
     cv::cuda::GpuMat &d_tracked_pts_cam1,
     cv::cuda::GpuMat &d_status);
@@ -70,9 +70,9 @@ class ImageProcessor {
   int RemoveOutliers(const std::vector<uchar> &status, std::vector<unsigned int> &points);
 
   int RemovePointsOutOfFrame(const cv::Size framesize, const std::vector<cv::Point2f> &points,
-    std::vector<unsigned char> &status); 
+    std::vector<unsigned char> &status);
   // Overloaded constructor for the GPU implementation
-  int RemovePointsOutOfFrame(const cv::Size framesize, const cv::cuda::GpuMat &d_points, 
+  int RemovePointsOutOfFrame(const cv::Size framesize, const cv::cuda::GpuMat &d_points,
     cv::cuda::GpuMat &d_status);
 
   int GetInputMaskFromPoints(const cv::cuda::GpuMat &d_input_corners,
@@ -118,7 +118,7 @@ class ImageProcessor {
   // Thread mgmt
   std::atomic <bool> is_running_;
   std::thread image_processor_thread_;
-  
+
   // Video I/O
   std::unique_ptr<SensorInterface> sensor_interface_;
 

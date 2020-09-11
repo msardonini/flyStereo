@@ -12,6 +12,11 @@
 #include "Eigen/Dense"
 #include "opengv/types.hpp"
 
+#include "debug_video_recorder.h"
+
+bool write_to_debug = false;
+debug_video_recorder debug_record;
+
 ImageProcessor::ImageProcessor(const YAML::Node &input_params,
   const YAML::Node &stereo_calibration) {
   // Params for OpenCV function goodFeaturesToTrack
@@ -248,7 +253,7 @@ int ImageProcessor::UpdatePointsViaImu(const std::vector<cv::Point2f> &current_p
     return -1;
   }
 
-  cv::Matx33f H = camera_matrix * rotation * camera_matrix.inv();
+  cv::Matx33f H = camera_matrix * rotation.t() * camera_matrix.inv();
 
   updated_pts.resize(current_pts.size());
   for (int i = 0; i < current_pts.size(); i++) {
@@ -453,8 +458,22 @@ int ImageProcessor::ProcessThread() {
     * Apply the optical flow from the previous frame to the current frame
     *********************************************************************/
     if (counter++ != 0 && d_tracked_pts_cam0_t0.rows > 0) {
+      // // DEBUG CODE
+      // write_to_debug = true;
+      // if (write_to_debug) {
+      //   cv::Mat frame0;
+      //   std::vector<cv::Point2f> pts_t0;
+      //   d_frame_cam0_t0.download(frame0);
+      //   d_tracked_pts_cam0_t0.download(pts_t0);
+      //   debug_record.DrawPts(frame0, 0, pts_t0);
+      // }
+      // std::vector<cv::Point2f> pts_t1_debug;
+      // d_tracked_pts_cam0_t1.download(pts_t1_debug);
+      // // END DEBUG CODE
+
       d_opt_flow_cam0->calc(d_frame_cam0_t0, d_frame_cam0_t1, d_tracked_pts_cam0_t0,
         d_tracked_pts_cam0_t1, d_status);
+
 
       // Check if we have zero tracked points, this is a corner case and these variables need
       // to be reset to prevent errors in sizing, calc() does not return all zero length vectors
@@ -504,6 +523,16 @@ int ImageProcessor::ProcessThread() {
         }
       }
       debug_num_pts[2] = d_tracked_pts_cam0_t1.cols;
+      // // DEBUG CODE
+      // if (write_to_debug) {
+      //   cv::Mat frame1;
+      //   std::vector<cv::Point2f> pts_t1;
+      //   d_frame_cam0_t1.download(frame1);
+      //   d_tracked_pts_cam0_t1.download(pts_t1);
+      //   debug_record.DrawPts(frame1, 1, pts_t1_debug, pts_t1);
+      //   debug_record.WriteFrame();
+      // }
+      // // END DEBUG CODE
 
       // Perform a check to make sure that all of our tracked vectors are the same length,
       // otherwise something is wrong
@@ -525,14 +554,14 @@ int ImageProcessor::ProcessThread() {
       d_tracked_pts_cam0_t1.download(tracked_pts_cam0_t1);
 
       std::vector<unsigned char> cam0_ransac_inliers(0);
-      int ret1 = twoPointRansac(tracked_pts_cam0_t0, tracked_pts_cam0_t1, rotation_t0_t1_cam0,
+      int ret1 = twoPointRansac(tracked_pts_cam0_t0, tracked_pts_cam0_t1, rotation_t0_t1_cam0.t(),
         K_cam0_, D_cam0_, ransac_threshold_, 0.99, cam0_ransac_inliers);
 
       d_tracked_pts_cam1_t0.download(tracked_pts_cam1_t0);
       d_tracked_pts_cam1_t1.download(tracked_pts_cam1_t1);
 
       std::vector<unsigned char> cam1_ransac_inliers(0);
-      int ret2 = twoPointRansac(tracked_pts_cam1_t0, tracked_pts_cam1_t1, rotation_t0_t1_cam1,
+      int ret2 = twoPointRansac(tracked_pts_cam1_t0, tracked_pts_cam1_t1, rotation_t0_t1_cam1.t(),
         K_cam1_, D_cam1_, ransac_threshold_, 0.99, cam1_ransac_inliers);
 
       if (ret1 == 0 && ret2 == 0) {
@@ -660,8 +689,8 @@ int ImageProcessor::ProcessThread() {
 }
 
 int ImageProcessor::StereoMatch(cv::Ptr<cv::cuda::SparsePyrLKOpticalFlow> opt,
-  const cv::cuda::GpuMat &d_frame_cam0,
-  const cv::cuda::GpuMat &d_frame_cam1,
+  cv::cuda::GpuMat &d_frame_cam0,
+  cv::cuda::GpuMat &d_frame_cam1,
   cv::cuda::GpuMat &d_tracked_pts_cam0,
   cv::cuda::GpuMat &d_tracked_pts_cam1,
   cv::cuda::GpuMat &d_status) {
@@ -676,15 +705,16 @@ int ImageProcessor::StereoMatch(cv::Ptr<cv::cuda::SparsePyrLKOpticalFlow> opt,
   std::vector<cv::Point2f> tracked_pts_cam1_t1;
   d_tracked_pts_cam0.download(tracked_pts_cam0_t1);
 
+  // std::cout << "Rotation " << R_cam0_cam1_ << std::endl;
+
   cv::undistortPoints(tracked_pts_cam0_t1, tracked_pts_cam1_t1,
     K_cam0_, D_cam0_, R_cam0_cam1_);
 
   std::vector<cv::Point3f> homogenous_pts;
   cv::convertPointsToHomogeneous(tracked_pts_cam1_t1, homogenous_pts);
-  // cv::projectPoints(homogenous_pts, cv::Vec3d::zeros(), cv::Vec3d::zeros(),
-  //   K_cam1_, D_cam1_, corners_cam1_t1_);
 
-  cv::projectPoints(homogenous_pts, cv::Vec3d(0, 0, 0), cv::Vec3d(0, 0, 0), K_cam1_, D_cam1_, tracked_pts_cam1_t1);
+  cv::projectPoints(homogenous_pts, cv::Vec3d(0, 0, 0), cv::Vec3d(0, 0, 0), K_cam1_, D_cam1_,
+    tracked_pts_cam1_t1);
 
   d_tracked_pts_cam1.upload(tracked_pts_cam1_t1);
 
@@ -698,7 +728,6 @@ int ImageProcessor::StereoMatch(cv::Ptr<cv::cuda::SparsePyrLKOpticalFlow> opt,
     d_status.release();
     return 0;
   }
-
 
   d_tracked_pts_cam1.download(tracked_pts_cam1_t1);
 
