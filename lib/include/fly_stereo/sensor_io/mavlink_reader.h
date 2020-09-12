@@ -20,6 +20,7 @@ class MavlinkReader {
 
   bool GetAttitudeMsg(mavlink_imu_t* attitude, bool block = false);
   bool WaitForStartCmd();
+  bool WaitForShutdownCmd();
   void SendCounterReset();
  private:
   void SerialReadThread();
@@ -36,6 +37,7 @@ class MavlinkReader {
   std::mutex cmd_msg_mutex_;
   std::condition_variable cmd_msg_cond_var_;
   bool command_on_ = false;
+  bool command_shutdown_ = false;
 
   int replay_file_fd_ = 0;
 

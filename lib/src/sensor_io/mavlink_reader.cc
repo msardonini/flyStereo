@@ -157,11 +157,14 @@ void MavlinkReader::SerialReadThread() {
             mavlink_command_t mav_cmd;
             mavlink_msg_command_decode(&mav_message, &mav_cmd);
             std::lock_guard<std::mutex> lock(cmd_msg_mutex_);
-            std::cout << "RECEIVED COMMAND MESSAGE WOOO!" << std::endl;
             if (mav_cmd.engage) {
               command_on_ = true;
               cmd_msg_cond_var_.notify_one();
+            } else if (mav_cmd.shutdown) {
+              command_shutdown_ = true;
+              cmd_msg_cond_var_.notify_one();
             }
+            break;
           }
           default:
             std::cerr << "Unrecognized message with ID:" << static_cast<int>(
@@ -207,11 +210,6 @@ bool MavlinkReader::GetAttitudeMsg(mavlink_imu_t* attitude, bool block) {
 
 bool MavlinkReader::WaitForStartCmd() {
   std::unique_lock<std::mutex> lock(cmd_msg_mutex_);
-
-  std::mutex cmd_msg_mutex_;
-  std::condition_variable cmd_msg_cond_var_;
-
-
   while(command_on_ == false) {
     std::cv_status ret = cmd_msg_cond_var_.wait_for(lock, std::chrono::seconds(1));
 
@@ -223,3 +221,14 @@ bool MavlinkReader::WaitForStartCmd() {
   return true;
 }
 
+bool MavlinkReader::WaitForShutdownCmd() {
+  std::unique_lock<std::mutex> lock(cmd_msg_mutex_);
+  while(command_shutdown_ == false) {
+    std::cv_status ret = cmd_msg_cond_var_.wait_for(lock, std::chrono::seconds(1));
+
+    // Return false if we have hit our timeout
+    if (ret == std::cv_status::timeout)
+      return false;
+  }
+  return true;
+}
