@@ -73,6 +73,13 @@ int Camera::UpdateGain() {
 
 
 int Camera::UpdateExposure() {
+  // Set hard limits on the min/max values of the camera
+  if (exposure_time_ < 1) {
+    exposure_time_ = 1;
+  } else if (exposure_time_ > 65535) {
+    exposure_time_ = 65535;
+  }
+ 
   std::string exposure_cmd("v4l2-ctl -d " + std::to_string(device_num_) +
     " -c exposure=" + std::to_string(exposure_time_));
   system(exposure_cmd.c_str());
@@ -129,7 +136,7 @@ int Camera::GetFrame(cv::cuda::GpuMat &frame) {
             UpdateGain();
           }
         } else {
-          exposure_time_ += 100;
+          exposure_time_ += 50;
           UpdateExposure();
         }
       } else if (mean(0) > pixel_range_limits_[1]) {
@@ -139,7 +146,7 @@ int Camera::GetFrame(cv::cuda::GpuMat &frame) {
             UpdateGain();
           }
         } else {
-          exposure_time_ -= 100;
+          exposure_time_ -= 50;
           UpdateExposure();
         }
       }
