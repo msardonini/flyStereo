@@ -1,4 +1,5 @@
 fly_stereo:
+  wait_for_start_command: true
   record_mode: true
   log_dir: /home/msardonini/log
   vio:

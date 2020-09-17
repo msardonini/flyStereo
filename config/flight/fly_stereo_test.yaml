@@ -1,4 +1,7 @@
 fly_stereo:
+  wait_for_start_command: false
+  record_mode: true
+  log_dir: /home/msardonini/log
   vio:
     vio_calibration: [-0.0021, 0.0004, -0.0012]
     image_width: 1280

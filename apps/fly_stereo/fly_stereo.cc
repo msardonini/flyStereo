@@ -110,21 +110,25 @@ int main(int argc, char* argv[]) {
     return -1;
   }
 
+  // Parse the yaml file with our configuration parameters
   YAML::Node fly_stereo_params = YAML::LoadFile(config_file)["fly_stereo"];
+
+  // Initialze the mavlink reader object
+  MavlinkReader mavlink_reader;
+  mavlink_reader.Init(fly_stereo_params["mavlink_reader"]);
+
+  if (fly_stereo_params["wait_for_start_command"].as<bool>()) {  
+    while(is_running.load()) {
+      if(mavlink_reader.WaitForStartCmd() == true) {
+        break;
+      }
+    }
+  }
+
   // If we are running in logging mode, change the log directory in the config file
   if (fly_stereo_params["record_mode"].as<bool>()) {
     UpdateLogDirectory(fly_stereo_params);
   }
-
-  MavlinkReader mavlink_reader;
-  mavlink_reader.Init(fly_stereo_params["mavlink_reader"]);
-
-  while(is_running.load()) {
-    if(mavlink_reader.WaitForStartCmd() == true) {
-      break;
-    }
-  }
-
 
   ImageProcessor image_processor(fly_stereo_params["image_processor"], 
     fly_stereo_params["stereo_calibration"]);
@@ -138,8 +142,13 @@ int main(int argc, char* argv[]) {
   std::thread features_thread_obj(tracked_features_thread, &image_processor, &vio);
 
   while (is_running.load()) {
-    if(mavlink_reader.WaitForShutdownCmd() == true) {
-      is_running.store(false);
+    // If we are receiving start/finish commands then wait for the signal
+    if (fly_stereo_params["wait_for_start_command"].as<bool>()) {  
+      if(mavlink_reader.WaitForShutdownCmd() == true) {
+        is_running.store(false);
+      }
+    } else {
+      std::this_thread::sleep_for(std::chrono::seconds(1));
     }
   }
 
