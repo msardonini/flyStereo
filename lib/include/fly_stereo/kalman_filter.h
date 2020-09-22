@@ -46,25 +46,25 @@ class KalmanFilter {
   int Measure(const Eigen::Matrix<double, num_measurements, 1> &z);
 
   // Accessors
-  Eigen::MatrixXd GetState();
+  Eigen::Matrix<double, 1, num_states> GetState();
 
  private:
   // Private methods --------------------------
   void UpdateTimeStep(double _dt_);
 
-  Eigen::MatrixXd state_;
-  Eigen::MatrixXd covariance_;
+  Eigen::Matrix<double, num_states, 1> state_;
+  Eigen::Matrix<double, num_states, num_states> covariance_;
 
   // state function - relationship between the state variables
-   Eigen::MatrixXd f_;
-  Eigen::MatrixXd q_;
+  Eigen::Matrix<double, num_states, num_states> f_;
+  Eigen::Matrix<double, num_states, num_states> q_;
 
   // measurement function - reflect the fact that we observe the positions but
   // not velocities
-  Eigen::MatrixXd h_;
+  Eigen::Matrix<double, num_measurements, num_states> h_;
 
   // measurement noise
-  Eigen::MatrixXd r_;
+  Eigen::Matrix<double, num_measurements, num_measurements> r_;
 
   // timestep
   double noise_ = 0.1;
