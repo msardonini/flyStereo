@@ -42,34 +42,46 @@ fly_stereo:
       auto_trigger_async_rate_hz: 20
       replay_mode: false
     Camera0:
+      gstreamer_pipeline:
+        enable: false
+
       auto_exposure:
+        enable: true
         pixel_range_limits: [78, 118]
         exposure_limits: [51, 2500]
         num_frames_to_calc: 3
-      use_gstreamer_pipeline: true
-      device_num: 0
+
       src_pipeline: "v4l2src device=/dev/video0 ! video/x-raw,width=1280,height=720 ! nvvidconv ! video/x-raw, format=(string)GRAY8 ! appsink max-buffers=10 drop=false"
       sink_pipeline: "appsrc do-timestamp=true ! queue max-size-buffers=400 ! nvvidconv ! nvv4l2h264enc maxperf-enable=true bitrate=107456000 ! h264parse ! qtmux ! filesink location=<log_dir>/cam0.mp4 "
+
+      enable_videoflip: false
+      flip_method: -1
+      device_num: 0
       framerate: 20
       width: 1280
       height: 720
-      flip_method: 0
       hardware_trigger_mode: true
       gain: 3
       exposure_time: 1500
     Camera1:
+      gstreamer_pipeline:
+        enable: false
+
       auto_exposure:
+        enable: true
         pixel_range_limits: [78, 118]
         exposure_limits: [51, 2500]
         num_frames_to_calc: 3
-      use_gstreamer_pipeline: true
-      device_num: 1
+
       src_pipeline: "v4l2src device=/dev/video1 ! video/x-raw,width=1280,height=720 ! nvvidconv ! video/x-raw, format=(string)GRAY8 ! videoflip method=rotate-180 ! appsink max-buffers=10 drop=false"
       sink_pipeline: "appsrc do-timestamp=true ! queue max-size-buffers=400 ! nvvidconv ! nvv4l2h264enc maxperf-enable=true bitrate=107456000 ! h264parse ! qtmux ! filesink location=<log_dir>/cam1.mp4 "
+
+      device_num: 1
+      enable_videoflip: true
+      flip_method: -1
       framerate: 20
       width: 1280
       height: 720
-      flip_method: 0
       hardware_trigger_mode: true
       gain: 3
       exposure_time: 1500
@@ -92,63 +104,64 @@ fly_stereo:
 
   stereo_calibration:
     R_imu_cam0: [3.14, 0.0, 0.0]
+    R_imu_cam0: [3.14, 0.0, 0.0]
     K0: !!opencv-matrix
        rows: 3
        cols: 3
        dt: d
-       data: [ 6.9338059130658496e+02, 0., 6.4323912863158728e+02, 0.,
-           6.9345498149142975e+02, 3.9087754475518381e+02, 0., 0., 1. ]
+       data: [ 6.9266160620735968e+02, 0., 6.4340546649960936e+02, 0.,
+           6.9303606599750344e+02, 3.8993528220422058e+02, 0., 0., 1. ]
     D0: !!opencv-matrix
        rows: 8
        cols: 1
        dt: d
-       data: [ 3.2509233357677276e+00, -1.1071884221355939e-01,
-           -1.8816302436907412e-04, -8.2598791651316669e-05,
-           -1.2999295232824110e-01, 3.6365104470634555e+00,
-           9.8997036519019799e-01, -3.5890074152278539e-01 ]
+       data: [ 7.5814587445191151e-01, -2.2071979921706167e-01,
+           -9.6014344059653847e-05, -1.0410690956962723e-04,
+           -3.2333864166542374e-02, 1.1401965989004299e+00,
+           -4.0826540278268028e-02, -1.2241246743581756e-01 ]
     K1: !!opencv-matrix
        rows: 3
        cols: 3
        dt: d
-       data: [ 6.9590895726336453e+02, 0., 6.2514161681421717e+02, 0.,
-           6.9639525429708533e+02, 3.8446808413248181e+02, 0., 0., 1. ]
+       data: [ 6.9443844806646018e+02, 0., 6.5366979636925976e+02, 0.,
+           6.9513978994046602e+02, 3.3415174032837172e+02, 0., 0., 1. ]
     D1: !!opencv-matrix
        rows: 8
        cols: 1
        dt: d
-       data: [ 2.2747641699923142e+00, -3.3371417854610602e-01,
-           2.5365970456003564e-05, -4.2603601352034044e-05,
-           -1.2040116165359441e-01, 2.6519478249774471e+00,
-           4.1080520307996377e-01, -3.6168505494604741e-01 ]
+       data: [ 9.8997214959274549e-01, -1.3443248367442798e-01,
+           -3.3157288248950333e-06, 7.8150614845257676e-05,
+           -3.5381989504229078e-02, 1.3681155537454635e+00,
+           1.3766990943721819e-01, -1.1661833720179574e-01 ]
     R: !!opencv-matrix
        rows: 3
        cols: 3
        dt: d
-       data: [ -9.9981764663105888e-01, 1.9082347482965237e-02,
-           -7.3314369018425503e-04, -1.9050406606251881e-02,
-           -9.9933661776147453e-01, -3.1038788784244976e-02,
-           -1.3249502887132262e-03, -3.1019162071143500e-02,
-           9.9951791184107264e-01 ]
+       data: [ 9.9981398327686666e-01, -1.9231562311064525e-02,
+           1.4648737560277972e-03, 1.9179366673017593e-02,
+           9.9937142054086314e-01, 2.9814689335279372e-02,
+           -2.0373360222109955e-03, -2.9781047953571449e-02,
+           9.9955436992927982e-01 ]
     T: !!opencv-matrix
        rows: 3
        cols: 1
        dt: d
-       data: [ -9.0553315388962490e-05, -1.3401040039457013e-01,
-           2.2512101100856815e-03 ]
+       data: [ -1.1861305608535490e-04, 1.3433474420376143e-01,
+           2.1537018220222054e-05 ]
     E: !!opencv-matrix
        rows: 3
        cols: 3
        dt: d
-       data: [ 2.2044358664659802e-04, 6.4066070263414654e-03,
-           -1.3387592073225088e-01, -2.2509195729792817e-03,
-           4.0149485611689801e-05, 8.8859200220373536e-05,
-           -1.3398423806910734e-01, 2.6477262705883828e-03,
-           -9.5438214238273569e-05 ]
+       data: [ -2.7409807977031201e-04, -4.0221529394559308e-03,
+           1.3427423848269429e-01, 2.1291357322799438e-05,
+           -3.9466116190943463e-06, 1.1859174755355715e-04,
+           -1.3431203061813657e-01, 2.4649285053408377e-03,
+           -2.0031985272509029e-04 ]
     F: !!opencv-matrix
        rows: 3
        cols: 3
        dt: d
-       data: [ 1.8631136201398955e-09, 5.4140637678897762e-08,
-           -8.0690247228972791e-04, -1.9010715977864825e-08,
-           3.3905635597184190e-10, 1.2616277254824834e-05,
-           -7.8189523778859037e-04, -1.8404768408122815e-05, 1. ]
+       data: [ 1.0110550351386194e-07, 1.4828344359297469e-06,
+           -3.4950251378538223e-02, -7.8457372803101519e-09,
+           1.4535168893256193e-09, -2.5788339541978356e-05,
+           3.4341208365728369e-02, -1.6008319799982148e-03, 1. ]

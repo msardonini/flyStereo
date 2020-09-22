@@ -42,36 +42,48 @@ fly_stereo:
       auto_trigger_async: false
       auto_trigger_async_rate_hz: 20
     Camera0:
-      # auto_exposure:
-      #   pixel_range_limits: [108, 148]
-      #   exposure_limits: [1250, 2500]
-      #   num_frames_to_calc: 3
-      use_gstreamer_pipeline: false
-      device_num: 0
+      auto_exposure:
+        enable: false
+        pixel_range_limits: [108, 148]
+        exposure_limits: [51, 2500]
+        num_frames_to_calc: 3
+
+      gstreamer_pipeline:
+        enable: false
+
       src_pipeline: "filesrc location=/root/fly_stereo/replay_data/flight/run013/cam0.mp4 ! decodebin ! videoconvert ! video/x-raw, format=(string)GRAY8 ! appsink sync=true "
       # src_pipeline: "filesrc location=/root/fly_stereo/replay_data/test_replay/cam0.mp4 ! decodebin ! videoconvert ! appsink "
-      sink_pipeline: "appsrc ! videoconvert ! videoflip method=clockwise ! tee name=t ! queue ! autovideosink t. ! queue ! jpegenc ! avimux ! filesink location=/root/fly_stereo/replay_data/flight/run013/cam0_annotated.avi"
+      sink_pipeline: "appsrc ! videoconvert ! tee name=t ! queue ! autovideosink t. ! queue ! jpegenc ! avimux ! filesink location=/root/fly_stereo/replay_data/flight/run013/cam0_annotated.avi"
+
+      enable_videoflip: false
+      flip_method: -1
+      device_num: 0
       framerate: 20
       width: 1280
       height: 720
-      flip_method: 0
       hardware_trigger_mode: true
       gain: 3
       exposure_time: 1500
     Camera1:
-      # auto_exposure:
-      #   pixel_range_limits: [108, 148]
-      #   exposure_limits: [1250, 2500]
-      #   num_frames_to_calc: 3
-      use_gstreamer_pipeline: false
-      device_num: 1
-      src_pipeline: "filesrc location=/root/fly_stereo/replay_data/flight/run013/cam1.mp4 ! decodebin ! videoconvert ! videoflip method=rotate-180 ! video/x-raw, format=(string)GRAY8 ! appsink sync=true "
+      auto_exposure:
+        enable: false
+        pixel_range_limits: [108, 148]
+        exposure_limits: [51, 2500]
+        num_frames_to_calc: 3
+
+      gstreamer_pipeline:
+        enable: false
+
+      src_pipeline: "filesrc location=/root/fly_stereo/replay_data/flight/run013/cam1.mp4 ! decodebin ! videoconvert ! video/x-raw, format=(string)GRAY8 ! appsink sync=true "
       # src_pipeline: "filesrc location=/root/fly_stereo/replay_data/test_replay/cam1.mp4 ! decodebin ! videoconvert ! appsink max-buffers=1"
-      sink_pipeline: "appsrc ! videoconvert ! videoflip method=clockwise ! tee name=t ! queue ! autovideosink t. ! queue ! jpegenc ! avimux ! filesink location=/root/fly_stereo/replay_data/flight/run013/cam1_annotated.avi"
+      sink_pipeline: "appsrc ! videoconvert ! tee name=t ! queue ! autovideosink t. ! queue ! jpegenc ! avimux ! filesink location=/root/fly_stereo/replay_data/flight/run013/cam1_annotated.avi"
+
+      device_num: 1
+      enable_videoflip: false
+      flip_method: -1
       framerate: 20
       width: 1280
       height: 720
-      flip_method: 1
       hardware_trigger_mode: true
       gain: 3
       exposure_time: 1500

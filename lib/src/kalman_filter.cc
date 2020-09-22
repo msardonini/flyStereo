@@ -1,5 +1,3 @@
-#define EIGEN_MAX_STATIC_ALIGN_BYTES 0
-
 #include "fly_stereo/kalman_filter.h"
 
 #include <iostream>
@@ -29,7 +27,7 @@ void KalmanFilter::Init(const YAML::Node &input_params) {
   dt_ = input_params["dt"].as<double>();
   double sigma_a = input_params["sigma_a"].as<double>();
 
-  Eigen::Matrix<double, 2, 1> g;
+  Eigen::Vector2d g;
   g << 0.5 * dt_ * dt_, dt_;
   q_ << Eigen::Matrix<double, num_states, num_states>::Zero();
   q_.block<2, 2>(0, 0) = g*g.transpose()*(sigma_a*sigma_a);

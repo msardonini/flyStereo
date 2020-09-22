@@ -53,4 +53,10 @@ target_link_libraries(fly_stereo_lib
     ${GST_LIBRARIES}
 )
 
+target_compile_definitions(fly_stereo_lib
+  PUBLIC
+    -DEIGEN_DISABLE_UNALIGNED_ARRAY_ASSERT
+    -DEIGEN_DONT_VECTORIZE
+)
+
 set_property(TARGET fly_stereo_lib PROPERTY CXX_STANDARD 17)

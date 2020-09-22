@@ -128,7 +128,6 @@ int Vio::ProcessPoints(const ImagePoints &pts, vio_t &vio) {
 
     Debug_SaveOutput();
 
-    vio_t vio;
     vio.position << kf_state(0), kf_state(2), kf_state(4);
     vio.velocity << kf_state(1), kf_state(3), kf_state(5);
     vio.quat = Eigen::Quaterniond(pose_update.block<3, 3>(0, 0));

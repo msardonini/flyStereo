@@ -5,31 +5,45 @@
 #include <opencv2/cudaarithm.hpp>
 
 Camera::Camera(YAML::Node input_params) {
-  flip_method_ = input_params["flip_method"].as<int>();
   hardware_trigger_mode_ = input_params["hardware_trigger_mode"].as<bool>();
   gain_ = input_params["gain"].as<int>();
   exposure_time_ = input_params["exposure_time"].as<int>();
   device_num_ = input_params["device_num"].as<int>();
   src_pipeline_ = input_params["src_pipeline"].as<std::string>();
-  use_gstreamer_pipeline_ = input_params["use_gstreamer_pipeline"].as<bool>();
+
+  // If using the gstreamer pipeline, load those params
+  if (input_params["gstreamer_pipeline"]) {
+    YAML::Node gst_params  = input_params["gstreamer_pipeline"];
+    use_gstreamer_pipeline_ = gst_params["enable"].as<bool>();
+  }
+
+  // If using the image sink, load the params
   if (input_params["sink_pipeline"]) {
     sink_pipeline_ = input_params["sink_pipeline"].as<std::string>();
   }
+
   height_ = input_params["height"].as<int>();
   width_ = input_params["width"].as<int>();
   framerate_ = input_params["framerate"].as<int>();
+
+  enable_videoflip_ = input_params["enable_videoflip"].as<bool>();
+  if (enable_videoflip_) {
+    flip_method_ = input_params["flip_method"].as<int>();
+  }
+
+  // If using the image sink, load the params
   if (input_params["auto_exposure"]) {
     YAML::Node auto_exposure_node = input_params["auto_exposure"];
-    auto_exposure_ = true;
-    std::vector<unsigned int> tmp_vec;
-    tmp_vec = auto_exposure_node["pixel_range_limits"].as<std::vector<unsigned int> >();
-    pixel_range_limits_[0] = tmp_vec[0];
-    pixel_range_limits_[1] = tmp_vec[1];
-    tmp_vec = auto_exposure_node["exposure_limits"].as<std::vector<unsigned int> >();
-    exposure_limits_[0] = tmp_vec[0];
-    exposure_limits_[1] = tmp_vec[1];
-    num_frames_to_calc_ = auto_exposure_node["num_frames_to_calc"].as<int>();
-    curr_frame_ = 0;
+    if (auto_exposure_node["enable"].as<bool>()) {
+      auto_exposure_ = true;
+      pixel_range_limits_ = auto_exposure_node["pixel_range_limits"].as<std::array<
+        unsigned int, 2> >();
+      exposure_limits_ = auto_exposure_node["exposure_limits"].as<std::array<unsigned int, 2> >();
+      num_frames_to_calc_ = auto_exposure_node["num_frames_to_calc"].as<int>();
+      curr_frame_ = 0;
+    } else {
+      auto_exposure_ = false;
+    }
   } else {
     auto_exposure_ = false;
   }
@@ -79,7 +93,7 @@ int Camera::UpdateExposure() {
   } else if (exposure_time_ > 65535) {
     exposure_time_ = 65535;
   }
- 
+
   std::string exposure_cmd("v4l2-ctl -d " + std::to_string(device_num_) +
     " -c exposure=" + std::to_string(exposure_time_));
   system(exposure_cmd.c_str());
@@ -111,8 +125,6 @@ int Camera::GetFrame(cv::Mat &frame) {
       return -1;
     }
   }
-
-  // cv::flip(frame, frame, flip_method_);
   return 0;
 }
 
@@ -121,7 +133,14 @@ int Camera::GetFrame(cv::cuda::GpuMat &frame) {
   if (GetFrame(host_frame)) {
     return -1;
   }
-  frame.upload(host_frame);
+
+  if (enable_videoflip_) {
+    cv::cuda::GpuMat temp;
+    temp.upload(host_frame);
+    cv::cuda::flip(temp, frame, flip_method_);
+  } else {
+    frame.upload(host_frame);
+  }
 
   if (auto_exposure_) {
     if (++curr_frame_ == num_frames_to_calc_) {
@@ -180,10 +199,10 @@ int Camera::InitGstPipeline() {
   // Create the pipeline
   gst_params_.pipeline = gst_pipeline_new("fly_stereo_src");
 
+  // Create all the elements (include caps)
   gst_params_.v4l2src = gst_element_factory_make("v4l2src", NULL);
   gst_params_.capsfilter = gst_element_factory_make("capsfilter", NULL);
-  gst_params_.nvvidconv = gst_element_factory_make("nvvidconv", NULL);
-  // Set convert caps
+  gst_params_.nvvidconv = gst_element_factory_make("videoconvert", NULL);
   gst_params_.capsfilter2 = gst_element_factory_make("capsfilter", NULL);
   gst_params_.appsink = gst_element_factory_make("appsink", NULL);
   gst_bin_add_many(GST_BIN(gst_params_.pipeline), gst_params_.v4l2src, gst_params_.capsfilter,

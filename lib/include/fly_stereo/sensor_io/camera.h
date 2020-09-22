@@ -58,6 +58,7 @@ class Camera {
   int InitGstPipeline();
   int GetFrameGst(cv::Mat &frame);
 
+  bool enable_videoflip_;
   int flip_method_;
   bool hardware_trigger_mode_;
   int gain_;
