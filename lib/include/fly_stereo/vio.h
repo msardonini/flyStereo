@@ -10,6 +10,13 @@
 #include "fly_stereo/interface.h"
 #include "fly_stereo/kalman_filter.h"
 
+struct vio_t {
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+  Eigen::Vector3d position;
+  Eigen::Vector3d velocity;
+  Eigen::Quaterniond quat;
+};
+
 class Vio {
  public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
@@ -18,7 +25,7 @@ class Vio {
   // Destructor
   ~Vio();
 
-  int ProcessPoints(const ImagePoints &pts, Eigen::Vector3d &pose);
+  int ProcessPoints(const ImagePoints &pts, vio_t &vio);
 
  private:
 
@@ -32,7 +39,8 @@ class Vio {
     Eigen::Matrix4d &pose_update);
 
   int ProcessImu(const std::vector<mavlink_imu_t> &imu_pts);
-  int ProcessVio(const Eigen::Matrix4d &pose_update, uint64_t image_timestamp);
+  int ProcessVio(const Eigen::Matrix4d &pose_update, uint64_t image_timestamp,
+    Eigen::Matrix<double, 6, 1> &output);
   int Debug_SaveOutput();
 
   // The calibrated offsets for vio. These numbers will be subtracted off the result of the VIO

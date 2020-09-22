@@ -36,14 +36,15 @@ void imu_thread(MavlinkReader *mavlink_reader, ImageProcessor *image_processor) 
   }
 }
 
-void tracked_features_thread(ImageProcessor *image_processor, Vio *vio) {
- Eigen::Vector3d pose;
+void tracked_features_thread(ImageProcessor *image_processor, Vio *vio, MavlinkReader *mavlink_reader) {
   while(is_running.load()) {
     ImagePoints pts;
     if(image_processor->GetTrackedPoints(&pts)) {
-
+      vio_t vio_data;
       // Send the features to the vio object
-      vio->ProcessPoints(pts, pose);
+      vio->ProcessPoints(pts, vio_data);
+
+      mavlink_reader->SendVioMsg(vio_data);
     }
   }
 }
@@ -139,7 +140,8 @@ int main(int argc, char* argv[]) {
 
 
   Vio vio(fly_stereo_params["vio"], fly_stereo_params["stereo_calibration"]);
-  std::thread features_thread_obj(tracked_features_thread, &image_processor, &vio);
+  std::thread features_thread_obj(tracked_features_thread, &image_processor, &vio,
+    &mavlink_reader);
 
   while (is_running.load()) {
     // If we are receiving start/finish commands then wait for the signal

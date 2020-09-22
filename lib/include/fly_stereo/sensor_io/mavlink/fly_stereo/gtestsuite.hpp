@@ -239,3 +239,74 @@ TEST(fly_stereo_interop, COMMAND)
 #endif
 }
 #endif
+
+TEST(fly_stereo, VIO)
+{
+    mavlink::mavlink_message_t msg;
+    mavlink::MsgMap map1(msg);
+    mavlink::MsgMap map2(msg);
+
+    mavlink::fly_stereo::msg::VIO packet_in{};
+    packet_in.timestamp_us = 93372036854775807ULL;
+    packet_in.position = {{ 73.0, 74.0, 75.0 }};
+    packet_in.velocity = {{ 157.0, 158.0, 159.0 }};
+    packet_in.quat = {{ 241.0, 242.0, 243.0, 244.0 }};
+
+    mavlink::fly_stereo::msg::VIO packet1{};
+    mavlink::fly_stereo::msg::VIO packet2{};
+
+    packet1 = packet_in;
+
+    //std::cout << packet1.to_yaml() << std::endl;
+
+    packet1.serialize(map1);
+
+    mavlink::mavlink_finalize_message(&msg, 1, 1, packet1.MIN_LENGTH, packet1.LENGTH, packet1.CRC_EXTRA);
+
+    packet2.deserialize(map2);
+
+    EXPECT_EQ(packet1.timestamp_us, packet2.timestamp_us);
+    EXPECT_EQ(packet1.position, packet2.position);
+    EXPECT_EQ(packet1.velocity, packet2.velocity);
+    EXPECT_EQ(packet1.quat, packet2.quat);
+}
+
+#ifdef TEST_INTEROP
+TEST(fly_stereo_interop, VIO)
+{
+    mavlink_message_t msg;
+
+    // to get nice print
+    memset(&msg, 0, sizeof(msg));
+
+    mavlink_vio_t packet_c {
+         93372036854775807ULL, { 73.0, 74.0, 75.0 }, { 157.0, 158.0, 159.0 }, { 241.0, 242.0, 243.0, 244.0 }
+    };
+
+    mavlink::fly_stereo::msg::VIO packet_in{};
+    packet_in.timestamp_us = 93372036854775807ULL;
+    packet_in.position = {{ 73.0, 74.0, 75.0 }};
+    packet_in.velocity = {{ 157.0, 158.0, 159.0 }};
+    packet_in.quat = {{ 241.0, 242.0, 243.0, 244.0 }};
+
+    mavlink::fly_stereo::msg::VIO packet2{};
+
+    mavlink_msg_vio_encode(1, 1, &msg, &packet_c);
+
+    // simulate message-handling callback
+    [&packet2](const mavlink_message_t *cmsg) {
+        MsgMap map2(cmsg);
+
+        packet2.deserialize(map2);
+    } (&msg);
+
+    EXPECT_EQ(packet_in.timestamp_us, packet2.timestamp_us);
+    EXPECT_EQ(packet_in.position, packet2.position);
+    EXPECT_EQ(packet_in.velocity, packet2.velocity);
+    EXPECT_EQ(packet_in.quat, packet2.quat);
+
+#ifdef PRINT_MSG
+    PRINT_MSG(msg);
+#endif
+}
+#endif

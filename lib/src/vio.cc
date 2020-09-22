@@ -6,6 +6,7 @@
 #include <fstream>
 
 // Package includes
+#include "Eigen/Geometry"
 #include "opencv2/calib3d.hpp"
 #include "opencv2/core/eigen.hpp"
 #include "opengv/relative_pose/CentralRelativeAdapter.hpp"
@@ -87,7 +88,7 @@ Vio::Vio(const YAML::Node &input_params, const YAML::Node &stereo_calibration) :
 // Destructor
 Vio::~Vio() {}
 
-int Vio::ProcessPoints(const ImagePoints &pts, Eigen::Vector3d &pose) {
+int Vio::ProcessPoints(const ImagePoints &pts, vio_t &vio) {
   // If this is our first update, set our initial pose by the rotation of the imu
 
   // Calculate the updated pose
@@ -122,10 +123,18 @@ int Vio::ProcessPoints(const ImagePoints &pts, Eigen::Vector3d &pose) {
   if (CalculatePoseUpdate(grid, pose_update) == 0) {
     // TODO: add imu prediction and vo measurement update
     // ProcessImu(pts.imu_pts);
-    ProcessVio(pose_update, pts.timestamp_us);
+    Eigen::Matrix<double, 6, 1> kf_state;
+    ProcessVio(pose_update, pts.timestamp_us, kf_state);
+
     Debug_SaveOutput();
+
+    vio_t vio;
+    vio.position << kf_state(0), kf_state(2), kf_state(4);
+    vio.velocity << kf_state(1), kf_state(3), kf_state(5);
+    vio.quat = Eigen::Quaterniond(pose_update.block<3, 3>(0, 0));
+  } else {
+    return -1;
   }
-  return 0;
 }
 
 // int Vio::ProcessImu(const std::vector<mavlink_imu_t> &imu_pts) {
@@ -153,7 +162,8 @@ int Vio::ProcessPoints(const ImagePoints &pts, Eigen::Vector3d &pose) {
 //   return 0;
 // }
 
-int Vio::ProcessVio(const Eigen::Matrix4d &pose_update, uint64_t image_timestamp) {
+int Vio::ProcessVio(const Eigen::Matrix4d &pose_update, uint64_t image_timestamp,
+  Eigen::Matrix<double, 6, 1> &output_state) {
   // Update our Pose
   pose_ = pose_ * pose_update;
 
@@ -167,6 +177,8 @@ int Vio::ProcessVio(const Eigen::Matrix4d &pose_update, uint64_t image_timestamp
   }
   last_timestamp_ = image_timestamp;
   kf_.Measure(z);
+
+  output_state = kf_.GetState();
   return 0;
 }
 

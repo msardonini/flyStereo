@@ -7,6 +7,7 @@
 
 #include "yaml-cpp/yaml.h"
 #include "fly_stereo/sensor_io/mavlink/fly_stereo/mavlink.h"
+#include "fly_stereo/vio.h"
 
 #ifndef INCLUDE_FLY_STEREO_MAVLINK_READER_H_
 #define INCLUDE_FLY_STEREO_MAVLINK_READER_H_
@@ -22,6 +23,7 @@ class MavlinkReader {
   bool WaitForStartCmd();
   bool WaitForShutdownCmd();
   void SendCounterReset();
+  void SendVioMsg(const vio_t &vio);
  private:
   void SerialReadThread();
   std::atomic<bool> is_running_;

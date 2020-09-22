@@ -124,6 +124,30 @@ void MavlinkReader::SendCounterReset() {
 }
 
 
+void MavlinkReader::SendVioMsg(const vio_t &vio) {
+  mavlink_message_t msg;
+  mavlink_vio_t vio_msg;
+  uint8_t buf[1024];
+  vio_msg.timestamp_us = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::
+    system_clock::now().time_since_epoch()).count();
+  for (unsigned int i = 0; i < 3; i++) {
+    vio_msg.position[i] = vio.position(i);
+    vio_msg.velocity[i] = vio.velocity(i);
+  }
+
+  vio_msg.quat[0] = vio.quat.w();
+  vio_msg.quat[1] = vio.quat.x();
+  vio_msg.quat[2] = vio.quat.y();
+  vio_msg.quat[3] = vio.quat.z();
+
+
+  mavlink_msg_vio_encode(1 ,200, &msg, &vio_msg);
+  uint16_t len = mavlink_msg_to_send_buffer(buf, &msg);
+
+  write(serial_dev_, buf, len);
+
+}
+
 void MavlinkReader::SerialReadThread() {
   unsigned char buf[1024];
   size_t buf_size = 1024;

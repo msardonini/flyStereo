@@ -1,3 +1,5 @@
+#define EIGEN_MAX_STATIC_ALIGN_BYTES 0
+
 #include "fly_stereo/kalman_filter.h"
 
 #include <iostream>
@@ -95,6 +97,6 @@ int KalmanFilter::Measure(const Eigen::Matrix<double, num_measurements, 1> &z) {
   return 0;
 }
 
-Eigen::MatrixXd KalmanFilter::GetState() {
+Eigen::Matrix<double, 1, num_states> KalmanFilter::GetState() {
   return state_;
 }
