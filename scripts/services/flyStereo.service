@@ -1,0 +1,14 @@
+[Unit]
+Description=flyStereo
+After=network.target
+
+[Service]
+User=msardonini
+Restart=always
+PIDFile=/var/run/flyStereo.pid
+WorkingDirectory=/home/msardonini/git/fly_stereo/build
+ExecStart=/home/msardonini/git/fly_stereo/build/bin/fly_stereo -c /home/msardonini/git/fly_stereo/config/flight/record.yaml
+
+[Install]
+WantedBy=multi-user.target
+

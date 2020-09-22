@@ -60,7 +60,7 @@ fly_stereo:
     Camera1:
       auto_exposure:
         pixel_range_limits: [78, 118]
-        exposure_limits: [500, 2500]
+        exposure_limits: [51, 2500]
         num_frames_to_calc: 3
       use_gstreamer_pipeline: true
       device_num: 1
