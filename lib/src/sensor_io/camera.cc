@@ -62,13 +62,13 @@ int Camera::Init() {
         << std::endl;
       return -1;
     }
+  }
 
-    // Enable the hardware trigger mode if requested
-    if (hardware_trigger_mode_) {
-      std::string trigger_cmd("v4l2-ctl -d " + std::to_string(device_num_) +
-        " -c trigger_mode=1");
-      system(trigger_cmd.c_str());
-    }
+  // Enable the hardware trigger mode if requested
+  if (hardware_trigger_mode_) {
+    std::string trigger_cmd("v4l2-ctl -d " + std::to_string(device_num_) +
+      " -c trigger_mode=1");
+    system(trigger_cmd.c_str());
   }
 
   UpdateGain();
@@ -159,12 +159,10 @@ int Camera::GetFrame(cv::cuda::GpuMat &frame) {
           UpdateExposure();
         }
       } else if (mean(0) > pixel_range_limits_[1]) {
-        if (exposure_time_ <= exposure_limits_[0]) {
-          if (gain_ > 1) {
-            gain_--;
-            UpdateGain();
-          }
-        } else {
+        if (gain_ > 1) {
+          gain_--;
+          UpdateGain();
+        } else if (exposure_time_ <= exposure_limits_[0]) {
           exposure_time_ -= 50;
           UpdateExposure();
         }

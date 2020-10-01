@@ -95,7 +95,7 @@ int SensorInterface::AssociateImuData(std::vector<mavlink_imu_t> &imu_msgs,
   std::queue<std::pair<uint32_t, uint64_t> > trigger_queue = camera_trigger_->GetTriggerCount();
 
   // The first image will not have relvant imu data
-  if (image_counter_ <= 5) {
+  if (image_counter_ < 5) {
     return 1;
   }
 
