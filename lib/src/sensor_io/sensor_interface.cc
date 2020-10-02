@@ -95,7 +95,7 @@ int SensorInterface::AssociateImuData(std::vector<mavlink_imu_t> &imu_msgs,
   std::queue<std::pair<uint32_t, uint64_t> > trigger_queue = camera_trigger_->GetTriggerCount();
 
   // The first image will not have relvant imu data
-  if (image_counter_ <= 5) {
+  if (image_counter_ < 3) {
     return 1;
   }
 
@@ -122,7 +122,7 @@ int SensorInterface::AssociateImuData(std::vector<mavlink_imu_t> &imu_msgs,
 
   // The objective is to get all the imu measurements that correspond to this frame,
   // take all the imu measurements that correspond to the current frame minus 1
-  int image_of_interest = image_counter_ - 5;
+  int image_of_interest = image_counter_ - 3;
   std::lock_guard<std::mutex> lock(imu_queue_mutex_);
 
   // Do a sanity check that we didn't miss a bunch of IMU messages, or sometimes a message from a

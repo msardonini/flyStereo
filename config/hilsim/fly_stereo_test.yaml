@@ -66,7 +66,7 @@ fly_stereo:
       gstreamer_pipeline:
         enable: true
 
-      enable_videoflip: true
+      enable_videoflip: false
       flip_method: -1
       auto_exposure:
         enable: true
@@ -85,8 +85,8 @@ fly_stereo:
       exposure_time: 1500
     draw_points_to_frame: true
     max_error_counter: 10
-    stereo_threshold: 35
-    ransac_threshold: 5
+    stereo_threshold: 40
+    ransac_threshold: 10
 
     goodFeaturesToTrack:
       max_corners: 100
@@ -101,7 +101,9 @@ fly_stereo:
     min_camera_dt_ms: 40
 
   stereo_calibration:
-    R_imu_cam0: [0, 0, 4.71238898038]
+    # R_imu_cam0: [0, 0, 4.71238898038]
+    # R_imu_cam0: [0, 0, 0]
+    R_imu_cam0: [0, 0, 3.14]
     K0: !!opencv-matrix
        rows: 3
        cols: 3
