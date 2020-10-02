@@ -100,7 +100,7 @@ int MavlinkReader::Init(YAML::Node input_params) {
     replay_file_fd_ = open(replay_file.c_str(), O_RDWR | O_NOCTTY | O_NDELAY | O_CREAT, 0660);
     // int chmod_ret = chmod(replay_file.c_str(), S_IRWXU | S_IRWXG);
     if (replay_file_fd_ <= 0) {
-      std::cerr << "error opening log file!\n";
+      std::cerr << "error opening log file at: " << replay_file << std::endl;
     }
   }
 

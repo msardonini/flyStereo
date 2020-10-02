@@ -182,15 +182,12 @@ int Camera::GetFrame(cv::cuda::GpuMat &frame) {
 }
 
 int Camera::SendFrame(cv::Mat &frame) {
-  if (cam_sink_) {
-    cam_sink_->write(frame);
-  } else {
-    bool is_color = frame.channels() > 1;
-    if(InitSink(is_color)) {
+  if (!cam_sink_) {
+    if(InitSink(frame.channels() > 1)) {
       return -1;
     }
-    cam_sink_->write(frame);
   }
+  cam_sink_->write(frame);
   return 0;
 }
 
