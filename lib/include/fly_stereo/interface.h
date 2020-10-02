@@ -51,6 +51,7 @@ struct ImagePoints {
 
   // Associated IMU measurments to this set of features
   std::vector<mavlink_imu_t> imu_pts;
+  Eigen::Matrix3d R_t0_t1_cam0;
 };
 
 struct VisualOdom {

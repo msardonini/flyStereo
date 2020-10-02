@@ -5,7 +5,7 @@ fly_stereo:
   mavlink_reader:
     # device: /dev/ttyTHS1
     # replay_mode: false
-    device: /root/fly_stereo/replay_data/flight/run013/imu.dat
+    device: /root/fly_stereo/replay_data/flight/run018/imu.dat
     replay_mode: true
     # replay_imu_data_file: /home/msardonini/git/fly_stereo/replay_data/test_replay/imu.dat
 
@@ -15,9 +15,9 @@ fly_stereo:
     image_height: 720
     # bins_width: 40
     # bins_height: 30
-    bins_width: 20
-    bins_height: 15
-    max_pts_in_bin: 2
+    bins_width: 40
+    bins_height: 30
+    max_pts_in_bin: 1
     kalman_filter:
         dt: 0.2
         sigma_a: 0.1
@@ -51,9 +51,9 @@ fly_stereo:
       gstreamer_pipeline:
         enable: false
 
-      src_pipeline: "filesrc location=/root/fly_stereo/replay_data/flight/run013/cam0.mp4 ! decodebin ! videoconvert ! video/x-raw, format=(string)GRAY8 ! appsink sync=true "
+      src_pipeline: "filesrc location=/root/fly_stereo/replay_data/flight/run018/cam0.mp4 ! decodebin ! videoconvert ! video/x-raw, format=(string)GRAY8 ! appsink sync=true "
       # src_pipeline: "filesrc location=/root/fly_stereo/replay_data/test_replay/cam0.mp4 ! decodebin ! videoconvert ! appsink "
-      sink_pipeline: "appsrc ! videoconvert ! tee name=t ! queue ! autovideosink t. ! queue ! jpegenc ! avimux ! filesink location=/root/fly_stereo/replay_data/flight/run013/cam0_annotated.avi"
+      sink_pipeline: "appsrc ! videoconvert ! tee name=t ! queue ! autovideosink t. ! queue ! jpegenc ! avimux ! filesink location=/root/fly_stereo/replay_data/flight/run018/cam0_annotated.avi"
 
       enable_videoflip: false
       flip_method: -1
@@ -74,12 +74,12 @@ fly_stereo:
       gstreamer_pipeline:
         enable: false
 
-      src_pipeline: "filesrc location=/root/fly_stereo/replay_data/flight/run013/cam1.mp4 ! decodebin ! videoconvert ! video/x-raw, format=(string)GRAY8 ! appsink sync=true "
+      src_pipeline: "filesrc location=/root/fly_stereo/replay_data/flight/run018/cam1.mp4 ! decodebin ! videoconvert ! video/x-raw, format=(string)GRAY8 ! appsink sync=true "
       # src_pipeline: "filesrc location=/root/fly_stereo/replay_data/test_replay/cam1.mp4 ! decodebin ! videoconvert ! appsink max-buffers=1"
-      sink_pipeline: "appsrc ! videoconvert ! tee name=t ! queue ! autovideosink t. ! queue ! jpegenc ! avimux ! filesink location=/root/fly_stereo/replay_data/flight/run013/cam1_annotated.avi"
+      sink_pipeline: "appsrc ! videoconvert ! tee name=t ! queue ! autovideosink t. ! queue ! jpegenc ! avimux ! filesink location=/root/fly_stereo/replay_data/flight/run018/cam1_annotated.avi"
 
       device_num: 1
-      enable_videoflip: false
+      enable_videoflip: true
       flip_method: -1
       framerate: 20
       width: 1280
@@ -89,7 +89,7 @@ fly_stereo:
       exposure_time: 1500
     draw_points_to_frame: true
     max_error_counter: 10
-    stereo_threshold: 25
+    stereo_threshold: 45
     ransac_threshold: 10
 
     goodFeaturesToTrack:

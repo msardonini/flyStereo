@@ -20,6 +20,7 @@
 #include "opencv2/cudaoptflow.hpp"
 #include "Eigen/Dense"
 #include "fly_stereo/sensor_io/mavlink/fly_stereo/mavlink.h"
+#include "fly_stereo/optical_flow_points.h"
 
 
 class ImageProcessor {
@@ -58,10 +59,10 @@ class ImageProcessor {
   int ProcessThread();
 
   int StereoMatch(cv::Ptr<cv::cuda::SparsePyrLKOpticalFlow> opt,
-     cv::cuda::GpuMat &d_frame_cam0,
-     cv::cuda::GpuMat &d_frame_cam1,
-    cv::cuda::GpuMat &d_tracked_pts_cam0,
-    cv::cuda::GpuMat &d_tracked_pts_cam1,
+    cv::cuda::GpuMat &d_frame_cam0,
+    cv::cuda::GpuMat &d_frame_cam1,
+    OpticalFlowPoints &points,
+    std::pair<unsigned int, unsigned int> indices,
     cv::cuda::GpuMat &d_status);
 
   int RemoveOutliers(const std::vector<uchar> &status, std::vector<cv::Point2f> &points);
@@ -105,12 +106,10 @@ class ImageProcessor {
   pts_cam0_t1, std::vector<cv::Point2f> pts_cam1_t0, std::vector<cv::Point2f> pts_cam1_t1,
   std::vector<unsigned int> ids);
 
-  int OuputTrackedPoints(const std::vector<cv::Point2f> &pts_cam0_t0,
-    const std::vector<cv::Point2f> &pts_cam0_t1,
-    const std::vector<cv::Point2f> &pts_cam1_t0,
-    const std::vector<cv::Point2f> &pts_cam1_t1,
+  int OuputTrackedPoints(OpticalFlowPoints &points,
     const std::vector<unsigned int> &ids,
-    const std::vector<mavlink_imu_t> &imu_msgs);
+    const std::vector<mavlink_imu_t> &imu_msgs,
+    const cv::Matx33f &rotation_t0_t1_cam0);
 
   // Local version of input params
   YAML::Node input_params_;

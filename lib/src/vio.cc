@@ -49,7 +49,8 @@ Vio::Vio(const YAML::Node &input_params, const YAML::Node &stereo_calibration) :
 
   interface_vec = stereo_calibration["R_imu_cam0"].as<std::vector<double>>();
   cv::Vec3d R_imu_cam0_vec = cv::Vec3d(interface_vec.data());
-  cv::Rodrigues(R_imu_cam0_vec, R_imu_cam0_); 
+  cv::Rodrigues(R_imu_cam0_vec, R_imu_cam0_);
+  cv::cv2eigen(R_imu_cam0_, R_imu_cam0_eigen_);
 
   interface_vec = stereo_calibration["R"]["data"].as<std::vector<double>>();
   R_cam0_cam1_ = cv::Matx33d(interface_vec.data());
@@ -97,19 +98,17 @@ int Vio::ProcessPoints(const ImagePoints &pts, vio_t &vio) {
       return 0;
     }
     first_iteration_ = false;
- 
-    // Eigen::AngleAxisd(pts.imu_pts[0].yaw, Eigen::Vector3d::UnitZ()).toRotationMatrix()
+
     Eigen::Matrix3d initial_rotation =
       Eigen::AngleAxisd(pts.imu_pts[0].roll, Eigen::Vector3d::UnitX()) *
       Eigen::AngleAxisd(pts.imu_pts[0].pitch,  Eigen::Vector3d::UnitY()) *
       Eigen::AngleAxisd(0.0, Eigen::Vector3d::UnitZ()).toRotationMatrix();
 
-    Eigen::Matrix3d R_imu_cam0_eigen;
-    cv::cv2eigen(R_imu_cam0_, R_imu_cam0_eigen);
-    pose_.block<3, 3>(0, 0) = R_imu_cam0_eigen.transpose() * initial_rotation;
+
+    pose_.block<3, 3>(0, 0) = R_imu_cam0_eigen_.transpose() * initial_rotation;
     std::cout << "first imu point: " << pts.imu_pts[0].roll << " " << pts.imu_pts[0].pitch << " " << pts.imu_pts[0].yaw << " " << std::endl;
     std::cout << "Mat1: " << initial_rotation << std::endl;
-    std::cout << "Mat2: " << R_imu_cam0_eigen << std::endl;
+    std::cout << "Mat2: " << R_imu_cam0_eigen_ << std::endl;
   }
 
   // All points are placed in bins, sections of the image. The key to this map is the row-major
@@ -120,7 +119,8 @@ int Vio::ProcessPoints(const ImagePoints &pts, vio_t &vio) {
   BinFeatures(pts, grid);
 
   Eigen::Matrix4d pose_update;
-  if (CalculatePoseUpdate(grid, pose_update) == 0) {
+  if (CalculatePoseUpdate(grid, R_imu_cam0_eigen_.transpose() * pts.R_t0_t1_cam0,
+    pose_update) == 0) {
     // TODO: add imu prediction and vo measurement update
     // ProcessImu(pts.imu_pts);
     Eigen::Matrix<double, 6, 1> kf_state;
@@ -128,6 +128,7 @@ int Vio::ProcessPoints(const ImagePoints &pts, vio_t &vio) {
 
     Debug_SaveOutput();
 
+    // Copy the results to the output of this function
     vio.position << kf_state(0), kf_state(2), kf_state(4);
     vio.velocity << kf_state(1), kf_state(3), kf_state(5);
     vio.quat = Eigen::Quaterniond(pose_update.block<3, 3>(0, 0));
@@ -212,7 +213,7 @@ inline unsigned int Vio::Modulo(int value, unsigned m) {
 }
 
 int Vio::CalculatePoseUpdate(const std::map<int, std::vector<ImagePoint> > &grid,
-  Eigen::Matrix4d &pose_update) {
+  const Eigen::Matrix3d &imu_rotation, Eigen::Matrix4d &pose_update) {
   // Calculate the number of points in the grid
   unsigned int num_pts = 0;
   for (auto it = grid.begin(); it != grid.end(); it++) {
@@ -364,7 +365,8 @@ int Vio::CalculatePoseUpdate(const std::map<int, std::vector<ImagePoint> > &grid
     correspondences_t1,
     points,
     camOffsets,
-    camRotations);
+    camRotations,
+    imu_rotation);
 
   // Create the ransac model and compute
   opengv::sac::Ransac<opengv::sac_problems::absolute_pose::AbsolutePoseSacProblem> ransac;
@@ -392,101 +394,13 @@ int Vio::CalculatePoseUpdate(const std::map<int, std::vector<ImagePoint> > &grid
   // pose_ = pose_ * delta_xform ;
   // std::cout << "output transformation: \n" << pose_ << std::endl;
 
-  // int index_hist = SaveInliers(ransac.inliers_, pts_ids, points);
-  int index_hist;
-  // std::cout << "index_hist: " << index_hist << std::endl;
-  if (0) {
-    // // Get the points of the current timestep by triangulating 2D points in timestep t1
-    // cv::Mat pts_cam0_t1_mat(pts_cam0_t1_ud); pts_cam0_t1_mat.convertTo(pts_cam0_t1_mat, CV_64F);
-    // cv::Mat pts_cam1_t1_mat(pts_cam1_t1_ud); pts_cam1_t1_mat.convertTo(pts_cam1_t1_mat, CV_64F);
-    // cv::Mat triangulation_output_pts_t1_homo;
-    // cv::triangulatePoints(P0_, P1_, pts_cam0_t1_mat, pts_cam1_t1_mat,
-    //   triangulation_output_pts_t1_homo);
 
-    // // Convert points from homogeneous to 3D coords
-    // std::vector<cv::Vec3d> triangulation_output_pts_t1;
-    // cv::convertPointsFromHomogeneous(triangulation_output_pts_t1_homo.t(),
-    //   triangulation_output_pts_t1);
+  // Put the ransc output pose update into a 4x4 Matrix
+  pose_update.block<3,4>(0, 0) = ransac.model_coefficients_;
 
-    // // put the points into the opengv object
-    // opengv::points_t pts_t1_temp(num_pts);
-    // for(size_t i = 0; i < num_pts; i++) {
-    //   cv::cv2eigen(triangulation_output_pts_t1[i], pts_t1_temp[i]);
-    // }
+  // Apply the user calibration
+  pose_update.block<3,1>(0, 3) -= vio_calibration_;
 
-    opengv::points_t pts_t0; pts_t0.reserve(2 * pts_ids.size());
-    opengv::bearingVectors_t bvec_t1; bvec_t1.reserve(2 * pts_ids.size());
-    std::vector<int> corr_t1; corr_t1.reserve(2 * pts_ids.size());
-    for (unsigned int i = 0; i < pts_ids.size(); i++) {
-      if (point_history_[index_hist].count(pts_ids[i])) {
-        pts_t0.push_back(point_history_[index_hist][pts_ids[i]]);
-        pts_t0.push_back(point_history_[index_hist][pts_ids[i]]);
-        bvec_t1.push_back(bearing_vectors_cam0_t1[i]);
-        corr_t1.push_back(0);
-        bvec_t1.push_back(bearing_vectors_cam1_t1[i]);
-        corr_t1.push_back(1);
-      }
-    }
-
-    // Sanity check that we have enough points
-    if (pts_t0.size() < min_num_matches) {
-      std::cerr << "Error! Points should have at least " << min_num_matches << " matches!\n";
-      std::cerr << "index: " << index_hist << "\n";
-      std::exit(1);
-    }
-
-    // create the 3D-3D adapter
-    // opengv::point_cloud::PointCloudAdapter adapter_pt_cloud(pts_t0, pts_t1);
-    // // // run threept_arun
-    // // opengv::transformation_t threept_transformation = opengv::point_cloud::optimize_nonlinear(
-    // //   adapter_pt_cloud);
-
-    // // create a RANSAC object
-    // opengv::sac::Ransac<opengv::sac_problems::point_cloud::PointCloudSacProblem> ransac;
-    // // create the sample consensus problem
-    // std::shared_ptr<opengv::sac_problems::point_cloud::PointCloudSacProblem>
-    //     relposeproblem_ptr(
-    //     new opengv::sac_problems::point_cloud::PointCloudSacProblem(adapter_pt_cloud) );
-    // // run ransac
-    // ransac.sac_model_ = relposeproblem_ptr;
-    // ransac.threshold_ = 0.1;
-    // ransac.max_iterations_ = 500;
-    // ransac.computeModel(0);
-    // // return the result
-    // opengv::transformation_t best_transformation =
-    //     ransac.model_coefficients_;
-
-
-    // Create a non-central absolute adapter
-    opengv::absolute_pose::NoncentralAbsoluteAdapter adapter2(
-      bvec_t1,
-      corr_t1,
-      pts_t0,
-      camOffsets,
-      camRotations);
-
-    // Create the ransac model and compute
-    opengv::sac::Ransac<opengv::sac_problems::absolute_pose::AbsolutePoseSacProblem> ransac2;
-    std::shared_ptr<opengv::sac_problems::absolute_pose::AbsolutePoseSacProblem>
-      absposeproblem_ptr2(new opengv::sac_problems::absolute_pose::AbsolutePoseSacProblem(adapter,
-        opengv::sac_problems::absolute_pose::AbsolutePoseSacProblem::GP3P));
-    ransac2.sac_model_ = absposeproblem_ptr2;
-    ransac2.threshold_ = 1.0 - cos(atan(sqrt(2.0)*0.5/500.0));
-    ransac2.max_iterations_ = 200;
-    ransac2.computeModel();
-
-    pose_update.block<3,4>(0, 0) = ransac2.model_coefficients_;
-
-    pose_ = pose_history_[index_hist] * pose_update;
-    std::cout << "index_hist " << index_hist << std::endl;
-    std::cout << "\n " << pose_history_[index_hist] << std::endl;
-  } else {
-    // Put the ransc output pose update into a 4x4 Matrix
-    pose_update.block<3,4>(0, 0) = ransac.model_coefficients_;
-
-    // Apply the user calibration
-    pose_update.block<3,1>(0, 3) -= vio_calibration_;
-  }
 
   if (pose_update.block<3, 1>(0, 3).norm() > 1) {
     pose_update = Eigen::Matrix4d::Identity();
@@ -529,7 +443,7 @@ int Vio::Debug_SaveOutput() {
     }
     Eigen::Matrix<double, 3, 4> writer_pose = pose_.block<3, 4> (0, 0);
     Eigen::Map<Eigen::RowVectorXd> v(writer_pose.data(), writer_pose.size());
-    *trajecotry_file_ << v << kf_.GetState().transpose() << std::endl;
+    *trajecotry_file_ << v << kf_.GetState() << std::endl;
 
     // for (int i = 0; i < points.size(); i++) {
     //   // ofs  << vec[i](0) << "," << vec[i](1) << "," << vec[i](2) << std::endl;

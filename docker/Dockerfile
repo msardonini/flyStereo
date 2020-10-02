@@ -1,7 +1,18 @@
 FROM nvidia/cuda:10.2-devel-ubuntu18.04
 
-RUN apt-get update && apt-get install -y libyaml-cpp-dev cmake vim xz-utils git libgstreamer1.0-dev gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly gstreamer1.0-plugins-base gstreamer1.0-tools gstreamer1.0-libav libgstreamer-plugins-base1.0-dev python3-dev python3-pip gdb liblas-dev liblas-c-dev
+RUN apt-get update && apt-get install -y cmake vim xz-utils git libgstreamer1.0-dev gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly gstreamer1.0-plugins-base gstreamer1.0-tools gstreamer1.0-libav libgstreamer-plugins-base1.0-dev python3-dev python3-pip gdb liblas-dev liblas-c-dev
 RUN pip3 install numpy
+
+
+# Build and install Eigen
+RUN cd /opt && \
+  git clone https://github.com/jbeder/yaml-cpp.git && \
+  cd yaml-cpp && \
+  git checkout yaml-cpp-0.6.3 && \
+  mkdir build && \
+  cd build && \
+  cmake -DYAML_BUILD_SHARED_LIBS=ON -DBUILD_TESTING=OFF .. && \
+  make install
 
 # Build and install Eigen
 RUN cd /opt && \

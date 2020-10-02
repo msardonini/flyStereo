@@ -36,7 +36,7 @@ class Vio {
   int BinFeatures(const ImagePoints &pts, std::map<int, std::vector<ImagePoint> > &grid);
 
   int CalculatePoseUpdate(const std::map<int, std::vector<ImagePoint> > &grid,
-    Eigen::Matrix4d &pose_update);
+  const Eigen::Matrix3d &imu_rotation, Eigen::Matrix4d &pose_update);
 
   int ProcessImu(const std::vector<mavlink_imu_t> &imu_pts);
   int ProcessVio(const Eigen::Matrix4d &pose_update, uint64_t image_timestamp,
@@ -66,6 +66,7 @@ class Vio {
   std::vector<double> D_cam1_;
   cv::Matx33d R_cam0_cam1_;
   cv::Matx33d R_imu_cam0_;
+  Eigen::Matrix3d R_imu_cam0_eigen_;
   cv::Vec3d T_cam0_cam1_;
   cv::Matx34d P0_;
   cv::Matx34d P1_;

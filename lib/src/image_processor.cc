@@ -9,6 +9,7 @@
 #include "opencv2/imgproc.hpp"
 #include "opencv2/calib3d.hpp"
 #include "opencv2/core/cuda.hpp"
+#include "opencv2/core/eigen.hpp"
 #include "Eigen/Dense"
 #include "opengv/types.hpp"
 
@@ -109,142 +110,6 @@ int ImageProcessor::Init() {
 }
 
 
-int ImageProcessor::RemoveOutliers(const std::vector<uchar> &status,
-  std::vector<cv::Point2f> &points) {
-  if (status.size() != points.size()) {
-    std::cerr << "Error! status and points are not the same size" << std::endl;
-    return -1;
-  }
-
-  for (int i = status.size() - 1; i >= 0; i--) {
-    if (status[i] == 0) {
-      points.erase(points.begin() + i);
-    }
-  }
-  return 0;
-}
-
-//TODO: Make this function templated
-int ImageProcessor::RemoveOutliers(const std::vector<uchar> &status,
-  std::vector<unsigned int> &points) {
-  if (status.size() != points.size()) {
-    std::cerr << "Error! status and points are not the same size" << std::endl;
-    return -1;
-  }
-
-  for (int i = status.size() - 1; i >= 0; i--) {
-    if (status[i] == 0) {
-      points.erase(points.begin() + i);
-    }
-  }
-  return 0;
-}
-
-int ImageProcessor::RemoveOutliers(const cv::cuda::GpuMat &d_status, cv::cuda::GpuMat &d_points) {
-  std::vector<cv::Point2f> points;
-  std::vector<unsigned char> status;
-
-  if (d_points.cols != 0) {
-    d_points.download(points);
-  } else {
-    return -1;
-  }
-  if (d_status.cols != 0) {
-    d_status.download(status);
-  } else {
-    return -1;
-  }
-
-  if (RemoveOutliers(status, points)) {
-    return -1;
-  }
-
-  d_points.upload(points);
-  return 0;
-}
-
-int ImageProcessor::RemovePointsOutOfFrame(const cv::Size framesize,
-  const std::vector<cv::Point2f> &points, std::vector<unsigned char> &status) {
-  if (status.size() != points.size()) {
-    std::cerr << "Error! status and points are not the same size" << std::endl;
-    return -1;
-  }
-
-  // Mark those tracked points out of the image region
-  // as untracked.
-  for (int i = 0; i < points.size(); ++i) {
-    if (status[i] == 0) {
-      continue;
-    }
-    if (points[i].y < 0 || points[i].y > framesize.height - 1 || points[i].x < 0 ||
-        points[i].x > framesize.width - 1) {
-      status[i] = 0;
-    }
-  }
-  return 0;
-}
-
-int ImageProcessor::RemovePointsOutOfFrame(const cv::Size framesize,
-  const cv::cuda::GpuMat &d_points, cv::cuda::GpuMat &d_status) {
-  std::vector<cv::Point2f> points;
-  std::vector<unsigned char> status;
-
-  if (d_points.cols != 0) {
-    d_points.download(points);
-  } else {
-    return -1;
-  }
-  if (d_status.cols != 0) {
-    d_status.download(status);
-  } else {
-    return -1;
-  }
-
-  if (RemovePointsOutOfFrame(framesize, points, status)) {
-    return -1;
-  }
-
-  d_status.upload(status);
-  return 0;
-}
-
-cv::cuda::GpuMat ImageProcessor::AppendGpuMatColwise(
-  const cv::cuda::GpuMat &mat1, const cv::cuda::GpuMat &mat2) {
-  // Handle edge cases where one of the input mats is empty
-  if (mat1.cols == 0) {
-    if (mat2.cols == 0) {
-      return cv::cuda::GpuMat();
-    } else {
-      return mat2.clone();
-    }
-  } else if (mat2.cols == 0) {
-    return mat1.clone();
-  }
-
-  // Verify the two mats are the same data type
-  if (mat1.type() != mat2.type()) {
-    std::cerr << "Error! [AppendGpuMat] Mats are not the same type" <<
-      std::endl;
-    return cv::cuda::GpuMat();
-  } else if (mat1.rows != mat2.rows) {
-    std::cerr << "Error! [AppendGpuMat] Mats do not have the same amount of"
-      " rows" << std::endl;
-    return cv::cuda::GpuMat();
-  }
-
-  cv::Range range_rows(0, mat1.rows);
-  cv::Range range_cols1(0, mat1.cols);
-  cv::Range range_cols2(mat1.cols, mat1.cols + mat2.cols);
-
-  cv::cuda::GpuMat return_mat(mat1.rows, mat1.cols + mat2.cols, mat1.type());
-
-  mat1.copyTo(return_mat(range_rows, range_cols1));
-  mat2.copyTo(return_mat(range_rows, range_cols2));
-
-  return std::move(return_mat);
-}
-
-
 int ImageProcessor::UpdatePointsViaImu(const std::vector<cv::Point2f> &current_pts,
   const cv::Matx33d &rotation,
   const cv::Matx33d &camera_matrix,
@@ -282,21 +147,15 @@ int ImageProcessor::UpdatePointsViaImu(const cv::cuda::GpuMat &d_current_pts,
   return ret;
 }
 
-int ImageProcessor::ProcessPoints(std::vector<cv::Point2f> pts_cam0_t0, std::vector<cv::Point2f>
-  pts_cam0_t1, std::vector<cv::Point2f> pts_cam1_t0, std::vector<cv::Point2f> pts_cam1_t1,
-  std::vector<unsigned int> ids) {}
-
-int ImageProcessor::OuputTrackedPoints(const std::vector<cv::Point2f> &pts_cam0_t0,
-  const std::vector<cv::Point2f> &pts_cam0_t1,
-  const std::vector<cv::Point2f> &pts_cam1_t0,
-  const std::vector<cv::Point2f> &pts_cam1_t1,
+int ImageProcessor::OuputTrackedPoints(OpticalFlowPoints &points,
   const std::vector<unsigned int> &ids,
-  const std::vector<mavlink_imu_t> &imu_msgs) {
+  const std::vector<mavlink_imu_t> &imu_msgs,
+  const cv::Matx33f &rotation_t0_t1_cam0) {
   // Check to make sure that our input data is sized correctly
-  unsigned int num_pts = pts_cam0_t0.size();
-  if (num_pts != pts_cam0_t1.size() ||
-      num_pts != pts_cam1_t0.size() ||
-      num_pts != pts_cam1_t1.size() ||
+  unsigned int num_pts = points.GetCpu(t_c0_t0).size();
+  if (num_pts != points.GetCpu(t_c0_t1).size() ||
+      num_pts != points.GetCpu(t_c1_t0).size() ||
+      num_pts != points.GetCpu(t_c1_t1).size() ||
       num_pts != ids.size()) {
     std::cerr << "Error! Vectors do not match in OutputTrackedPoints" << std::endl;
     return -1;
@@ -310,15 +169,17 @@ int ImageProcessor::OuputTrackedPoints(const std::vector<cv::Point2f> &pts_cam0_
   output_points_.pts.reserve(num_pts);
 
   for (int i = 0; i < num_pts; i++) {
-    ImagePoint pt(ids[i], {pts_cam0_t0[i].x, pts_cam0_t0[i].y},
-      {pts_cam0_t1[i].x, pts_cam0_t1[i].y},
-      {pts_cam1_t0[i].x, pts_cam1_t0[i].y},
-      {pts_cam1_t1[i].x, pts_cam1_t1[i].y});
+    ImagePoint pt(ids[i], {points.GetCpu(t_c0_t0)[i].x, points.GetCpu(t_c0_t0)[i].y},
+      {points.GetCpu(t_c0_t1)[i].x, points.GetCpu(t_c0_t1)[i].y},
+      {points.GetCpu(t_c1_t0)[i].x, points.GetCpu(t_c1_t0)[i].y},
+      {points.GetCpu(t_c1_t1)[i].x, points.GetCpu(t_c1_t1)[i].y});
     output_points_.pts.push_back(pt);
   }
 
   // Also save a copy of the imu messages that are associated to this camera frame
   output_points_.imu_pts = imu_msgs;
+  cv::Matx33d temp_rot = rotation_t0_t1_cam0;
+  cv::cv2eigen(temp_rot, output_points_.R_t0_t1_cam0);
 
   output_cond_var_.notify_one();
   return 0;
@@ -341,31 +202,16 @@ int ImageProcessor::ProcessThread() {
   // Vector of imu messages
   std::vector<mavlink_imu_t> imu_msgs;
 
-  // Frames of the left and right camera
+  // Frames of the left and right camera in current timestep and previous
   cv::cuda::GpuMat d_frame_cam0_t1, d_frame_cam1_t1;
   cv::cuda::GpuMat d_frame_cam0_t0, d_frame_cam1_t0;
 
-  // Arrays of points for tracking, cpu and gpu
-  cv::cuda::GpuMat d_tracked_pts_cam0_t0, d_tracked_pts_cam0_t1;
-  cv::cuda::GpuMat d_tracked_pts_cam1_t0, d_tracked_pts_cam1_t1;
-  std::vector<cv::Point2f> tracked_pts_cam0_t0, tracked_pts_cam0_t1;
-  std::vector<cv::Point2f> tracked_pts_cam1_t0, tracked_pts_cam1_t1;
-
-  // Arrays of detected points for potential tracking, cpu and gpu
-  cv::cuda::GpuMat d_keypoints_cam0_t0, d_keypoints_cam0_t1;
-  cv::cuda::GpuMat d_keypoints_cam1_t0, d_keypoints_cam1_t1;
-  std::vector<cv::Point2f> keypoints_cam0_t0, keypoints_cam0_t1;
-  std::vector<cv::Point2f> keypoints_cam1_t0, keypoints_cam1_t1;
-
-  // Arrays of the point id's, each feature point will be assigned a unique ID which will remain
-  // constant over time until the feature is gone
-  std::vector<unsigned int> ids_detected_t0, ids_detected_t1;
-  std::vector<unsigned int> ids_tracked_t0, ids_tracked_t1;
+  OpticalFlowPoints points(OpticalFlowPoints::MEMORY_LOCATION::GPU);
   unsigned int current_id = 0;
 
   // Outputs for the calcOpticalFlowPyrLK call
   std::vector<unsigned char> status;
-  cv::cuda::GpuMat d_status;
+
 
   // Flag telling if we should draw points to the ouput image frame
   bool draw_points_to_frame = true;
@@ -386,9 +232,9 @@ int ImageProcessor::ProcessThread() {
 
   cv::Ptr<cv::cuda::SparsePyrLKOpticalFlow> d_opt_flow_cam0 = cv::cuda::
     SparsePyrLKOpticalFlow::create(cv::Size(21, 21), 3, 30, true);
-  cv::Ptr<cv::cuda::SparsePyrLKOpticalFlow> d_opt_flow_cam1 = cv::cuda::
+  cv::Ptr<cv::cuda::SparsePyrLKOpticalFlow> d_opt_flow_stereo_t0 = cv::cuda::
     SparsePyrLKOpticalFlow::create(cv::Size(21, 21), 3, 30, true);
-  cv::Ptr<cv::cuda::SparsePyrLKOpticalFlow> d_opt_flow_cam1_temp = cv::cuda::
+  cv::Ptr<cv::cuda::SparsePyrLKOpticalFlow> d_opt_flow_stereo_t1 = cv::cuda::
     SparsePyrLKOpticalFlow::create(cv::Size(21, 21), 3, 30, true);
 
   while (is_running_.load()) {
@@ -411,135 +257,105 @@ int ImageProcessor::ProcessThread() {
     // Reset the Error Counter
     error_counter = 0;
 
-    uint64_t timestamp_us = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::
-      steady_clock::now().time_since_epoch()).count();
-
     cv::Matx33f rotation_t0_t1_cam0;
     cv::Matx33f rotation_t0_t1_cam1;
     int retval = sensor_interface_->GenerateImuXform(imu_msgs, R_imu_cam0_, R_imu_cam1_,
       rotation_t0_t1_cam0, current_time, rotation_t0_t1_cam1);
 
-    // std::cout << rotation_t0_t1_cam0 << std::endl;
-    // std::cout << imu_msgs.size() << std::endl;
-
-    // if (retval == 0) {
-    //   // cv::cuda::GpuMat tmp;
-    //   std::cout << "running UpdatePointsViaImu \n";
-    //   if(UpdatePointsViaImu(d_debug_pts, rotation_t0_t1_cam0, K_cam0_, d_debug_pts)) {
-    //     std::cout << "Error in UpdatePointsViaImu \n";
-    //   }
-    //   // d_debug_pts = tmp;
-    // }
-
-
-    // std::cout << counter << std::endl;
-
     // Append the kepypoints from the previous iteration to the tracked points of the current
     // iteration. Points that pass through all the outlier checks will remain as tracked points
-    d_tracked_pts_cam0_t0 = AppendGpuMatColwise(d_tracked_pts_cam0_t0, d_keypoints_cam0_t0);
-    d_tracked_pts_cam1_t0 = AppendGpuMatColwise(d_tracked_pts_cam1_t0, d_keypoints_cam1_t0);
-    ids_tracked_t0.insert(std::end(ids_tracked_t0), std::begin(ids_detected_t0), std::end(
-      ids_detected_t0));
-    ids_tracked_t1 = ids_tracked_t0;
+    points.AppendGpuMatColwise(d_c0_t0, t_c0_t0);
+    points.AppendGpuMatColwise(d_c1_t0, t_c1_t0);
+    points.ids[ids_t0].insert(std::end(points.ids[ids_t0]), std::begin(points.ids[ids_t1]), std::end(
+      points.ids[ids_t1]));
 
     // Make a prediction of where the points will be in the current image given the IMU data
     if (retval == 0) {
-      UpdatePointsViaImu(d_tracked_pts_cam0_t0, rotation_t0_t1_cam0, K_cam0_,
-        d_tracked_pts_cam0_t1);
-      UpdatePointsViaImu(d_tracked_pts_cam1_t0, rotation_t0_t1_cam1, K_cam1_,
-        d_tracked_pts_cam1_t1);
+      UpdatePointsViaImu(points.GetGpu(t_c0_t0), rotation_t0_t1_cam0, K_cam0_, points.GetGpu(t_c0_t1));
+      UpdatePointsViaImu(points.GetGpu(t_c1_t0), rotation_t0_t1_cam1, K_cam1_, points.GetGpu(t_c1_t1));
     } else {
       std::cerr << "Error receiving IMU transform" << std::endl;
       continue;
     }
 
-    debug_num_pts[0] = d_tracked_pts_cam0_t0.cols;
+    debug_num_pts[0] = points.GetGpu(t_c0_t0).cols;
     /*********************************************************************
     * Apply the optical flow from the previous frame to the current frame
     *********************************************************************/
-    if (counter++ != 0 && d_tracked_pts_cam0_t0.rows > 0) {
+    if (counter++ != 0 && !points.GetGpu(t_c0_t0).empty()) {
       // // DEBUG CODE
       // write_to_debug = true;
       // if (write_to_debug) {
       //   cv::Mat frame0;
       //   std::vector<cv::Point2f> pts_t0;
       //   d_frame_cam0_t0.download(frame0);
-      //   d_tracked_pts_cam0_t0.download(pts_t0);
+      //   if (d_tracked_pts_cam0_t0.cols > 0) {
+      //     d_tracked_pts_cam0_t0.download(pts_t0);
+      //   }
       //   debug_record.DrawPts(frame0, 0, pts_t0);
       // }
       // std::vector<cv::Point2f> pts_t1_debug;
       // d_tracked_pts_cam0_t1.download(pts_t1_debug);
       // // END DEBUG CODE
 
-      d_opt_flow_cam0->calc(d_frame_cam0_t0, d_frame_cam0_t1, d_tracked_pts_cam0_t0,
-        d_tracked_pts_cam0_t1, d_status);
 
+      cv::cuda::GpuMat d_status;
+      d_opt_flow_cam0->calc(d_frame_cam0_t0, d_frame_cam0_t1, points.GetGpu(t_c0_t0), points.GetGpu(t_c0_t1),
+        d_status);
 
       // Check if we have zero tracked points, this is a corner case and these variables need
       // to be reset to prevent errors in sizing, calc() does not return all zero length vectors
-      if (d_tracked_pts_cam0_t1.cols == 0) {
-        d_tracked_pts_cam0_t1.release();
-        d_tracked_pts_cam0_t0.release();
+      if (points.GetGpu(t_c0_t1).empty()) {
+        points.GetGpu(t_c0_t0).release();
+        points.GetGpu(t_c0_t1).release();
         d_status.release();
       }
-      if (RemovePointsOutOfFrame(d_frame_cam0_t1.size(), d_tracked_pts_cam0_t1, d_status)) {
-        std::cout << "RemovePointsOutOfFrame failed after tracking\n" << std::endl;
+
+      if (!points.MarkPointsOutOfFrame(d_frame_cam0_t1.size(), t_c0_t1, d_status)) {
+        std::cout << "MarkPointsOutOfFrame failed after tracking\n" << std::endl;
         std::cout << "status size:" << d_status.size() << std::endl;
-        std::cout << "points size:" << d_tracked_pts_cam0_t1.size() << std::endl;
         return -1;
       }
+
       // TODO: Make this function accept a vector (non gpu) for first arg and templated vector as
       // the second argument
-      d_status.download(status);
-      if (RemoveOutliers(d_status, d_tracked_pts_cam0_t0) ||
-          RemoveOutliers(d_status, d_tracked_pts_cam0_t1) ||
-          RemoveOutliers(d_status, d_tracked_pts_cam1_t0) ||
-          RemoveOutliers(status, ids_tracked_t1)) {
+      if (!points.RemoveOutliers(d_status, {t_c0_t0, t_c0_t1, t_c1_t0}, {ids_t0})) {
         std::cout << "RemoveOutliers failed after Tracking\n" << std::endl;
         return -1;
       }
-      debug_num_pts[1] = d_tracked_pts_cam0_t1.cols;
+      debug_num_pts[1] = points.GetGpu(t_c0_t1).cols;
 
-      // Match the points from camera 0 to camera 1
-      int ret_val = StereoMatch(d_opt_flow_cam1, d_frame_cam0_t1, d_frame_cam1_t1,
-         d_tracked_pts_cam0_t1, d_tracked_pts_cam1_t1, d_status);
-      // Remove the outliers from the StereoMatch algorithm
-      if (ret_val == 0) {
-        if (RemovePointsOutOfFrame(d_frame_cam1_t1.size(), d_tracked_pts_cam1_t1, d_status)) {
-          std::cout << "RemovePointsOutOfFrame failed after StereoMatch\n" << std::endl;
-          return -1;
-        }
-        d_status.download(status);
-        if (RemoveOutliers(d_status, d_tracked_pts_cam0_t0) ||
-            RemoveOutliers(d_status, d_tracked_pts_cam0_t1) ||
-            RemoveOutliers(d_status, d_tracked_pts_cam1_t0) ||
-            RemoveOutliers(d_status, d_tracked_pts_cam1_t1) ||
-            RemoveOutliers(status, ids_tracked_t1)) {
-          std::cout << "RemoveOutliers failed after StereoMatch\n" << std::endl;
-          std::cout << "Sizes: " << d_status.cols << ", " << d_tracked_pts_cam0_t0.cols << ", " <<
-            d_tracked_pts_cam0_t1.cols << ", " << d_tracked_pts_cam1_t0.cols << ", " <<
-            d_tracked_pts_cam1_t1.cols << ", " << std::endl;
-          return -1;
-        }
-      }
-      debug_num_pts[2] = d_tracked_pts_cam0_t1.cols;
       // // DEBUG CODE
       // if (write_to_debug) {
       //   cv::Mat frame1;
       //   std::vector<cv::Point2f> pts_t1;
       //   d_frame_cam0_t1.download(frame1);
-      //   d_tracked_pts_cam0_t1.download(pts_t1);
-      //   debug_record.DrawPts(frame1, 1, pts_t1_debug, pts_t1);
+      //   if (d_tracked_pts_cam0_t1.cols > 0) {
+      //     d_tracked_pts_cam0_t1.download(pts_t1);
+      //   }
+      //   debug_record.DrawPts(frame1, 1, pts_t1, pts_t1_debug);
       //   debug_record.WriteFrame();
       // }
       // // END DEBUG CODE
 
+      // Match the points from camera 0 to camera 1
+      int ret_val = StereoMatch(d_opt_flow_stereo_t0, d_frame_cam0_t1, d_frame_cam1_t1,
+        points, {t_c0_t1, t_c1_t1}, d_status);
+      // Remove the outliers from the StereoMatch algorithm
+      if (ret_val == 0) {
+        if (!points.RemoveOutliers(d_status, {t_c0_t0, t_c0_t1, t_c1_t0, t_c1_t1}, {ids_t0})) {
+          std::cout << "RemoveOutliers failed after StereoMatch\n" << std::endl;
+          return -1;
+        }
+      }
+      debug_num_pts[2] = points.GetGpu(t_c0_t1).cols;
+
       // Perform a check to make sure that all of our tracked vectors are the same length,
       // otherwise something is wrong
-      int tracked_pts = d_tracked_pts_cam0_t0.cols;
-      if (tracked_pts != d_tracked_pts_cam0_t1.cols ||
-          tracked_pts != d_tracked_pts_cam1_t0.cols ||
-          tracked_pts != d_tracked_pts_cam1_t1.cols) {
+      int tracked_pts = points.GetGpu(t_c0_t0).cols;
+      if (tracked_pts != points.GetGpu(t_c0_t1).cols ||
+          tracked_pts != points.GetGpu(t_c1_t0).cols ||
+          tracked_pts != points.GetGpu(t_c1_t1).cols) {
         std::cerr << "ERROR! There are differences in the numbers of tracked points " << counter
           << std::endl;
         return -1;
@@ -549,19 +365,15 @@ int ImageProcessor::ProcessThread() {
     /*********************************************************************
     * Run the Two Point RANSAC algorithm to find more outliers
     *********************************************************************/
-    if (d_tracked_pts_cam0_t0.cols > 1 && d_tracked_pts_cam1_t0.cols > 1) {
-      d_tracked_pts_cam0_t0.download(tracked_pts_cam0_t0);
-      d_tracked_pts_cam0_t1.download(tracked_pts_cam0_t1);
+    if (points.GetGpu(t_c0_t0).cols > 1 && points.GetGpu(t_c1_t0).cols > 1) {
+      points.CopyToCpu({t_c0_t0, t_c0_t1, t_c1_t0, t_c1_t1});
 
       std::vector<unsigned char> cam0_ransac_inliers(0);
-      int ret1 = twoPointRansac(tracked_pts_cam0_t0, tracked_pts_cam0_t1, rotation_t0_t1_cam0.t(),
+      int ret1 = twoPointRansac(points.GetCpu(t_c0_t0), points.GetCpu(t_c0_t1), rotation_t0_t1_cam0.t(),
         K_cam0_, D_cam0_, ransac_threshold_, 0.99, cam0_ransac_inliers);
 
-      d_tracked_pts_cam1_t0.download(tracked_pts_cam1_t0);
-      d_tracked_pts_cam1_t1.download(tracked_pts_cam1_t1);
-
       std::vector<unsigned char> cam1_ransac_inliers(0);
-      int ret2 = twoPointRansac(tracked_pts_cam1_t0, tracked_pts_cam1_t1, rotation_t0_t1_cam1.t(),
+      int ret2 = twoPointRansac(points.GetCpu(t_c1_t0), points.GetCpu(t_c1_t1), rotation_t0_t1_cam1.t(),
         K_cam1_, D_cam1_, ransac_threshold_, 0.99, cam1_ransac_inliers);
 
       if (ret1 == 0 && ret2 == 0) {
@@ -573,74 +385,60 @@ int ImageProcessor::ProcessThread() {
           status.push_back(cam0_ransac_inliers[i] && cam1_ransac_inliers[i]);
         }
 
-        if (RemoveOutliers(status, tracked_pts_cam0_t0) ||
-            RemoveOutliers(status, tracked_pts_cam0_t1) ||
-            RemoveOutliers(status, tracked_pts_cam1_t0) ||
-            RemoveOutliers(status, tracked_pts_cam1_t1) ||
-            RemoveOutliers(status, ids_tracked_t1)) {
+        if (!points.RemoveOutliers(status, {t_c0_t0, t_c0_t1, t_c1_t0, t_c1_t1}, {ids_t0})) {
           std::cout << "RemoveOutliers failed after Ransac\n" << std::endl;
+          std::cout << "RemoveOutliers failed after Detection\n" << std::endl;
         }
+          std::cout << "vec after " << points.GetCpu(t_c0_t0).size() << std::endl;
         // std::cout <<" after RANSAC " << tracked_pts_cam0_t1.size() << std::endl;
       }
-    } else {
-      if (d_tracked_pts_cam0_t1.cols > 0)
-        d_tracked_pts_cam0_t1.download(tracked_pts_cam0_t1);
-      else
-        tracked_pts_cam0_t1.clear();
-      if (d_tracked_pts_cam1_t1.cols > 0)
-        d_tracked_pts_cam1_t1.download(tracked_pts_cam1_t1);
-      else
-        tracked_pts_cam1_t1.clear();
-      if (d_tracked_pts_cam0_t0.cols > 0)
-        d_tracked_pts_cam0_t0.download(tracked_pts_cam0_t0);
-      else
-        tracked_pts_cam0_t0.clear();
-      if (d_tracked_pts_cam1_t0.cols > 0)
-        d_tracked_pts_cam1_t0.download(tracked_pts_cam1_t0);
-      else
-        tracked_pts_cam1_t0.clear();
     }
-    debug_num_pts[3] = tracked_pts_cam0_t1.size();
+    debug_num_pts[3] = points.GetCpu(t_c0_t1).size();
 
     /*********************************************************************
     * Detect new features for the next iteration
     *********************************************************************/
-    DetectNewFeatures(detector_ptr, d_frame_cam0_t1, d_tracked_pts_cam0_t1, d_keypoints_cam0_t1);
-    debug_num_pts[4] = d_keypoints_cam0_t1.cols;
+    DetectNewFeatures(detector_ptr, d_frame_cam0_t1, points.GetGpu(t_c0_t1), points.GetGpu(d_c0_t1));
+    debug_num_pts[4] = points.GetGpu(d_c0_t1).cols;
     // Match the detected features in the second camera
-    d_keypoints_cam1_t1.release();
-    StereoMatch(d_opt_flow_cam1_temp, d_frame_cam0_t1, d_frame_cam1_t1,
-      d_keypoints_cam0_t1, d_keypoints_cam1_t1, d_status);
-    if (d_keypoints_cam0_t1.cols != 0) {
-      if (RemovePointsOutOfFrame(d_frame_cam0_t1.size(), d_keypoints_cam1_t1, d_status)) {
-        std::cout << "RemovePointsOutOfFrame failed after detection\n" << std::endl;
+    points.GetGpu(d_c1_t1).release();
+    cv::cuda::GpuMat d_status;
+    StereoMatch(d_opt_flow_stereo_t1, d_frame_cam0_t1, d_frame_cam1_t1, points, {d_c0_t1, d_c1_t1}, d_status);
+
+    if (points.GetGpu(d_c0_t1).cols != 0) {
+      if (!points.MarkPointsOutOfFrame(d_frame_cam0_t1.size(), d_c1_t1, d_status)) {
+        std::cout << "d status" << d_status.cols << std::endl;
+        std::cout << "vec " << points.GetGpu(d_c1_t1).cols << std::endl;
+        std::cout << "MarkPointsOutOfFrame failed after detection\n" << std::endl;
         return -1;
       }
-      if (RemoveOutliers(d_status, d_keypoints_cam0_t1) ||
-          RemoveOutliers(d_status, d_keypoints_cam1_t1)) {
+
+      if (!points.RemoveOutliers(d_status, {d_c0_t1, d_c1_t1})) {
+          std::cout << "d status " << d_status.cols << std::endl;
+        std::cout << "vec " << points.GetGpu(d_c0_t1).cols << std::endl;
+        std::cout << "vec " << points.GetGpu(d_c1_t1).cols << std::endl;
         std::cout << "RemoveOutliers failed after Detection\n" << std::endl;
         return -1;
       }
-      debug_num_pts[5] = d_keypoints_cam0_t1.cols;
-    }
-    // Fill in the ids vector with our new detected features
-    ids_detected_t1.clear();
-    ids_detected_t1.reserve(d_keypoints_cam0_t1.cols);
-    for (int i = 0; i < d_keypoints_cam0_t1.cols; i++) {
-      ids_detected_t1.push_back(current_id++);
+      debug_num_pts[5] = points.GetGpu(d_c0_t1).cols;
     }
 
-    // std::cout << "num points: cam0 " << d_tracked_pts_cam0_t1.cols << " cam1 " <<
-    //   d_tracked_pts_cam1_t1.cols << " start: " << debug_num_pts[0] << " tracking: " <<
+    // Fill in the ids vector with our new detected features
+    points.ids[ids_t1].clear();
+    points.ids[ids_t1].reserve(points.GetGpu(d_c0_t1).cols);
+
+    for (int i = 0; i < points.GetGpu(d_c0_t1).cols; i++) {
+      points.ids[ids_t1].push_back(current_id++);
+    }
+
+    // std::cout << "num points: cam0 " << points.GetGpu(1).cols << " cam1 " <<
+    //   points.GetGpu(3).cols << " start: " << debug_num_pts[0] << " tracking: " <<
     //   debug_num_pts[1] << " matching: " << debug_num_pts[2] << " ransac: " << debug_num_pts[3] << " detection: " << debug_num_pts[4] << " detection matching: " << debug_num_pts[5]
     //   << std::endl;
 
     // Signal this loop has finished and output the tracked points
-    if (tracked_pts_cam0_t1.size() > 1 && tracked_pts_cam1_t1.size() > 1) {
-      OuputTrackedPoints(tracked_pts_cam0_t0, tracked_pts_cam0_t1, tracked_pts_cam1_t0,
-        tracked_pts_cam1_t1, ids_tracked_t1, imu_msgs);
-      // ProcessPoints(tracked_pts_cam0_t0, tracked_pts_cam0_t1, tracked_pts_cam1_t0,
-      //   tracked_pts_cam1_t1, ids_tracked_t1);
+    if (points.GetCpu(t_c0_t1).size() > 1 && points.GetCpu(t_c1_t1).size() > 1) {
+      OuputTrackedPoints(points, points.ids[ids_t0], imu_msgs, rotation_t0_t1_cam0);
     }
 
     /*********************************************************************
@@ -651,7 +449,7 @@ int ImageProcessor::ProcessThread() {
       d_frame_cam0_t1.download(show_frame);
       if (draw_points_to_frame) {
         cv::cvtColor(show_frame, show_frame_color, cv::COLOR_GRAY2BGR);
-        sensor_interface_->DrawPoints(tracked_pts_cam0_t1, show_frame_color);
+        sensor_interface_->DrawPoints(points.GetCpu(t_c0_t1), show_frame_color);
       } else {
         show_frame_color = show_frame;
       }
@@ -663,7 +461,7 @@ int ImageProcessor::ProcessThread() {
       d_frame_cam1_t1.download(show_frame);
       if (draw_points_to_frame) {
         cv::cvtColor(show_frame, show_frame_color, cv::COLOR_GRAY2BGR);
-        sensor_interface_->DrawPoints(tracked_pts_cam1_t1, show_frame_color);
+        sensor_interface_->DrawPoints(points.GetCpu(t_c1_t1), show_frame_color);
       } else {
         show_frame_color = show_frame;
       }
@@ -673,14 +471,12 @@ int ImageProcessor::ProcessThread() {
     // Set the current t1 values to t0 for the next iteration
     d_frame_cam0_t0 = d_frame_cam0_t1.clone();
     d_frame_cam1_t0 = d_frame_cam1_t1.clone();
-    d_tracked_pts_cam0_t1.upload(tracked_pts_cam0_t1);
-    d_tracked_pts_cam0_t0 = d_tracked_pts_cam0_t1.clone();
-    d_tracked_pts_cam1_t1.upload(tracked_pts_cam1_t1);
-    d_tracked_pts_cam1_t0 = d_tracked_pts_cam1_t1.clone();
-    d_keypoints_cam0_t0 = d_keypoints_cam0_t1.clone();
-    d_keypoints_cam1_t0 = d_keypoints_cam1_t1.clone();
-    std::swap(ids_tracked_t0, ids_tracked_t1); ids_tracked_t1.clear();
-    std::swap(ids_detected_t0, ids_detected_t1); ids_detected_t1.clear();
+    points.CopyToGpu({t_c0_t1, t_c1_t1});
+    points.GetGpu(t_c0_t0) = points.GetGpu(t_c0_t1).clone();
+    points.GetGpu(t_c1_t0) = points.GetGpu(t_c1_t1).clone();
+    points.GetGpu(d_c0_t0) = points.GetGpu(d_c0_t1).clone();
+    points.GetGpu(d_c1_t0) = points.GetGpu(d_c1_t1).clone();
+    points.SetMemoryGpu();
 
     // std::cout << "fps " << 1.0 / static_cast<std::chrono::duration<double> >
     //   ((std::chrono::system_clock::now() - time_end)).count() << std::endl;
@@ -691,57 +487,53 @@ int ImageProcessor::ProcessThread() {
 int ImageProcessor::StereoMatch(cv::Ptr<cv::cuda::SparsePyrLKOpticalFlow> opt,
   cv::cuda::GpuMat &d_frame_cam0,
   cv::cuda::GpuMat &d_frame_cam1,
-  cv::cuda::GpuMat &d_tracked_pts_cam0,
-  cv::cuda::GpuMat &d_tracked_pts_cam1,
+  OpticalFlowPoints &points,
+  std::pair<unsigned int, unsigned int> indices,
   cv::cuda::GpuMat &d_status) {
 
-  if (d_tracked_pts_cam0.cols == 0) {
-    d_tracked_pts_cam1.release();
+  if (points.GetGpu(indices.first).empty()) {
+    points.GetGpu(indices.second).release();
     d_status.release();
     return 1;
   }
 
-  std::vector<cv::Point2f> tracked_pts_cam0_t1;
-  std::vector<cv::Point2f> tracked_pts_cam1_t1;
-  d_tracked_pts_cam0.download(tracked_pts_cam0_t1);
-
-  // std::cout << "Rotation " << R_cam0_cam1_ << std::endl;
-
-  cv::undistortPoints(tracked_pts_cam0_t1, tracked_pts_cam1_t1,
-    K_cam0_, D_cam0_, R_cam0_cam1_);
+  std::vector<cv::Point2f> calib_pts;
+  cv::undistortPoints(points.GetCpu(indices.first), calib_pts, K_cam0_, D_cam0_, R_cam0_cam1_);
 
   std::vector<cv::Point3f> homogenous_pts;
-  cv::convertPointsToHomogeneous(tracked_pts_cam1_t1, homogenous_pts);
+  cv::convertPointsToHomogeneous(calib_pts, homogenous_pts);
 
   cv::projectPoints(homogenous_pts, cv::Vec3d(0, 0, 0), cv::Vec3d(0, 0, 0), K_cam1_, D_cam1_,
-    tracked_pts_cam1_t1);
+    points.GetCpu(indices.second));
+  // We updated the CPU version so flag that the current value is in CPU memory
+  points.memory_locations[indices.second] = OpticalFlowPoints::MEMORY_LOCATION::CPU;
 
-  d_tracked_pts_cam1.upload(tracked_pts_cam1_t1);
+  points.CopyToGpu({indices.first, indices.second});
 
-  opt->calc(d_frame_cam0, d_frame_cam1, d_tracked_pts_cam0, d_tracked_pts_cam1, d_status);
+  opt->calc(d_frame_cam0, d_frame_cam1, points.GetGpu(indices.first),
+    points.GetGpu(indices.second), d_status);
 
   // Check if we have zero tracked points, this is a corner case and these variables need
   // to be reset to prevent errors in sizing, calc() does not return all zero length vectors
-  if (d_tracked_pts_cam1.cols == 0) {
-    d_tracked_pts_cam0.release();
-    d_tracked_pts_cam1.release();
+  if (points.GetGpu(indices.second).empty()) {
+    points.GetGpu(indices.second).release();
+    points.GetGpu(indices.first).release();
     d_status.release();
     return 0;
   }
 
-  d_tracked_pts_cam1.download(tracked_pts_cam1_t1);
-
-  if (RemovePointsOutOfFrame(d_frame_cam1.size(), d_tracked_pts_cam1, d_status)) {
+  // Mark the points out of the frame
+  if (!points.MarkPointsOutOfFrame(d_frame_cam1.size(), indices.second, d_status)) {
     std::cout << "RemovePointsOutOfFrame failed 2\n" << std::endl;
     return -1;
   }
 
   std::vector<cv::Point2f> tracked_pts_cam0_t1_undistorted(0);
   std::vector<cv::Point2f> tracked_pts_cam1_t1_undistorted(0);
-  cv::undistortPoints(tracked_pts_cam0_t1,
-    tracked_pts_cam0_t1_undistorted, K_cam0_, D_cam0_);
-  cv::undistortPoints(tracked_pts_cam1_t1,
-    tracked_pts_cam1_t1_undistorted, K_cam1_, D_cam1_);
+  cv::undistortPoints(points.GetCpu(indices.first), tracked_pts_cam0_t1_undistorted, K_cam0_,
+    D_cam0_);
+  cv::undistortPoints(points.GetCpu(indices.second), tracked_pts_cam1_t1_undistorted, K_cam1_,
+    D_cam1_);
 
 
   std::vector<cv::Vec3f> pts_cam0_und(tracked_pts_cam0_t1_undistorted.size());
