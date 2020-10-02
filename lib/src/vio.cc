@@ -366,8 +366,8 @@ int Vio::CalculatePoseUpdate(const ImagePoints &pts, const Eigen::Matrix3d &imu_
   }
 
 
-  std::cout << "delta update: \n" << pose_update << std::endl;
-  std::cout << "output transformation: \n" << pose_ << std::endl;
+  // std::cout << "delta update: \n" << pose_update << std::endl;
+  // std::cout << "output transformation: \n" << pose_ << std::endl;
 
   // pose_history_[Modulo(static_cast<int>(point_history_index_), history_size)] = pose_;
   // point_history_index_ = (point_history_index_ >= history_size - 1) ? 0 : point_history_index_ + 1;

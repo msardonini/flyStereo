@@ -62,8 +62,6 @@ int SensorInterface::GetSynchronizedData(cv::cuda::GpuMat &d_frame_cam0,
   uint64_t ts_frame1 = cam1_->GetTimestampNs();
   double time_diff = static_cast<double>(abs(static_cast<int64_t>(ts_frame1 - ts_frame0))) / 1.0E9;
 
-  // std::cout << "TIME DIFF: " << time_diff << std::endl << std::endl;
-
   imu_data.clear();
   int ret = AssociateImuData(imu_data, current_frame_time);
   image_counter_++;
@@ -180,7 +178,7 @@ int SensorInterface::GenerateImuXform(const std::vector<mavlink_imu_t> &imu_msgs
       } else if (i == imu_msgs.size() - 1) {
         // If we don't have the current time, just use the same dt at the last iteration
         if (current_frame_time != 0) {
-          // delta_t = current_frame_time - imu_msgs[i - 1].timestamp_us;
+          delta_t = current_frame_time - imu_msgs[i - 1].timestamp_us;
         }
       } else {
         delta_t = imu_msgs[i].timestamp_us - imu_msgs[i - 1].timestamp_us; 

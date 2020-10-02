@@ -23,7 +23,7 @@ endif()
 
 
 add_definitions(-march=native)
-add_library(fly_stereo_lib SHARED
+add_library(fly_stereo_lib
   src/image_processor.cc
   src/vio.cc
   src/kalman_filter.cc
