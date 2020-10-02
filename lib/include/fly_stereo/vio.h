@@ -32,11 +32,8 @@ class Vio {
   inline unsigned int Modulo( int value, unsigned m);
   int SaveInliers(std::vector<int> inliers, std::vector<int> pt_ids, opengv::points_t pts);
 
-
-  int BinFeatures(const ImagePoints &pts, std::map<int, std::vector<ImagePoint> > &grid);
-
-  int CalculatePoseUpdate(const std::map<int, std::vector<ImagePoint> > &grid,
-  const Eigen::Matrix3d &imu_rotation, Eigen::Matrix4d &pose_update);
+  int CalculatePoseUpdate(const ImagePoints &pts, const Eigen::Matrix3d &imu_rotation,
+  Eigen::Matrix4d &pose_update);
 
   int ProcessImu(const std::vector<mavlink_imu_t> &imu_pts);
   int ProcessVio(const Eigen::Matrix4d &pose_update, uint64_t image_timestamp,

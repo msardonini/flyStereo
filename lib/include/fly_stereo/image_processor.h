@@ -124,6 +124,7 @@ class ImageProcessor {
   // config params for LK optical flow
   int window_size_;
   int max_pyramid_level_;
+  int max_iters_;
 
   // Config params for goodFeaturesToTrack
   int max_corners_;
@@ -136,6 +137,11 @@ class ImageProcessor {
 
   // Config Params for RANSAC
   double ransac_threshold_;
+
+  // Binning Params
+  unsigned int bins_width_;
+  unsigned int bins_height_;
+  unsigned int max_pts_in_bin_;
 
   // Stereo Camera Parameters
   cv::Matx33d K_cam0_;

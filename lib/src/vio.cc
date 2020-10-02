@@ -25,19 +25,13 @@ constexpr unsigned int min_num_matches = 25;
 Vio::Vio(const YAML::Node &input_params, const YAML::Node &stereo_calibration) :
   kf_(input_params["kalman_filter"]) {
 
+  // Parse params for the VIO node
   std::vector<double> vio_calibration_vec = input_params["vio_calibration"].as<
     std::vector<double>>();
   vio_calibration_ = Eigen::Matrix<double, 3, 1>(vio_calibration_vec.data());
 
-  // Parse params for the VIO node
-  image_width_ = input_params["image_width"].as<unsigned int>();
-  image_height_= input_params["image_height"].as<unsigned int>();
-  bins_width_ = input_params["bins_width"].as<unsigned int>();
-  bins_height_ = input_params["bins_height"].as<unsigned int>();
-  max_pts_in_bin_ = input_params["max_pts_in_bin"].as<unsigned int>();
 
-  std::vector<double> interface_vec = stereo_calibration["K0"]["data"].as<
-    std::vector<double>>();
+  std::vector<double> interface_vec = stereo_calibration["K0"]["data"].as<std::vector<double>>();
   K_cam0_ = cv::Matx33d(interface_vec.data());
 
   interface_vec = stereo_calibration["K1"]["data"].as<std::vector<double>>();
@@ -111,15 +105,8 @@ int Vio::ProcessPoints(const ImagePoints &pts, vio_t &vio) {
     std::cout << "Mat2: " << R_imu_cam0_eigen_ << std::endl;
   }
 
-  // All points are placed in bins, sections of the image. The key to this map is the row-major
-  // index of the bin. The value is a vector of image points, which holds points from both cameras
-  // in the current frame and the previos one
-  std::map<int, std::vector<ImagePoint> > grid;
-
-  BinFeatures(pts, grid);
-
   Eigen::Matrix4d pose_update;
-  if (CalculatePoseUpdate(grid, R_imu_cam0_eigen_.transpose() * pts.R_t0_t1_cam0,
+  if (CalculatePoseUpdate(pts, R_imu_cam0_eigen_.transpose() * pts.R_t0_t1_cam0,
     pose_update) == 0) {
     // TODO: add imu prediction and vo measurement update
     // ProcessImu(pts.imu_pts);
@@ -182,43 +169,18 @@ int Vio::ProcessVio(const Eigen::Matrix4d &pose_update, uint64_t image_timestamp
   return 0;
 }
 
-int Vio::BinFeatures(const ImagePoints &pts, std::map<int, std::vector<ImagePoint> > &grid) {
-  // Place all of our image points in our map
-  // First, calculate the row-major index of the bin, this will be the map's key
-  for (int i = 0; i < pts.pts.size(); i++) {
-    unsigned int bin_row = pts.pts[i].cam0_t0[1] * bins_height_ / image_height_;
-    unsigned int bin_col = pts.pts[i].cam0_t0[0] * bins_width_ / image_width_;
-
-    unsigned int index = bins_width_ * bin_row + bin_col;
-    grid[index].push_back(pts.pts[i]);
-  }
-
-  // Now that the grid is full, delete points that exceed the threshold of points per bin
-  for (auto it = grid.begin(); it != grid.end(); it++) {
-    if (it->second.size() >= max_pts_in_bin_) {
-      unsigned int num_pts_delete = it->second.size() - max_pts_in_bin_;
-      it->second.erase(it->second.end() - num_pts_delete, it->second.end());
-    }
-  }
-
-  return 0;
-}
-
 inline unsigned int Vio::Modulo(int value, unsigned m) {
-    int mod = value % (int)m;
-    if (value < 0) {
-        mod += m;
-    }
-    return mod;
+  int mod = value % (int)m;
+  if (value < 0) {
+      mod += m;
+  }
+  return mod;
 }
 
-int Vio::CalculatePoseUpdate(const std::map<int, std::vector<ImagePoint> > &grid,
-  const Eigen::Matrix3d &imu_rotation, Eigen::Matrix4d &pose_update) {
+int Vio::CalculatePoseUpdate(const ImagePoints &pts, const Eigen::Matrix3d &imu_rotation,
+  Eigen::Matrix4d &pose_update) {
   // Calculate the number of points in the grid
-  unsigned int num_pts = 0;
-  for (auto it = grid.begin(); it != grid.end(); it++) {
-    num_pts += it->second.size();
-  }
+  const unsigned int num_pts = pts.pts.size();
 
   // Define vectors to hold the points we will use for processing
   std::vector<cv::Point2d> pts_cam0_t0(num_pts);
@@ -228,16 +190,12 @@ int Vio::CalculatePoseUpdate(const std::map<int, std::vector<ImagePoint> > &grid
   std::vector<int> pts_ids(num_pts);
 
   // Take our points out of the grid and put into vectors for processing
-  unsigned int index = 0;
-  for (auto it = grid.begin(); it != grid.end(); it++) {
-    for (const ImagePoint &pt : it->second) {
-      pts_cam0_t0[index] = cv::Point2d(pt.cam0_t0[0], pt.cam0_t0[1]);
-      pts_cam0_t1[index] = cv::Point2d(pt.cam0_t1[0], pt.cam0_t1[1]);
-      pts_cam1_t0[index] = cv::Point2d(pt.cam1_t0[0], pt.cam1_t0[1]);
-      pts_cam1_t1[index] = cv::Point2d(pt.cam1_t1[0], pt.cam1_t1[1]);
-      pts_ids[index] = pt.id;
-      index++;
-    }
+    for (int i = 0; i < num_pts; i++) {
+      pts_cam0_t0[i] = cv::Point2d(pts.pts[i].cam0_t0[0], pts.pts[i].cam0_t0[1]);
+      pts_cam0_t1[i] = cv::Point2d(pts.pts[i].cam0_t1[0], pts.pts[i].cam0_t1[1]);
+      pts_cam1_t0[i] = cv::Point2d(pts.pts[i].cam1_t0[0], pts.pts[i].cam1_t0[1]);
+      pts_cam1_t1[i] = cv::Point2d(pts.pts[i].cam1_t1[0], pts.pts[i].cam1_t1[1]);
+      pts_ids[i] = pts.pts[i].id;
   }
 
   // Check to make sure all of our vectors have the same number of points, otherwise, something

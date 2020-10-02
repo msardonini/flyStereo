@@ -232,6 +232,55 @@ struct OpticalFlowPoints {
     }
   }
 
+
+  bool BinAndFilterPoints(const unsigned int index_vec, const unsigned int index_ids,
+    const cv::Size &framesize, const unsigned int bins_width, const unsigned int bins_height, const unsigned int max_pts_in_bin, std::vector<unsigned char> &status) {
+    // Save a copy of where points are saved so we can revert after
+    MEMORY_LOCATION current_mem = memory_locations[index_vec];
+    // Make sure the vectors we want to use are on the CPU
+    if (!CopyToCpu({index_vec})) {
+      return false;
+    }
+
+    status.resize(points[index_vec].size());
+    // Initially set all the statuses to true
+    for (int i = 0; i < status.size(); i++) {
+      status[i] = 1;
+    }
+
+    // Place all of our image points in our map
+    // First, calculate the row-major index of the bin, this will be the map's key
+    std::map<int, std::vector<std::tuple<unsigned int, unsigned int, cv::Point2f> > > grid;
+    for (unsigned int i = 0; i < points[index_vec].size(); i++) {
+      unsigned int bin_row = points[index_vec][i].y * bins_height / framesize.height;
+      unsigned int bin_col = points[index_vec][i].x * bins_width / framesize.width;
+
+      unsigned int index = bins_width * bin_row + bin_col;
+      grid[index].push_back({i, ids[index_ids][i], points[index_vec][i]});
+    }
+
+    // Now that the grid is full, delete points that exceed the threshold of points per bin
+    for (auto it = grid.begin(); it != grid.end(); it++) {
+      if (it->second.size() >= max_pts_in_bin) {
+
+        // Sort each vector in the grid by the age of the point (done by ID) lower IDs are older
+        // points
+        std::sort(it->second.begin(), it->second.end(), [](auto const &a, auto const &b)
+          { return std::get<1>(a) > std::get<1>(b); });
+
+        // Mark the points that should be deleted
+        for (int i = max_pts_in_bin; i < it->second.size(); i++) {
+          status[std::get<0>(it->second[i])] = 0;
+        }
+      }
+    }
+
+    // Copy the vector back to the original memory location
+    CopyTo({index_vec}, {current_mem});
+    return true;
+  }
+
+
   // Access
   std::vector<cv::Point2f>& GetCpu(unsigned int i) {
     if (memory_locations[i] == MEMORY_LOCATION::GPU) {

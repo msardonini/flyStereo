@@ -4,13 +4,6 @@ fly_stereo:
   log_dir: /home/msardonini/log
   vio:
     vio_calibration: [-0.0021, 0.0004, -0.0012]
-    image_width: 1280
-    image_height: 720
-    # bins_width: 40
-    # bins_height: 30
-    bins_width: 20
-    bins_height: 15
-    max_pts_in_bin: 2
     kalman_filter:
         dt: 0.2
         sigma_a: 0.1
@@ -33,7 +26,34 @@ fly_stereo:
     # device: /tmp/imu.dat
     # replay_mode: true
     replay_imu_data_file: <log_dir>/imu.dat
+
+  # All params for the image processing process
   image_processor:
+    draw_points_to_frame: true
+    max_error_counter: 10
+
+    thresholds:
+      stereo_threshold: 35
+      ransac_threshold: 5
+
+    goodFeaturesToTrack:
+      max_corners: 100
+      quality_level: 0.3
+      min_dist: 10.0
+
+    calcOpticalFlowPyrLK:
+      window_size: 21
+      max_pyramid_level: 3
+      max_iters: 30
+
+    binning:
+      bins_width: 20
+      bins_height: 15
+      max_pts_in_bin: 2
+
+    # Minumum time before two triggers are allowed
+    min_camera_dt_ms: 40
+
     CameraTrigger:
       chip_num: 0
       pin_num: 79
@@ -83,22 +103,6 @@ fly_stereo:
       hardware_trigger_mode: true
       gain: 5
       exposure_time: 1500
-    draw_points_to_frame: true
-    max_error_counter: 10
-    stereo_threshold: 35
-    ransac_threshold: 5
-
-    goodFeaturesToTrack:
-      max_corners: 100
-      quality_level: 0.3
-      min_dist: 10.0
-
-    calcOpticalFlowPyrLK:
-      window_size: 21
-      max_pyramid_level: 5
-
-    # Minumum time before two triggers are allowed
-    min_camera_dt_ms: 40
 
   stereo_calibration:
     R_imu_cam0: [3.14, 0.0, 0.0]

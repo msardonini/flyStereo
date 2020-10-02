@@ -1,5 +1,3 @@
-
-
 #include "fly_stereo/image_processor.h"
 
 #include <random>
@@ -26,14 +24,24 @@ ImageProcessor::ImageProcessor(const YAML::Node &input_params,
   quality_level_ = features_params["quality_level"].as<float>();
   min_dist_ = features_params["min_dist"].as<float>();
 
+
+  YAML::Node binning = input_params["binning"];
+  bins_width_ = binning["bins_width"].as<unsigned int>();
+  bins_height_ = binning["bins_height"].as<unsigned int>();
+  max_pts_in_bin_ = binning["max_pts_in_bin"].as<unsigned int>();
+
   // Params for OpenCV function calcOpticalFlowPyrLK
-  YAML::Node opticall_flow_params = input_params["calcOpticalFlowPyrLK"];
-  window_size_ = features_params["max_corners"].as<int>();
-  max_pyramid_level_ = features_params["max_corners"].as<int>();
+  YAML::Node optical_flow_params = input_params["calcOpticalFlowPyrLK"];
+  window_size_ = optical_flow_params["window_size"].as<int>();
+  max_pyramid_level_ = optical_flow_params["max_pyramid_level"].as<int>();
+  max_iters_ = optical_flow_params["max_iters"].as<int>();
 
   max_error_counter_ = input_params["max_error_counter"].as<int>();
-  stereo_threshold_ = input_params["stereo_threshold"].as<double>();
-  ransac_threshold_ = input_params["ransac_threshold"].as<double>();
+
+  // Thresholds
+  YAML::Node thresholds = input_params["thresholds"];
+  stereo_threshold_ = thresholds["stereo_threshold"].as<double>();
+  ransac_threshold_ = thresholds["ransac_threshold"].as<double>();
 
   // Load the stereo camera calibration
   std::vector<double> interface_vec = stereo_calibration["K0"]["data"].as<
@@ -231,11 +239,14 @@ int ImageProcessor::ProcessThread() {
   // cv::Ptr<cv::cuda::FastFeatureDetector> detector_ptr = cv::cuda::FastFeatureDetector::create();
 
   cv::Ptr<cv::cuda::SparsePyrLKOpticalFlow> d_opt_flow_cam0 = cv::cuda::
-    SparsePyrLKOpticalFlow::create(cv::Size(21, 21), 3, 30, true);
+    SparsePyrLKOpticalFlow::create(cv::Size(window_size_, window_size_), max_pyramid_level_,
+      max_iters_, true);
   cv::Ptr<cv::cuda::SparsePyrLKOpticalFlow> d_opt_flow_stereo_t0 = cv::cuda::
-    SparsePyrLKOpticalFlow::create(cv::Size(21, 21), 3, 30, true);
+    SparsePyrLKOpticalFlow::create(cv::Size(window_size_, window_size_), max_pyramid_level_,
+      max_iters_, true);
   cv::Ptr<cv::cuda::SparsePyrLKOpticalFlow> d_opt_flow_stereo_t1 = cv::cuda::
-    SparsePyrLKOpticalFlow::create(cv::Size(21, 21), 3, 30, true);
+    SparsePyrLKOpticalFlow::create(cv::Size(window_size_, window_size_), max_pyramid_level_,
+      max_iters_, true);
 
   while (is_running_.load()) {
     uint64_t current_time;
@@ -266,13 +277,29 @@ int ImageProcessor::ProcessThread() {
     // iteration. Points that pass through all the outlier checks will remain as tracked points
     points.AppendGpuMatColwise(d_c0_t0, t_c0_t0);
     points.AppendGpuMatColwise(d_c1_t0, t_c1_t0);
-    points.ids[ids_t0].insert(std::end(points.ids[ids_t0]), std::begin(points.ids[ids_t1]), std::end(
-      points.ids[ids_t1]));
+    points.ids[ids_t0].insert(std::end(points.ids[ids_t0]), std::begin(points.ids[ids_t1]),
+      std::end(points.ids[ids_t1]));
+
+    std::vector<unsigned char> bin_status;
+
+    if (points.GetGpu(t_c0_t0).cols > 2) {
+      points.BinAndFilterPoints(t_c0_t0, ids_t0, d_frame_cam0_t1.size(), bins_width_, bins_height_,
+        max_pts_in_bin_, bin_status);
+      if (!points.RemoveOutliers(bin_status, {t_c0_t0, t_c1_t0}, {ids_t0})) {
+
+        std::cout << "status size " << bin_status.size() << std::endl;
+        std::cout << "0 size " << points.GetCpu(0).size() << std::endl;
+        std::cout << "RemoveOutliers failed after Binning\n" << std::endl;
+        return -1;
+      }
+    }
 
     // Make a prediction of where the points will be in the current image given the IMU data
     if (retval == 0) {
-      UpdatePointsViaImu(points.GetGpu(t_c0_t0), rotation_t0_t1_cam0, K_cam0_, points.GetGpu(t_c0_t1));
-      UpdatePointsViaImu(points.GetGpu(t_c1_t0), rotation_t0_t1_cam1, K_cam1_, points.GetGpu(t_c1_t1));
+      UpdatePointsViaImu(points.GetGpu(t_c0_t0), rotation_t0_t1_cam0, K_cam0_,
+        points.GetGpu(t_c0_t1));
+      UpdatePointsViaImu(points.GetGpu(t_c1_t0), rotation_t0_t1_cam1, K_cam1_,
+        points.GetGpu(t_c1_t1));
     } else {
       std::cerr << "Error receiving IMU transform" << std::endl;
       continue;
@@ -300,8 +327,8 @@ int ImageProcessor::ProcessThread() {
 
 
       cv::cuda::GpuMat d_status;
-      d_opt_flow_cam0->calc(d_frame_cam0_t0, d_frame_cam0_t1, points.GetGpu(t_c0_t0), points.GetGpu(t_c0_t1),
-        d_status);
+      d_opt_flow_cam0->calc(d_frame_cam0_t0, d_frame_cam0_t1, points.GetGpu(t_c0_t0),
+        points.GetGpu(t_c0_t1), d_status);
 
       // Check if we have zero tracked points, this is a corner case and these variables need
       // to be reset to prevent errors in sizing, calc() does not return all zero length vectors
@@ -369,12 +396,12 @@ int ImageProcessor::ProcessThread() {
       points.CopyToCpu({t_c0_t0, t_c0_t1, t_c1_t0, t_c1_t1});
 
       std::vector<unsigned char> cam0_ransac_inliers(0);
-      int ret1 = twoPointRansac(points.GetCpu(t_c0_t0), points.GetCpu(t_c0_t1), rotation_t0_t1_cam0.t(),
-        K_cam0_, D_cam0_, ransac_threshold_, 0.99, cam0_ransac_inliers);
+      int ret1 = twoPointRansac(points.GetCpu(t_c0_t0), points.GetCpu(t_c0_t1),
+        rotation_t0_t1_cam0.t(), K_cam0_, D_cam0_, ransac_threshold_, 0.99, cam0_ransac_inliers);
 
       std::vector<unsigned char> cam1_ransac_inliers(0);
-      int ret2 = twoPointRansac(points.GetCpu(t_c1_t0), points.GetCpu(t_c1_t1), rotation_t0_t1_cam1.t(),
-        K_cam1_, D_cam1_, ransac_threshold_, 0.99, cam1_ransac_inliers);
+      int ret2 = twoPointRansac(points.GetCpu(t_c1_t0), points.GetCpu(t_c1_t1),
+        rotation_t0_t1_cam1.t(), K_cam1_, D_cam1_, ransac_threshold_, 0.99, cam1_ransac_inliers);
 
       if (ret1 == 0 && ret2 == 0) {
         // std::cout <<" before RANSAC " << tracked_pts_cam0_t1.size() << std::endl;
@@ -398,12 +425,14 @@ int ImageProcessor::ProcessThread() {
     /*********************************************************************
     * Detect new features for the next iteration
     *********************************************************************/
-    DetectNewFeatures(detector_ptr, d_frame_cam0_t1, points.GetGpu(t_c0_t1), points.GetGpu(d_c0_t1));
+    DetectNewFeatures(detector_ptr, d_frame_cam0_t1, points.GetGpu(t_c0_t1),
+      points.GetGpu(d_c0_t1));
     debug_num_pts[4] = points.GetGpu(d_c0_t1).cols;
     // Match the detected features in the second camera
     points.GetGpu(d_c1_t1).release();
     cv::cuda::GpuMat d_status;
-    StereoMatch(d_opt_flow_stereo_t1, d_frame_cam0_t1, d_frame_cam1_t1, points, {d_c0_t1, d_c1_t1}, d_status);
+    StereoMatch(d_opt_flow_stereo_t1, d_frame_cam0_t1, d_frame_cam1_t1, points, {d_c0_t1, d_c1_t1},
+      d_status);
 
     if (points.GetGpu(d_c0_t1).cols != 0) {
       if (!points.MarkPointsOutOfFrame(d_frame_cam0_t1.size(), d_c1_t1, d_status)) {
@@ -433,7 +462,8 @@ int ImageProcessor::ProcessThread() {
 
     // std::cout << "num points: cam0 " << points.GetGpu(1).cols << " cam1 " <<
     //   points.GetGpu(3).cols << " start: " << debug_num_pts[0] << " tracking: " <<
-    //   debug_num_pts[1] << " matching: " << debug_num_pts[2] << " ransac: " << debug_num_pts[3] << " detection: " << debug_num_pts[4] << " detection matching: " << debug_num_pts[5]
+    //   debug_num_pts[1] << " matching: " << debug_num_pts[2] << " ransac: " << debug_num_pts[3]
+    //    << " detection: " << debug_num_pts[4] << " detection matching: " << debug_num_pts[5]
     //   << std::endl;
 
     // Signal this loop has finished and output the tracked points

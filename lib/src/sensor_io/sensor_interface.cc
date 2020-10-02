@@ -180,7 +180,7 @@ int SensorInterface::GenerateImuXform(const std::vector<mavlink_imu_t> &imu_msgs
       } else if (i == imu_msgs.size() - 1) {
         // If we don't have the current time, just use the same dt at the last iteration
         if (current_frame_time != 0) {
-          delta_t = current_frame_time - imu_msgs[i - 1].timestamp_us;
+          // delta_t = current_frame_time - imu_msgs[i - 1].timestamp_us;
         }
       } else {
         delta_t = imu_msgs[i].timestamp_us - imu_msgs[i - 1].timestamp_us; 
