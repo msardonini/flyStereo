@@ -1,6 +1,7 @@
 #include "fly_stereo/sensor_io/camera.h"
 
 #include <iostream>
+#include <thread>
 
 #include <opencv2/cudaarithm.hpp>
 
@@ -66,9 +67,18 @@ int Camera::Init() {
 
   // Enable the hardware trigger mode if requested
   if (hardware_trigger_mode_) {
+    // Sleep for a bit to allow some time for the camera to wake up and start to receive messages
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
     std::string trigger_cmd("v4l2-ctl -d " + std::to_string(device_num_) +
       " -c trigger_mode=1");
     system(trigger_cmd.c_str());
+
+    // Get all of the non-triggered frames out of the pipeline
+    if (use_gstreamer_pipeline_) {
+      cv::Mat not_used;
+      while (GetFrameGst(not_used) != 1) {}
+    }
   }
 
   UpdateGain();
@@ -79,12 +89,11 @@ int Camera::Init() {
 }
 
 int Camera::UpdateGain() {
-  std::string gain_cmd("v4l2-ctl -d " + std::to_string(device_num_) +
-    " -c gain=" + std::to_string(gain_));
+  std::string gain_cmd("v4l2-ctl -d " + std::to_string(device_num_) + " -c gain=" +
+    std::to_string(gain_));
   system(gain_cmd.c_str());
   return 0;
 }
-
 
 int Camera::UpdateExposure() {
   // Set hard limits on the min/max values of the camera
@@ -119,7 +128,7 @@ int Camera::InitSink(bool is_color) {
 
 int Camera::GetFrame(cv::Mat &frame) {
   if (use_gstreamer_pipeline_) {
-    GetFrameGst(frame);
+    return GetFrameGst(frame);
   } else {
     if (!cam_src_->read(frame)) {
       return -1;
@@ -253,11 +262,15 @@ int Camera::InitGstPipeline() {
 int Camera::GetFrameGst(cv::Mat &frame) {
   // Pull in the next sample
   GstAppSink *appsink = reinterpret_cast<GstAppSink *>(gst_params_.appsink);
-  GstSample *sample = gst_app_sink_pull_sample(appsink);
 
-  // At EOS this will return NULL
+  GstSample *sample = gst_app_sink_try_pull_sample (appsink, 1E9);  // timeout of 1 second
+  // At EOS or timeout this will return NULL
   if (sample == NULL) {
-    return -1;
+    if (gst_app_sink_is_eos(appsink)) {
+      return -1;
+    } else {  // Else this was a timeout
+      return 1;
+    }
   }
 
   // Take the buffer from the supplied sample
