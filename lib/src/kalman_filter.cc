@@ -39,13 +39,6 @@ void KalmanFilter::Init(const YAML::Node &input_params) {
   
   std::vector<double> r_vec = input_params["r"].as<std::vector<double> >();
   r_ = Eigen::Matrix<double, num_measurements, num_measurements, Eigen::RowMajor>(r_vec.data());
-
-
-  std::cout << "KalmanFilter Matrices:" << std::endl;
-  std::cout << "f: " << f_ << std::endl;
-  std::cout << "q: " << q_ << std::endl;
-  std::cout << "h: " << h_ << std::endl;
-  std::cout << "r: " << r_ << std::endl;
 }
 
 void KalmanFilter::Predict(double dt) {

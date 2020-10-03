@@ -111,8 +111,14 @@ int main(int argc, char* argv[]) {
     return -1;
   }
 
+
   // Parse the yaml file with our configuration parameters
   YAML::Node fly_stereo_params = YAML::LoadFile(config_file)["fly_stereo"];
+
+  // If we are running in logging mode, change the log directory in the config file
+  if (fly_stereo_params["record_mode"].as<bool>()) {
+    UpdateLogDirectory(fly_stereo_params);
+  }
 
   // Initialze the mavlink reader object
   MavlinkReader mavlink_reader;
@@ -124,11 +130,6 @@ int main(int argc, char* argv[]) {
         break;
       }
     }
-  }
-
-  // If we are running in logging mode, change the log directory in the config file
-  if (fly_stereo_params["record_mode"].as<bool>()) {
-    UpdateLogDirectory(fly_stereo_params);
   }
 
   ImageProcessor image_processor(fly_stereo_params["image_processor"], 
