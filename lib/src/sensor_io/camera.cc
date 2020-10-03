@@ -158,20 +158,22 @@ int Camera::GetFrame(cv::cuda::GpuMat &frame) {
       cv::cuda::meanStdDev(frame, mean, st_dev);
 
       if (mean(0) < pixel_range_limits_[0]) {
-        if (exposure_time_ >= exposure_limits_[1]) {
+        // If the image is too dark then update the exposure time first, then gain when that maxes
+        if (exposure_time_ < exposure_limits_[1] - 50) {
+          exposure_time_ += 50;
+          UpdateExposure();
+        else {
+          // Only update the gain within its limits
           if (gain_ < 15) {
             gain_++;
             UpdateGain();
-          }
-        } else {
-          exposure_time_ += 50;
-          UpdateExposure();
         }
       } else if (mean(0) > pixel_range_limits_[1]) {
+        // If the image is too bright lower the gain first, then move to exposure time
         if (gain_ > 1) {
           gain_--;
           UpdateGain();
-        } else if (exposure_time_ <= exposure_limits_[0]) {
+        } else if (exposure_time_ > exposure_limits_[0] + 50) {
           exposure_time_ -= 50;
           UpdateExposure();
         }
