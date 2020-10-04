@@ -7,6 +7,7 @@
 #include "yaml-cpp/yaml.h"
 #include "opencv2/core.hpp"
 #include "opencv2/videoio.hpp"
+#include "opencv2/core/cuda.hpp"
 #include "gst/gst.h"
 #include "gst/app/gstappsink.h"
 #include "gst/video/video.h"
@@ -40,6 +41,7 @@ class Camera {
 
   int GetFrame(cv::Mat &frame);
   int SendFrame(cv::Mat &frame);
+  int SendFrame(cv::cuda::GpuMat &d_frame);
   int GetFrame(cv::cuda::GpuMat &frame);
 
   bool OutputEnabled() {

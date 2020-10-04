@@ -86,8 +86,8 @@ fly_stereo:
       width: 1280
       height: 720
       hardware_trigger_mode: true
-      gain: 3
-      exposure_time: 1500
+      gain: 1
+      exposure_time: 500
     Camera1:
       gstreamer_pipeline:
         enable: true
@@ -108,8 +108,8 @@ fly_stereo:
       width: 1280
       height: 720
       hardware_trigger_mode: true
-      gain: 3
-      exposure_time: 1500
+      gain: 1
+      exposure_time: 500
 
   stereo_calibration:
     R_imu_cam0: [3.14, 0.0, 0.0]

@@ -51,11 +51,14 @@ int SensorInterface::GetSynchronizedData(cv::cuda::GpuMat &d_frame_cam0,
   camera_trigger_->TriggerCamera();
   last_trigger_time_ = std::chrono::steady_clock::now();
 
-  int ret_frame = cam0_->GetFrame(d_frame_cam0);
-  ret_frame |= cam1_->GetFrame(d_frame_cam1);
-  if (ret_frame) {
-      image_counter_++;
-      return -1;
+  int ret_frame0 = cam0_->GetFrame(d_frame_cam0);
+  int ret_frame1 = cam1_->GetFrame(d_frame_cam1);
+  if (ret_frame0 < 0 || ret_frame1 < 0) {
+    std::cerr << "Error getting frame from camera" << std::endl;
+    image_counter_++;
+    return -1;
+  } else if (ret_frame0 > 0 || ret_frame1 > 0) {
+    return 1;
   }
 
   uint64_t ts_frame0 = cam0_->GetTimestampNs();

@@ -8,9 +8,9 @@
 
 #include "opencv2/core.hpp"
 #include "opencv2/highgui.hpp"
+#include "opencv2/core/cuda.hpp"
 #include "yaml-cpp/yaml.h"
-#include "fly_stereo/sensor_io/camera.h"
-#include "fly_stereo/sensor_io/camera_trigger.h"
+#include "fly_stereo/sensor_io/sensor_interface.h"
 
 char get_user_input(int timeout_s, int timout_us) {
   fd_set fdset;
@@ -40,15 +40,18 @@ char get_user_input(int timeout_s, int timout_us) {
 
 int main(int argc, char *argv[]) {
   // Argument params
-  std::string config_file;
   int image_counter = 0;
   bool user_input = false;
 
+  std::string config_file, save_dir;
   int opt;
-  while((opt = getopt(argc, argv, "c:n:")) != -1) {
+  while((opt = getopt(argc, argv, "c:n:s:")) != -1) {
     switch(opt) {
       case 'c':
         config_file = std::string(optarg);
+        break;
+      case 's':
+        save_dir = std::string(optarg);
         break;
       case 'n':
         image_counter = std::stoi(optarg);
@@ -61,47 +64,36 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  YAML::Node params = YAML::LoadFile(config_file)["acquire_calib_images"];
-  Camera cam0(params["Camera0"]);
-  Camera cam1(params["Camera1"]);
-  CameraTrigger camera_trigger(params["CameraTrigger"]);
-  if (cam0.Init()) {
-    std::cerr << "failed to init camera 0" << std::endl;
+  if (config_file.empty()) {
+    std::cerr << "Need to provide -c config_file" << std::endl;
+    return -1;
+  } else if (save_dir.empty()) {
+    std::cerr << "Need to provide -s save_dir" << std::endl;
     return -1;
   }
 
-  if (cam1.Init()) {
-    std::cerr << "failed to init camera 1" << std::endl;
-    return -1;
-  }
+  YAML::Node params = YAML::LoadFile(config_file)["fly_stereo"];
 
+  std::unique_ptr<SensorInterface> sensor_interface = std::make_unique<SensorInterface>();
+  sensor_interface->Init(params["image_processor"]);
 
-  if (camera_trigger.Init()) {
-    std::cerr << "failed to init camera trigger" << std::endl;
-    return -1;
-  }
-  // if (cam0.Init() || cam1.Init() || camera_trigger.Init()) {
-  //   std::cerr << "failed to init cameras" << std::endl;
-  //   return -1;
-  // }
-
-  cv::Mat frame_cam0, frame_cam1;
-  std::experimental::filesystem::path save_dir(params["save_dir"].as<std::
-    string>());
-  std::experimental::filesystem::create_directory(save_dir);
+  cv::cuda::GpuMat d_frame_cam0, d_frame_cam1;
+  std::experimental::filesystem::path save_dir_fp(save_dir);
+  std::experimental::filesystem::create_directory(save_dir_fp);
   int counter = 1;
   while (true) {
-    if (cam0.GetFrame(frame_cam0) || cam1.GetFrame(frame_cam1)) {
+    std::vector<mavlink_imu_t> imu_data;
+    uint64_t current_frame_time;
+    int ret = sensor_interface->GetSynchronizedData(d_frame_cam0, d_frame_cam1, imu_data, current_frame_time);
+    if (ret < 0) {
       std::cerr << "Error reading frame!" << std::endl;
       return -1;
     }
 
-    cam0.SendFrame(frame_cam0);
-    cam1.SendFrame(frame_cam1);
-
+    sensor_interface->cam0_->SendFrame(d_frame_cam0);
+    sensor_interface->cam1_->SendFrame(d_frame_cam1);
 
     bool save_img = false;
-    
     if (user_input) {
       char ret = get_user_input(0, 50000);
       if (ret == 0x20) {
@@ -111,7 +103,7 @@ int main(int argc, char *argv[]) {
       }
     } else {
       // Default behavior is just to save an image every ~5 seconds
-      if (counter % 60 == 0)
+      if (counter % 100 == 0)
         save_img = true;
     }
 
@@ -124,8 +116,11 @@ int main(int argc, char *argv[]) {
       std::experimental::filesystem::path save_path_0 = save_dir / file0;
       std::experimental::filesystem::path save_path_1 = save_dir / file1;
 
-      cv::imwrite(save_path_0.c_str(), frame_cam0);
-      cv::imwrite(save_path_1.c_str(), frame_cam1);
+      cv::Mat frame0, frame1;
+      d_frame_cam0.download(frame0);
+      d_frame_cam1.download(frame1);
+      cv::imwrite(save_path_0.c_str(), frame0);
+      cv::imwrite(save_path_1.c_str(), frame1);
     }
     counter++;
   }

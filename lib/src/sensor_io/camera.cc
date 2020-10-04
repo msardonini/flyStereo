@@ -139,8 +139,10 @@ int Camera::GetFrame(cv::Mat &frame) {
 
 int Camera::GetFrame(cv::cuda::GpuMat &frame) {
   cv::Mat host_frame;
-  if (GetFrame(host_frame)) {
-    return -1;
+
+  int ret = GetFrame(host_frame);
+  if (ret != 0) {
+    return ret;
   }
 
   if (enable_videoflip_) {
@@ -191,7 +193,11 @@ int Camera::SendFrame(cv::Mat &frame) {
   return 0;
 }
 
-// "v4l2src device=/dev/video0 ! video/x-raw,width=1280,height=720 ! nvvidconv flip-method=0 ! video/x-raw, format=(string)GRAY8 ! appsink max-buffers=1 drop=true"
+int Camera::SendFrame(cv::cuda::GpuMat &d_frame) {
+  cv::Mat frame;
+  d_frame.download(frame);
+  return SendFrame(frame);
+}
 
 int Camera::InitGstPipeline() {
   // Initialize GStreamer
@@ -260,10 +266,11 @@ int Camera::GetFrameGst(cv::Mat &frame) {
   // Pull in the next sample
   GstAppSink *appsink = reinterpret_cast<GstAppSink *>(gst_params_.appsink);
 
-  GstSample *sample = gst_app_sink_try_pull_sample (appsink, 1E9);  // timeout of 1 second
+  GstSample *sample = gst_app_sink_try_pull_sample(appsink, 1E9);  // timeout of 1 second
   // At EOS or timeout this will return NULL
   if (sample == NULL) {
     if (gst_app_sink_is_eos(appsink)) {
+      std::cerr << "Gstreamer End of Stream!" << std::endl;
       return -1;
     } else {  // Else this was a timeout
       return 1;
@@ -283,6 +290,7 @@ int Camera::GetFrameGst(cv::Mat &frame) {
     && gst_structure_get_int(structure, "height", &height)
     && gst_structure_get_fraction(structure, "framerate", &framerate_numerator,
       &framerate_denominator))) {
+    std::cerr << "Error getting metadata" << std::endl;
     return -1;
   }
 
@@ -302,6 +310,7 @@ int Camera::GetFrameGst(cv::Mat &frame) {
     gst_buffer_unmap(buffer, &info);
     gst_sample_unref(sample);
   } else {
+    std::cerr << "Error getting map" << std::endl;
     return -1;
   }
 
