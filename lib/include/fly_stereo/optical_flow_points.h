@@ -28,61 +28,7 @@ constexpr unsigned int ids_t1 = 1;
 
 
 struct OpticalFlowPoints {
-  enum class MEMORY_LOCATION {
-    CPU = 0,
-    GPU = 1
-  };
-  
-  OpticalFlowPoints(MEMORY_LOCATION start_loc) {
-    for (int i = 0; i < 8; i++) {
-      memory_locations[i] = start_loc;
-    }
-  }
-
-  int CopyToGpu(const std::vector<unsigned int> &vecs_to_copy) {
-    bool retval = true;
-    // Copy over the requested tracks that aren't already on the CPU
-    for (unsigned int i = 0; i < vecs_to_copy.size(); i++) {
-      unsigned int index = vecs_to_copy[i];
-      if (memory_locations[index] == MEMORY_LOCATION::CPU) {
-        retval &= CheckedCopyToGpu(points[index], d_points[index]);
-        memory_locations[index] = MEMORY_LOCATION::GPU;
-      }
-    }
-    return retval;
-  }
-
-  int CopyToCpu(const std::vector<unsigned int> &vecs_to_copy) {
-    bool retval = true;
-    // Copy over the requested tracks that aren't already on the CPU
-    for (unsigned int i = 0; i < vecs_to_copy.size(); i++) {
-      unsigned int index = vecs_to_copy[i];
-      if (memory_locations[index] == MEMORY_LOCATION::GPU) {
-        retval &= CheckedCopyToCpu(d_points[index], points[index]);
-        memory_locations[index] = MEMORY_LOCATION::CPU;
-      }
-    }
-    return retval;
-  }
-
-  bool CopyTo(const std::vector<unsigned int> &vecs_to_copy, const std::vector<MEMORY_LOCATION>
-    &dst_mem) {
-    bool retval = true;
-    // Copy over the requested tracks that aren't already on the CPU
-    for (unsigned int i = 0; i < vecs_to_copy.size(); i++) {
-      unsigned int index = vecs_to_copy[i];
-      if (memory_locations[index] != dst_mem[index]) {
-        if (dst_mem[index] == MEMORY_LOCATION::CPU) {
-          retval &= CheckedCopyToCpu(d_points[index], points[index]);
-          memory_locations[index] = MEMORY_LOCATION::CPU;
-        } else {
-          retval &= CheckedCopyToGpu(points[index], d_points[index]);
-          memory_locations[index] = MEMORY_LOCATION::GPU;
-        }
-      }
-    }
-    return retval;
-  }
+  OpticalFlowPoints() {}
 
   template <typename T>
   bool RemovePoints(const std::vector<uchar> &status, std::vector<T> &vec) {
@@ -102,24 +48,15 @@ struct OpticalFlowPoints {
 
   bool RemoveOutliers(const std::vector<uchar> &status, const std::vector<unsigned int>
     &vecs_to_use, const std::vector<unsigned int> &id_vec_to_use = {}) {
-    // Save a copy of where points are saved so we can revert after
-    std::vector<MEMORY_LOCATION> current_mem;
-    for (auto vec_ind: vecs_to_use) {
-      current_mem.push_back(memory_locations[vec_ind]);
-    }
-    // First, make sure the vectors we want to use are on the CPU
-    if (!CopyToCpu(vecs_to_use)) {
-      return false;
-    }
-
-    // Iterate over all the sets of points we have
-    for (unsigned int i = 0; i < vecs_to_use.size(); i++) {
-      if(!RemovePoints<cv::Point2f>(status, points[vecs_to_use[i]])) {
+    // We need a CPU vector for this operation, download it and run the remove function, and
+    // re-upload it again
+    for (int i = 0; i < vecs_to_use.size(); i++) {
+      std::vector<cv::Point2f> points = GetCpu(vecs_to_use[i]);
+      if(!RemovePoints<cv::Point2f>(status, points)) {
         return false;
       }
+      LoadCpu(points, vecs_to_use[i]);
     }
-    // Copy the memory back to the location it was when we entered this function
-    CopyTo(vecs_to_use, current_mem);
 
     // If requested, remove the outliers for the ID vectors too
     for (unsigned int i = 0; i < id_vec_to_use.size(); i++) {
@@ -140,32 +77,25 @@ struct OpticalFlowPoints {
 
   bool MarkPointsOutOfFrame(const cv::Size &framesize, const unsigned int index,
     std::vector<unsigned char> &status) {
-    // Save a copy of where points are saved so we can revert after
-    MEMORY_LOCATION current_mem = memory_locations[index];
-    // Make sure the vectors we want to use are on the CPU
-    if (!CopyToCpu({index})) {
-      return false;
-    }
+    // We need a CPU vector for this operation
+    std::vector<cv::Point2f> points = GetCpu(index);
 
     // Check to make sure the sizes match
-    if (status.size() != points[index].size()) {
+    if (status.size() != points.size()) {
       std::cerr << "Error! status and points are not the same size" << std::endl;
       return false;
     }
 
     // Mark those tracked points out of the image region as untracked.
-    for (int j = 0; j < points[index].size(); j++) {
+    for (int j = 0; j < points.size(); j++) {
       if (status[j] == 0) {
         continue;
       }
-      if (points[index][j].y < 0 || points[index][j].y > framesize.height - 1 ||
-          points[index][j].x < 0 || points[index][j].x > framesize.width - 1) {
+      if (points[j].y < 0 || points[j].y > framesize.height - 1 ||
+          points[j].x < 0 || points[j].x > framesize.width - 1) {
         status[j] = 0;
       }
     }
-
-    // Copy the vector back to the original memory location
-    CopyTo({index}, {current_mem});
     return true;
   }
 
@@ -226,23 +156,13 @@ struct OpticalFlowPoints {
     return true;
   }
 
-  void SetMemoryGpu() {
-    for (int i = 0; i < 8; i++) {
-      memory_locations[i] = MEMORY_LOCATION::GPU;
-    }
-  }
+  bool BinAndMarkPoints(const unsigned int index_vec, const unsigned int index_ids,
+    const cv::Size &framesize, const unsigned int bins_width, const unsigned int bins_height,
+    const unsigned int max_pts_in_bin, std::vector<unsigned char> &status) {
+    // We need a CPU vector for this operation
+    std::vector<cv::Point2f> points = GetCpu(index_vec);
 
-
-  bool BinAndFilterPoints(const unsigned int index_vec, const unsigned int index_ids,
-    const cv::Size &framesize, const unsigned int bins_width, const unsigned int bins_height, const unsigned int max_pts_in_bin, std::vector<unsigned char> &status) {
-    // Save a copy of where points are saved so we can revert after
-    MEMORY_LOCATION current_mem = memory_locations[index_vec];
-    // Make sure the vectors we want to use are on the CPU
-    if (!CopyToCpu({index_vec})) {
-      return false;
-    }
-
-    status.resize(points[index_vec].size());
+    status.resize(points.size());
     // Initially set all the statuses to true
     for (int i = 0; i < status.size(); i++) {
       status[i] = 1;
@@ -251,12 +171,12 @@ struct OpticalFlowPoints {
     // Place all of our image points in our map
     // First, calculate the row-major index of the bin, this will be the map's key
     std::map<int, std::vector<std::tuple<unsigned int, unsigned int, cv::Point2f> > > grid;
-    for (unsigned int i = 0; i < points[index_vec].size(); i++) {
-      unsigned int bin_row = points[index_vec][i].y * bins_height / framesize.height;
-      unsigned int bin_col = points[index_vec][i].x * bins_width / framesize.width;
+    for (unsigned int i = 0; i < points.size(); i++) {
+      unsigned int bin_row = points[i].y * bins_height / framesize.height;
+      unsigned int bin_col = points[i].x * bins_width / framesize.width;
 
       unsigned int index = bins_width * bin_row + bin_col;
-      grid[index].push_back({i, ids[index_ids][i], points[index_vec][i]});
+      grid[index].push_back({i, ids[index_ids][i], points[i]});
     }
 
     // Now that the grid is full, delete points that exceed the threshold of points per bin
@@ -274,33 +194,31 @@ struct OpticalFlowPoints {
         }
       }
     }
-
-    // Copy the vector back to the original memory location
-    CopyTo({index_vec}, {current_mem});
     return true;
   }
 
 
   // Access
-  std::vector<cv::Point2f>& GetCpu(unsigned int i) {
-    if (memory_locations[i] == MEMORY_LOCATION::GPU) {
-      bool ret = CheckedCopyToCpu(d_points[i], points[i]);
+  std::vector<cv::Point2f> GetCpu(const unsigned int index) {
+    if (d_points[index].empty()) {
+      return {};
     }
-    return points[i];
+    std::vector<cv::Point2f> vec;
+    d_points[index].download(vec);
+    return vec;
   }
 
-  cv::cuda::GpuMat& GetGpu(unsigned int i) {
-    if (memory_locations[i] == MEMORY_LOCATION::CPU) {
-      bool ret = CheckedCopyToGpu(points[i], d_points[i]);
-    }
-    return d_points[i];
+  // Write
+  void LoadCpu(const std::vector<cv::Point2f> &vec, const unsigned int index) {
+    d_points[index].upload(vec);
+  }
+
+  cv::cuda::GpuMat& operator[] (unsigned int index) {
+    return d_points[index];
   }
 
 
   // Data Members
-
-  // Where the most up to date data is located, for each vector
-  std::array<MEMORY_LOCATION, 8> memory_locations;
 
   // Data structure for tracked points
   // index 0: tracked points, cam0 t0
@@ -311,32 +229,11 @@ struct OpticalFlowPoints {
   // index 5: detected points, cam0 t1
   // index 6: detected points, cam1 t0
   // index 7: detected points, cam1 t1
-  std::array<std::vector<cv::Point2f>, 8> points;
   std::array<cv::cuda::GpuMat, 8> d_points;
 
-  // index 8 ids, tracked pts
-  // index 9 ids, detected pts
+  // index 0 ids, tracked pts
+  // index 1 ids, detected pts
   std::array<std::vector<unsigned int>, 2> ids;
-
- private:
-  bool CheckedCopyToGpu(std::vector<cv::Point2f> &cpu, cv::cuda::GpuMat &gpu) {
-    if (cpu.size() > 0) {
-      gpu.upload(cpu);
-      return true;
-    } else {
-      gpu.release();
-      return false;
-    }
-  }
-  bool CheckedCopyToCpu(cv::cuda::GpuMat &gpu, std::vector<cv::Point2f> &cpu) {
-    if (!gpu.empty()) {
-      gpu.download(cpu);
-      return true;
-    } else {
-      cpu.clear();
-      return false;
-    }
-  }
 };
 
 #endif  // LIB_INCLUDE_FLY_STEREO_OPTICAL_FLOW_POINTS_H_

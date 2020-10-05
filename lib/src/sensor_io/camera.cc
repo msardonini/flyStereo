@@ -59,8 +59,7 @@ int Camera::Init() {
     std::cout << "pipeline is " << src_pipeline_ << std::endl;
     cam_src_ = std::make_unique<cv::VideoCapture> (src_pipeline_);
     if (!cam_src_->isOpened()) {
-      std::cerr << "Error! VideoCapture on cam" << device_num_ << " did not open"
-        << std::endl;
+      std::cerr << "Error! VideoCapture on cam" << device_num_ << " did not open" << std::endl;
       return -1;
     }
   }
@@ -70,9 +69,10 @@ int Camera::Init() {
     // Sleep for a bit to allow some time for the camera to wake up and start to receive messages
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
-    std::string trigger_cmd("v4l2-ctl -d " + std::to_string(device_num_) +
-      " -c trigger_mode=1");
-    system(trigger_cmd.c_str());
+    std::string trigger_cmd("v4l2-ctl -d " + std::to_string(device_num_) + " -c trigger_mode=1");
+    if(system(trigger_cmd.c_str())) {
+      std::cerr << "Error setting trigger mode" << std::endl;
+    }
 
     // Get all of the non-triggered frames out of the pipeline
     if (use_gstreamer_pipeline_) {
@@ -91,7 +91,9 @@ int Camera::Init() {
 int Camera::UpdateGain() {
   std::string gain_cmd("v4l2-ctl -d " + std::to_string(device_num_) + " -c gain=" +
     std::to_string(gain_));
-  system(gain_cmd.c_str());
+  if (system(gain_cmd.c_str())) {
+    std::cerr << "Error setting gain" << std::endl;
+  }
   return 0;
 }
 
@@ -105,7 +107,9 @@ int Camera::UpdateExposure() {
 
   std::string exposure_cmd("v4l2-ctl -d " + std::to_string(device_num_) +
     " -c exposure=" + std::to_string(exposure_time_));
-  system(exposure_cmd.c_str());
+  if (system(exposure_cmd.c_str())) {
+    std::cerr << "Error setting exposure time" << std::endl;
+  }
   return 0;
 }
 
@@ -273,6 +277,7 @@ int Camera::GetFrameGst(cv::Mat &frame) {
       std::cerr << "Gstreamer End of Stream!" << std::endl;
       return -1;
     } else {  // Else this was a timeout
+      std::cerr << "timeout on device: " << device_num_ << std::endl;
       return 1;
     }
   }
@@ -303,6 +308,7 @@ int Camera::GetFrameGst(cv::Mat &frame) {
   GstMapInfo info;
   if (gst_buffer_map(buffer, &info, GST_MAP_READ)) {
     // Copy the buffer
+      std::cerr << "copying!" << std::endl;
     memcpy(frame.ptr(), info.data, info.size);
 
     timestamp_ns_ = static_cast<uint64_t>(GST_BUFFER_PTS(buffer));

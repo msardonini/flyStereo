@@ -58,7 +58,8 @@ int SensorInterface::GetSynchronizedData(cv::cuda::GpuMat &d_frame_cam0,
     image_counter_++;
     return -1;
   } else if (ret_frame0 > 0 || ret_frame1 > 0) {
-    return 1;
+    image_counter_++;
+    return 2;
   }
 
   uint64_t ts_frame0 = cam0_->GetTimestampNs();
