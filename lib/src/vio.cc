@@ -43,8 +43,11 @@ Vio::Vio(const YAML::Node &input_params, const YAML::Node &stereo_calibration) :
 
   interface_vec = stereo_calibration["R_imu_cam0"].as<std::vector<double>>();
   cv::Vec3d R_imu_cam0_vec = cv::Vec3d(interface_vec.data());
-  cv::Rodrigues(R_imu_cam0_vec, R_imu_cam0_);
-  cv::cv2eigen(R_imu_cam0_, R_imu_cam0_eigen_);
+  R_imu_cam0_eigen_ =  Eigen::AngleAxisd(interface_vec[0], Eigen::Vector3d::UnitX()) *
+    Eigen::AngleAxisd(interface_vec[1],  Eigen::Vector3d::UnitY()) *
+    Eigen::AngleAxisd(interface_vec[2], Eigen::Vector3d::UnitZ()).toRotationMatrix();
+
+  std::cout << " rotation " << R_imu_cam0_eigen_ << std::endl;
 
   interface_vec = stereo_calibration["R"]["data"].as<std::vector<double>>();
   R_cam0_cam1_ = cv::Matx33d(interface_vec.data());
@@ -64,7 +67,7 @@ Vio::Vio(const YAML::Node &input_params, const YAML::Node &stereo_calibration) :
   }
 
   // Set the initial pose to identity
-  pose_ = Eigen::Matrix4d::Identity();
+  pose_cam0_ = Eigen::Matrix4d::Identity();
   first_iteration_ = true;
 
   point_history_index_ = 0;
@@ -99,7 +102,7 @@ int Vio::ProcessPoints(const ImagePoints &pts, vio_t &vio) {
       Eigen::AngleAxisd(0.0, Eigen::Vector3d::UnitZ()).toRotationMatrix();
 
 
-    pose_.block<3, 3>(0, 0) = R_imu_cam0_eigen_.transpose() * initial_rotation;
+    pose_cam0_.block<3, 3>(0, 0) = initial_rotation;
     std::cout << "first imu point: " << pts.imu_pts[0].roll << " " << pts.imu_pts[0].pitch << " " << pts.imu_pts[0].yaw << " " << std::endl;
     std::cout << "Mat1: " << initial_rotation << std::endl;
     std::cout << "Mat2: " << R_imu_cam0_eigen_ << std::endl;
@@ -107,21 +110,31 @@ int Vio::ProcessPoints(const ImagePoints &pts, vio_t &vio) {
 
   Eigen::Matrix4d pose_update;
   if (CalculatePoseUpdate(pts, R_imu_cam0_eigen_.transpose() * pts.R_t0_t1_cam0,
-    pose_update) == 0) {
-    // TODO: add imu prediction and vo measurement update
-    // ProcessImu(pts.imu_pts);
-    Eigen::Matrix<double, 6, 1> kf_state;
-    ProcessVio(pose_update, pts.timestamp_us, kf_state);
-
-    Debug_SaveOutput();
-
-    // Copy the results to the output of this function
-    vio.position << kf_state(0), kf_state(2), kf_state(4);
-    vio.velocity << kf_state(1), kf_state(3), kf_state(5);
-    vio.quat = Eigen::Quaterniond(pose_update.block<3, 3>(0, 0));
-  } else {
+    pose_update)) {
+    std::cerr << "Error in CalculatePoseUpdate" << std::endl;
     return -1;
   }
+
+  // ProcessImu(pts.imu_pts);
+  Eigen::Matrix<double, 6, 1> kf_state;
+
+  // Update our Pose
+  pose_cam0_ = pose_cam0_ * pose_update;
+
+  // Convert the pose to the body frame
+  Eigen::Matrix4d R_imu_cam0_eigen_affine = Eigen::Matrix4d::Identity();
+  R_imu_cam0_eigen_affine.block<3, 3>(0, 0) = R_imu_cam0_eigen_.transpose();
+  Eigen::Matrix4d pose_body = R_imu_cam0_eigen_affine * pose_cam0_;
+  // Eigen::Matrix4d pose_body = pose_cam0_;
+
+  ProcessVio(pose_body, pts.timestamp_us, kf_state);
+
+  Debug_SaveOutput(pose_body);
+
+  // Copy the results to the output of this function
+  vio.position << kf_state(0), kf_state(2), kf_state(4);
+  vio.velocity << kf_state(1), kf_state(3), kf_state(5);
+  vio.quat = Eigen::Quaterniond(pose_update.block<3, 3>(0, 0));
 }
 
 // int Vio::ProcessImu(const std::vector<mavlink_imu_t> &imu_pts) {
@@ -151,11 +164,9 @@ int Vio::ProcessPoints(const ImagePoints &pts, vio_t &vio) {
 
 int Vio::ProcessVio(const Eigen::Matrix4d &pose_update, uint64_t image_timestamp,
   Eigen::Matrix<double, 6, 1> &output_state) {
-  // Update our Pose
-  pose_ = pose_ * pose_update;
 
-  Eigen::Matrix<double, 3, 1> z(Eigen::Matrix<double, 3, 1>::Zero());
-  z = pose_.block<3, 1>(0, 3);
+  Eigen::Matrix<double, 3, 1> z;
+  z = pose_update.block<3, 1>(0, 3);
 
   if (last_timestamp_ == 0) {
     kf_.Predict();
@@ -349,8 +360,8 @@ int Vio::CalculatePoseUpdate(const ImagePoints &pts, const Eigen::Matrix3d &imu_
   // std::cout << std::endl << std::endl;
 
   pose_update = Eigen::Matrix4d::Identity();
-  // pose_ = pose_ * delta_xform ;
-  // std::cout << "output transformation: \n" << pose_ << std::endl;
+  // pose_cam0_ = pose_cam0_ * delta_xform ;
+  // std::cout << "output transformation: \n" << pose_cam0_ << std::endl;
 
 
   // Put the ransc output pose update into a 4x4 Matrix
@@ -366,16 +377,16 @@ int Vio::CalculatePoseUpdate(const ImagePoints &pts, const Eigen::Matrix3d &imu_
   }
 
 
-  // std::cout << "delta update: \n" << pose_update << std::endl;
-  // std::cout << "output transformation: \n" << pose_ << std::endl;
+  std::cout << "delta update: \n" << pose_update << std::endl;
+  std::cout << "output transformation: \n" << pose_cam0_ << std::endl;
 
-  // pose_history_[Modulo(static_cast<int>(point_history_index_), history_size)] = pose_;
+  // pose_history_[Modulo(static_cast<int>(point_history_index_), history_size)] = pose_cam0_;
   // point_history_index_ = (point_history_index_ >= history_size - 1) ? 0 : point_history_index_ + 1;
 
   return 0;
 }
 
-int Vio::Debug_SaveOutput() {
+int Vio::Debug_SaveOutput(const Eigen::Matrix4d &pose_update) {
   static int g = 0;
   // if (ransac.model_coefficients_(0,3) > 5 || ransac.model_coefficients_(1,3) > 5 || ransac.model_coefficients_(2,3) > 5) {
   if (1) {
@@ -399,7 +410,7 @@ int Vio::Debug_SaveOutput() {
     if (!trajecotry_file_) {
       trajecotry_file_ = std::make_unique<std::ofstream> ("file.txt", std::ios::out);
     }
-    Eigen::Matrix<double, 3, 4> writer_pose = pose_.block<3, 4> (0, 0);
+    Eigen::Matrix<double, 3, 4> writer_pose = pose_update.block<3, 4> (0, 0);
     Eigen::Map<Eigen::RowVectorXd> v(writer_pose.data(), writer_pose.size());
     *trajecotry_file_ << v << kf_.GetState() << std::endl;
 

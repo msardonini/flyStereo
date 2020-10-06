@@ -6,6 +6,7 @@
 
 #include "opencv2/calib3d.hpp"
 #include "opencv2/imgproc.hpp"
+#include "fly_stereo/utility.h"
 
 SensorInterface::SensorInterface() {}
 
@@ -192,8 +193,8 @@ int SensorInterface::GenerateImuXform(const std::vector<mavlink_imu_t> &imu_msgs
         imu_msgs[i].gyroXYZ[2]) * (static_cast<float>(delta_t) / 1.0E6f);
     }
   }
-  cv::Rodrigues(R_imu_cam0 * delta_rpw, rotation_t0_t1_cam0);
-  cv::Rodrigues(R_imu_cam1 * delta_rpw, rotation_t0_t1_cam1);
+  rotation_t0_t1_cam0 = utility::eulerAnglesToRotationMatrix<float>(R_imu_cam0 * delta_rpw);
+  rotation_t0_t1_cam1 = utility::eulerAnglesToRotationMatrix<float>(R_imu_cam1 * delta_rpw);
   // std::cout << "delta_rpw: " << delta_rpw << std::endl;
   return 0;
 }

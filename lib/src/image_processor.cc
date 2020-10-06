@@ -10,7 +10,9 @@
 #include "opencv2/core/eigen.hpp"
 #include "Eigen/Dense"
 #include "opengv/types.hpp"
+#include "fly_stereo/utility.h"
 
+// Debug includes
 #include "debug_video_recorder.h"
 
 bool write_to_debug = false;
@@ -88,7 +90,8 @@ ImageProcessor::ImageProcessor(const YAML::Node &input_params,
 
   std::vector<float> imu_cam0_vec = stereo_calibration["R_imu_cam0"].as<std::vector<float>>();
   cv::Vec3f angles_imu_cam0 = {imu_cam0_vec[0], imu_cam0_vec[1], imu_cam0_vec[2]};
-  cv::Rodrigues(angles_imu_cam0, R_imu_cam0_);
+  R_imu_cam0_ = utility::eulerAnglesToRotationMatrix<float>(angles_imu_cam0);
+
   cv::Matx33f R_cam0_cam1_f = R_cam0_cam1_;
   R_imu_cam1_ = R_imu_cam0_ * R_cam0_cam1_f;
 

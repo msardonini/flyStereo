@@ -38,7 +38,7 @@ class Vio {
   int ProcessImu(const std::vector<mavlink_imu_t> &imu_pts);
   int ProcessVio(const Eigen::Matrix4d &pose_update, uint64_t image_timestamp,
     Eigen::Matrix<double, 6, 1> &output);
-  int Debug_SaveOutput();
+  int Debug_SaveOutput(const Eigen::Matrix4d &pose_update);
 
   // The calibrated offsets for vio. These numbers will be subtracted off the result of the VIO
   // calculation to lower the drift
@@ -62,14 +62,14 @@ class Vio {
   std::vector<double> D_cam0_;
   std::vector<double> D_cam1_;
   cv::Matx33d R_cam0_cam1_;
-  cv::Matx33d R_imu_cam0_;
+  // cv::Matx33d R_imu_cam0_;
   Eigen::Matrix3d R_imu_cam0_eigen_;
   cv::Vec3d T_cam0_cam1_;
   cv::Matx34d P0_;
   cv::Matx34d P1_;
 
-  // The estimated pose after VIO is run
-  Eigen::MatrixXd pose_;
+  // The estimated pose after VIO is run in the cameara frame
+  Eigen::MatrixXd pose_cam0_;
   bool first_iteration_;
 
   // Output file stream for debugging output
