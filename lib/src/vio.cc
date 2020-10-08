@@ -96,11 +96,15 @@ int Vio::ProcessPoints(const ImagePoints &pts, vio_t &vio) {
     }
     first_iteration_ = false;
 
-    Eigen::Matrix3d initial_rotation =
-      Eigen::AngleAxisd(pts.imu_pts[0].roll, Eigen::Vector3d::UnitX()) *
-      Eigen::AngleAxisd(pts.imu_pts[0].pitch,  Eigen::Vector3d::UnitY()) *
-      Eigen::AngleAxisd(0.0, Eigen::Vector3d::UnitZ()).toRotationMatrix();
 
+    Eigen::Vector3d imu_rot; imu_rot << pts.imu_pts[0].roll, pts.imu_pts[0].pitch, 0.0;
+    Eigen::Vector3d initial_rotation_vec = R_imu_cam0_eigen_ * imu_rot;
+
+    Eigen::Matrix3d initial_rotation =
+      Eigen::AngleAxisd(initial_rotation_vec(0), Eigen::Vector3d::UnitX()) *
+      Eigen::AngleAxisd(initial_rotation_vec(1),  Eigen::Vector3d::UnitY()) *
+      Eigen::AngleAxisd(initial_rotation_vec(2), Eigen::Vector3d::UnitZ())
+      .toRotationMatrix().transpose();
 
     pose_cam0_.block<3, 3>(0, 0) = initial_rotation;
     std::cout << "first imu point: " << pts.imu_pts[0].roll << " " << pts.imu_pts[0].pitch << " " << pts.imu_pts[0].yaw << " " << std::endl;
