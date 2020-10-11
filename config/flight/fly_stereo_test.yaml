@@ -105,7 +105,7 @@ fly_stereo:
       exposure_time: 500
 
   stereo_calibration:
-    R_imu_cam0: [3.1415926535, 0.0, 0.0]
+    R_imu_cam0: [0.0, 3.1415926535, 0.0]
     K0: !!opencv-matrix
        rows: 3
        cols: 3

@@ -37,6 +37,15 @@ int MavlinkReader::Init(YAML::Node input_params) {
     return -1;
   }
 
+  // Mark the device we want to send data to, usually will be the same as the input device unless
+  // in a hilsim
+  if (input_params["device_write"]) {
+    serial_dev_write_ = open(input_params["device_write"].as<std::string>().c_str(),
+      O_RDWR | O_NOCTTY | O_NDELAY);
+    SetSerialParams(serial_dev_write_);
+  } else {
+    serial_dev_write_ = serial_dev_;
+  }
 
   if (input_params["replay_mode"].as<bool>()) {
     is_running_.store(true);
@@ -45,16 +54,44 @@ int MavlinkReader::Init(YAML::Node input_params) {
     return 0;
   }
 
+  SetSerialParams(serial_dev_);
+
+
+
+  // Now that our serial port is intialized, send the signal to reset the trigger counters
+  // in case the flight program has been running already
+  SendCounterReset();
+
+
+  // If we want to save this data for replay, open a file to do this
+  if (input_params["replay_imu_data_file"] && !input_params["replay_mode"].as<bool>()) {
+    std::string replay_file = input_params["replay_imu_data_file"].as<std::string>();
+
+    replay_file_fd_ = open(replay_file.c_str(), O_RDWR | O_NOCTTY | O_NDELAY | O_CREAT, 0660);
+
+    // int chmod_ret = chmod(replay_file.c_str(), S_IRWXU | S_IRWXG);
+    if (replay_file_fd_ <= 0) {
+      std::cerr << "error opening log file at: " << replay_file << std::endl;
+    }
+  }
+
+  is_running_.store(true);
+  reader_thread_ = std::thread(&MavlinkReader::SerialReadThread, this);
+
+  return 0;
+}
+
+int MavlinkReader::SetSerialParams(int device) {
   struct termios  config;
   //
   // Get the current configuration of the serial interface
   //
-  if(tcgetattr(serial_dev_, &config) < 0) {
+  if(tcgetattr(device, &config) < 0) {
     std::cerr << "Failed to get the serial device attributes" << std::endl;
     return -1;
   }
 
-  fcntl(serial_dev_, F_SETFL, fcntl(serial_dev_, F_GETFL) & ~O_NONBLOCK);
+  fcntl(device, F_SETFL, fcntl(device, F_GETFL) & ~O_NONBLOCK);
 
   // Set the serial device configs
   config.c_iflag &= ~(IGNBRK | BRKINT | ICRNL | INLCR | PARMRK | INPCK | ISTRIP
@@ -82,31 +119,10 @@ int MavlinkReader::Init(YAML::Node input_params) {
   //
   // Finally, apply the configuration
   //
-  if(tcsetattr(serial_dev_, TCSAFLUSH, &config) < 0) {
+  if(tcsetattr(device, TCSAFLUSH, &config) < 0) {
     std::cerr << "Failed to set the baudrate on the serial port!" << std::endl;
     return -1;
   }
-
-
-  // Now that our serial port is intialized, send the signal to reset the trigger counters
-  // in case the flight program has been running already
-  SendCounterReset();
-
-
-  // If we want to save this data for replay, open a file to do this
-  if (input_params["replay_imu_data_file"] && !input_params["replay_mode"].as<bool>()) {
-    std::string replay_file = input_params["replay_imu_data_file"].as<std::string>();
-
-    replay_file_fd_ = open(replay_file.c_str(), O_RDWR | O_NOCTTY | O_NDELAY | O_CREAT, 0660);
-    // int chmod_ret = chmod(replay_file.c_str(), S_IRWXU | S_IRWXG);
-    if (replay_file_fd_ <= 0) {
-      std::cerr << "error opening log file at: " << replay_file << std::endl;
-    }
-  }
-
-  is_running_.store(true);
-  reader_thread_ = std::thread(&MavlinkReader::SerialReadThread, this);
-
   return 0;
 }
 
@@ -120,7 +136,9 @@ void MavlinkReader::SendCounterReset() {
   mavlink_msg_reset_counters_encode(1, 200, &msg, &reset_msg);
   uint16_t len = mavlink_msg_to_send_buffer(buf, &msg);
 
-  write(serial_dev_, buf, len);
+  if (write(serial_dev_write_, buf, len) < 0) {
+    std::cerr << "error on write!" << std::endl;
+  }
 }
 
 
@@ -141,10 +159,14 @@ void MavlinkReader::SendVioMsg(const vio_t &vio) {
   vio_msg.quat[3] = vio.quat.z();
 
 
+  std::cout << "sending vio message: " << vio_msg.position[0] << "!!" << std::endl;
+
   mavlink_msg_vio_encode(1 ,200, &msg, &vio_msg);
   uint16_t len = mavlink_msg_to_send_buffer(buf, &msg);
 
-  write(serial_dev_, buf, len);
+  if (write(serial_dev_write_, buf, len) < 0) {
+    std::cerr << "error on write!" << std::endl;
+  }
 
 }
 
@@ -171,6 +193,7 @@ void MavlinkReader::SerialReadThread() {
             mavlink_imu_t attitude_msg;
             mavlink_msg_imu_decode(&mav_message, &attitude_msg);
 
+            std::cerr << "reading imu message!" <<std::endl;
             // Push the message to our output queue
             std::lock_guard<std::mutex> lock(queue_mutex_);
             output_queue_.push(attitude_msg);
@@ -199,7 +222,9 @@ void MavlinkReader::SerialReadThread() {
 
     // If we have requested to record a replay file, write the data to it
     if (replay_file_fd_ > 0) {
-      write(replay_file_fd_, buf, ret);
+      if (write(replay_file_fd_, buf, ret)) {
+        std::cerr << "error on write!" << std::endl;
+      }
     }
 
     // Sleep so we don't overload the CPU. This isn't an ideal method, but if

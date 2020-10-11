@@ -5,7 +5,8 @@ fly_stereo:
   mavlink_reader:
     # device: /dev/ttyTHS1
     # replay_mode: false
-    device: /home/msardonini/log/run001/imu.dat
+    device: /home/msardonini/log/run014/imu.dat
+    device_write: /dev/ttyTHS1
     replay_mode: true
     # replay_imu_data_file: /home/msardonini/git/fly_stereo/replay_data/test_replay/imu.dat
 
@@ -76,7 +77,7 @@ fly_stereo:
       gstreamer_pipeline:
         enable: false
 
-      src_pipeline: "filesrc location=/home/msardonini/log/run001/cam0.mp4 ! qtdemux ! queue ! h264parse ! omxh264dec ! videoconvert ! video/x-raw, format=(string)GRAY8 ! appsink sync=true "
+      src_pipeline: "filesrc location=/home/msardonini/log/run014/cam0.mp4 ! qtdemux ! queue ! h264parse ! omxh264dec ! videoconvert ! video/x-raw, format=(string)GRAY8 ! appsink sync=true "
       # src_pipeline: "filesrc location=/root/fly_stereo/replay_data/test_replay/cam0.mp4 ! decodebin ! videoconvert ! appsink "
       sink_pipeline: "appsrc ! videoconvert ! nvvidconv ! nvv4l2h264enc insert-sps-pps=true ! h264parse ! rtph264pay pt=96 ! udpsink host=192.168.104.2 port=8000 sync=false "
 
@@ -99,7 +100,7 @@ fly_stereo:
       gstreamer_pipeline:
         enable: false
 
-      src_pipeline: "filesrc location=/home/msardonini/log/run001/cam1.mp4 ! qtdemux ! queue ! h264parse ! omxh264dec ! videoconvert ! video/x-raw, format=(string)GRAY8 ! appsink sync=true "
+      src_pipeline: "filesrc location=/home/msardonini/log/run014/cam1.mp4 ! qtdemux ! queue ! h264parse ! omxh264dec ! videoconvert ! video/x-raw, format=(string)GRAY8 ! appsink sync=true "
       # src_pipeline: "filesrc location=/root/fly_stereo/replay_data/test_replay/cam1.mp4 ! decodebin ! videoconvert ! appsink max-buffers=1"
       sink_pipeline: "appsrc ! videoconvert ! nvvidconv ! nvv4l2h264enc insert-sps-pps=true ! h264parse ! rtph264pay pt=96 ! udpsink host=192.168.104.2 port=8001 sync=false "
 
@@ -114,7 +115,7 @@ fly_stereo:
       exposure_time: 1500
 
   stereo_calibration:
-    R_imu_cam0: [3.1415926535, 0.0, 0.0]
+    R_imu_cam0: [0.0, 3.1415926535, 0.0]
     K0: !!opencv-matrix
        rows: 3
        cols: 3
