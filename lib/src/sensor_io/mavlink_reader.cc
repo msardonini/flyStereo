@@ -56,12 +56,9 @@ int MavlinkReader::Init(YAML::Node input_params) {
 
   SetSerialParams(serial_dev_);
 
-
-
   // Now that our serial port is intialized, send the signal to reset the trigger counters
   // in case the flight program has been running already
   SendCounterReset();
-
 
   // If we want to save this data for replay, open a file to do this
   if (input_params["replay_imu_data_file"] && !input_params["replay_mode"].as<bool>()) {
@@ -137,7 +134,7 @@ void MavlinkReader::SendCounterReset() {
   uint16_t len = mavlink_msg_to_send_buffer(buf, &msg);
 
   if (write(serial_dev_write_, buf, len) < 0) {
-    std::cerr << "error on write!" << std::endl;
+    std::cerr << "error on write! Counter Reset" << std::endl;
   }
 }
 
@@ -165,7 +162,7 @@ void MavlinkReader::SendVioMsg(const vio_t &vio) {
   uint16_t len = mavlink_msg_to_send_buffer(buf, &msg);
 
   if (write(serial_dev_write_, buf, len) < 0) {
-    std::cerr << "error on write!" << std::endl;
+    std::cerr << "error on write! Vio Msg" << std::endl;
   }
 
 }
@@ -193,7 +190,6 @@ void MavlinkReader::SerialReadThread() {
             mavlink_imu_t attitude_msg;
             mavlink_msg_imu_decode(&mav_message, &attitude_msg);
 
-            std::cerr << "reading imu message!" <<std::endl;
             // Push the message to our output queue
             std::lock_guard<std::mutex> lock(queue_mutex_);
             output_queue_.push(attitude_msg);
@@ -222,8 +218,8 @@ void MavlinkReader::SerialReadThread() {
 
     // If we have requested to record a replay file, write the data to it
     if (replay_file_fd_ > 0) {
-      if (write(replay_file_fd_, buf, ret)) {
-        std::cerr << "error on write!" << std::endl;
+      if (write(replay_file_fd_, buf, ret) < 0) {
+        std::cerr << "error on write! Save Replay" << std::endl;
       }
     }
 

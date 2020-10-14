@@ -4,13 +4,6 @@ fly_stereo:
   log_dir: /home/msardonini/log
   vio:
     vio_calibration: [-0.0021, 0.0004, -0.0012]
-    image_width: 1280
-    image_height: 720
-    # bins_width: 40
-    # bins_height: 30
-    bins_width: 20
-    bins_height: 15
-    max_pts_in_bin: 2
     kalman_filter:
         dt: 0.2
         sigma_a: 0.1
@@ -35,7 +28,7 @@ fly_stereo:
     # replay_mode: true
     replay_imu_data_file: <log_dir>/imu.dat
   image_processor:
-    draw_points_to_frame: true
+    draw_points_to_frame: false
     max_error_counter: 10
 
     thresholds:

@@ -68,6 +68,9 @@ void UpdateLogDirectory(YAML::Node &node) {
   //Make a new folder to hold the logged data
   mkdir(run_folder.c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
 
+  // Save the run folder to our YAML params
+  node["run_folder"] = run_folder;
+
   std::string symbol("<log_dir>");
 
   std::string imu_filepath = node["mavlink_reader"]["replay_imu_data_file"].as<std::string>();
@@ -140,7 +143,7 @@ int main(int argc, char* argv[]) {
     &image_processor);
 
 
-  Vio vio(fly_stereo_params["vio"], fly_stereo_params["stereo_calibration"]);
+  Vio vio(fly_stereo_params, fly_stereo_params["stereo_calibration"]);
   std::thread features_thread_obj(tracked_features_thread, &image_processor, &vio,
     &mavlink_reader);
 

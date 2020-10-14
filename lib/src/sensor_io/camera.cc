@@ -308,7 +308,6 @@ int Camera::GetFrameGst(cv::Mat &frame) {
   GstMapInfo info;
   if (gst_buffer_map(buffer, &info, GST_MAP_READ)) {
     // Copy the buffer
-      std::cerr << "copying!" << std::endl;
     memcpy(frame.ptr(), info.data, info.size);
 
     timestamp_ns_ = static_cast<uint64_t>(GST_BUFFER_PTS(buffer));

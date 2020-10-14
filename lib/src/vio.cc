@@ -23,10 +23,18 @@ constexpr unsigned int history_size = 10;
 constexpr unsigned int min_num_matches = 25;
 // Constructor with config params
 Vio::Vio(const YAML::Node &input_params, const YAML::Node &stereo_calibration) :
-  kf_(input_params["kalman_filter"]) {
+  kf_(input_params["vio"]["kalman_filter"]) {
 
+  // If we have recording enabled, initialize the logging files
+  if (input_params["record_mode"].as<bool>()) {
+    std::string run_file = input_params["run_folder"].as<std::string>();
+    trajecotry_file_ = std::make_unique<std::ofstream> (run_file + "/trajecotry.txt",\
+      std::ios::out);
+  }
+
+  YAML::Node vio_params = input_params["vio"];
   // Parse params for the VIO node
-  std::vector<double> vio_calibration_vec = input_params["vio_calibration"].as<
+  std::vector<double> vio_calibration_vec = vio_params["vio_calibration"].as<
     std::vector<double>>();
   vio_calibration_ = Eigen::Matrix<double, 3, 1>(vio_calibration_vec.data());
 
@@ -410,13 +418,11 @@ int Vio::Debug_SaveOutput(const Eigen::Matrix4d &pose_update) {
     //   point.SetCoordinates(first_pt[0], first_pt[1], first_pt[2]);
     //   writer_->WritePoint(point);
     // }
-
-    if (!trajecotry_file_) {
-      trajecotry_file_ = std::make_unique<std::ofstream> ("file.txt", std::ios::out);
+    if (trajecotry_file_) {
+      Eigen::Matrix<double, 3, 4> writer_pose = pose_update.block<3, 4> (0, 0);
+      Eigen::Map<Eigen::RowVectorXd> v(writer_pose.data(), writer_pose.size());
+      *trajecotry_file_ << v << kf_.GetState() << std::endl;
     }
-    Eigen::Matrix<double, 3, 4> writer_pose = pose_update.block<3, 4> (0, 0);
-    Eigen::Map<Eigen::RowVectorXd> v(writer_pose.data(), writer_pose.size());
-    *trajecotry_file_ << v << kf_.GetState() << std::endl;
 
     // for (int i = 0; i < points.size(); i++) {
     //   // ofs  << vec[i](0) << "," << vec[i](1) << "," << vec[i](2) << std::endl;
