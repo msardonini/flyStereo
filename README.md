@@ -8,7 +8,7 @@ liblas from apt "liblas-c-dev" and "liblas-dev"
 yaml-cpp, compiled from source, Version 0.6.3
 Drivers from arducam camera (see their website)
 v4l-utils, from apt, "v4l-utils"
-
+spdlog, installed from source, version v1.8.1
 
 Add the following to "/etc/udev/rules.d/99-com.rules"
 

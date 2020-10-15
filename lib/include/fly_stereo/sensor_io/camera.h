@@ -59,6 +59,8 @@ class Camera {
   int UpdateExposure();
   int InitGstPipeline();
   int GetFrameGst(cv::Mat &frame);
+  int RunAutoExposure(const cv::Scalar &mean_pixel_val);
+
 
   bool enable_videoflip_;
   int flip_method_;
@@ -74,6 +76,7 @@ class Camera {
 
   // Params for auto exposure
   bool auto_exposure_;
+  float auto_exposure_update_percentage_;
   int num_frames_to_calc_;
   std::array<unsigned int, 2> pixel_range_limits_;
   std::array<unsigned int, 2> exposure_limits_;

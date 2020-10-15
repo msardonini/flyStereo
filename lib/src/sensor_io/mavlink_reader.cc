@@ -163,7 +163,6 @@ void MavlinkReader::SendVioMsg(const vio_t &vio) {
   if (write(serial_dev_write_, buf, len) < 0) {
     spdlog::error("error on write! Vio Msg");
   }
-
 }
 
 void MavlinkReader::SerialReadThread() {
