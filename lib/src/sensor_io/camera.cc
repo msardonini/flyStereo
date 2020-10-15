@@ -3,7 +3,9 @@
 #include <iostream>
 #include <thread>
 
-#include <opencv2/cudaarithm.hpp>
+#include "opencv2/cudaarithm.hpp"
+#include "spdlog/spdlog.h"
+
 
 Camera::Camera(YAML::Node input_params) {
   hardware_trigger_mode_ = input_params["hardware_trigger_mode"].as<bool>();
@@ -89,6 +91,8 @@ int Camera::Init() {
 }
 
 int Camera::UpdateGain() {
+  spdlog::debug("Setting Camera {} to gain {}", std::to_string(device_num_),
+    std::to_string(gain_));
   std::string gain_cmd("v4l2-ctl -d " + std::to_string(device_num_) + " -c gain=" +
     std::to_string(gain_));
   if (system(gain_cmd.c_str())) {
@@ -105,8 +109,11 @@ int Camera::UpdateExposure() {
     exposure_time_ = 65535;
   }
 
-  std::string exposure_cmd("v4l2-ctl -d " + std::to_string(device_num_) +
-    " -c exposure=" + std::to_string(exposure_time_));
+  spdlog::debug("Setting Camera {} to exposure {}", std::to_string(device_num_), std::to_string(
+    exposure_time_));
+
+  std::string exposure_cmd("v4l2-ctl -d " + std::to_string(device_num_) + " -c exposure=" +
+    std::to_string(exposure_time_));
   if (system(exposure_cmd.c_str())) {
     std::cerr << "Error setting exposure time" << std::endl;
   }

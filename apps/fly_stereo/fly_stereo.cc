@@ -9,6 +9,9 @@
 #include <atomic>
 #include <csignal>
 
+#include "spdlog/spdlog.h"
+#include "spdlog/sinks/stdout_color_sinks.h"
+#include "spdlog/sinks/rotating_file_sink.h"
 #include "yaml-cpp/yaml.h"
 #include "fly_stereo/vio.h"
 #include "fly_stereo/image_processor.h"
@@ -89,6 +92,26 @@ void UpdateLogDirectory(YAML::Node &node) {
   node["image_processor"]["Camera1"]["sink_pipeline"] = cam1_fp;
 }
 
+int InitializeSpdLog(const std::string &log_dir) {
+  int max_bytes = 1048576 * 20;  // Max 20 MB
+  int max_files = 20;
+
+  std::vector<spdlog::sink_ptr> sinks;
+  // Only use the console sink if we are in debug mode
+
+  sinks.push_back(std::make_shared<spdlog::sinks::stdout_color_sink_mt>());
+  sinks.push_back(std::make_shared<spdlog::sinks::rotating_file_sink_mt> (
+    log_dir + "/console_log.txt", max_bytes, max_files));
+  auto flyMS_log = std::make_shared<spdlog::logger>("flyStereo_log", std::begin(sinks),
+    std::end(sinks));
+
+  //register it if you need to access it globally
+  flyMS_log->set_level(spdlog::level::trace);
+  spdlog::register_logger(flyMS_log);
+  spdlog::set_default_logger(flyMS_log);
+}
+
+
 
 int main(int argc, char* argv[]) {
   std::cout << "PID of this process: " << getpid() << std::endl;
@@ -121,6 +144,7 @@ int main(int argc, char* argv[]) {
   // If we are running in logging mode, change the log directory in the config file
   if (fly_stereo_params["record_mode"].as<bool>()) {
     UpdateLogDirectory(fly_stereo_params);
+    InitializeSpdLog(fly_stereo_params["run_folder"].as<std::string>());
   }
 
   // Initialze the mavlink reader object

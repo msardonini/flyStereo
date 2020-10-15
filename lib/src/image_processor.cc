@@ -11,6 +11,7 @@
 #include "Eigen/Dense"
 #include "opengv/types.hpp"
 #include "fly_stereo/utility.h"
+#include "spdlog/spdlog.h"
 
 // Debug includes
 #include "debug_video_recorder.h"
@@ -95,8 +96,6 @@ ImageProcessor::ImageProcessor(const YAML::Node &input_params,
   cv::Matx33f R_cam0_cam1_f = R_cam0_cam1_;
   R_imu_cam1_ = R_imu_cam0_ * R_cam0_cam1_f;
 
-  std::cout << R_imu_cam0_ << std::endl;
-
   pose_ = Eigen::Matrix4d::Identity();
   prev_xform_ = Eigen::Matrix4d::Identity();
 
@@ -168,7 +167,7 @@ int ImageProcessor::OuputTrackedPoints(OpticalFlowPoints &points,
       num_pts != points.GetCpu(t_c1_t0).size() ||
       num_pts != points.GetCpu(t_c1_t1).size() ||
       num_pts != ids.size()) {
-    std::cerr << "Error! Vectors do not match in OutputTrackedPoints" << std::endl;
+    spdlog::error("Error! Vectors do not match in OutputTrackedPoints");
     return -1;
   }
 
@@ -254,8 +253,8 @@ int ImageProcessor::ProcessThread() {
       imu_msgs, current_time);
     if (ret_val < 0) {
       if (++error_counter >= max_error_counter_) {
-        std::cerr << "Error! Failed to read more than " << max_error_counter_
-          << " consecutive frames" << std::endl;
+        spdlog::error("Error! Failed to read more than {} consecutive frames",
+          max_error_counter_);
         is_running_.store(false);
         return -1;
       } else {
@@ -288,9 +287,9 @@ int ImageProcessor::ProcessThread() {
         max_pts_in_bin_, bin_status);
       if (!points.RemoveOutliers(bin_status, {t_c0_t0, t_c1_t0}, {ids_t0})) {
 
-        std::cout << "status size " << bin_status.size() << std::endl;
-        std::cout << "t_c0_t0 size " << points.GetCpu(t_c0_t0).size() << std::endl;
-        std::cout << "RemoveOutliers failed after Binning\n" << std::endl;
+        spdlog::info("status size {}", bin_status.size());
+        spdlog::info("t_c0_t0 size {}", points.GetCpu(t_c0_t0).size());
+        spdlog::info("RemoveOutliers failed after Binning");
         return -1;
       }
     }
@@ -302,7 +301,7 @@ int ImageProcessor::ProcessThread() {
       UpdatePointsViaImu(points[t_c1_t0], rotation_t0_t1_cam1, K_cam1_,
         points[t_c1_t1]);
     } else {
-      std::cerr << "Error receiving IMU transform" << std::endl;
+      spdlog::error("Error receiving IMU transform");
       continue;
     }
 
@@ -340,15 +339,15 @@ int ImageProcessor::ProcessThread() {
       }
 
       if (!points.MarkPointsOutOfFrame(d_frame_cam0_t1.size(), t_c0_t1, d_status)) {
-        std::cout << "MarkPointsOutOfFrame failed after tracking\n" << std::endl;
-        std::cout << "status size:" << d_status.size() << std::endl;
+        spdlog::info("MarkPointsOutOfFrame failed after tracking");
+        spdlog::info("status size: {}");
         return -1;
       }
 
       // TODO: Make this function accept a vector (non gpu) for first arg and templated vector as
       // the second argument
       if (!points.RemoveOutliers(d_status, {t_c0_t0, t_c0_t1, t_c1_t0}, {ids_t0})) {
-        std::cout << "RemoveOutliers failed after Tracking\n" << std::endl;
+        spdlog::info("RemoveOutliers failed after Tracking");
         return -1;
       }
       debug_num_pts[1] = points[t_c0_t1].cols;
@@ -372,7 +371,7 @@ int ImageProcessor::ProcessThread() {
       // Remove the outliers from the StereoMatch algorithm
       if (ret_val == 0) {
         if (!points.RemoveOutliers(d_status, {t_c0_t0, t_c0_t1, t_c1_t0, t_c1_t1}, {ids_t0})) {
-          std::cout << "RemoveOutliers failed after StereoMatch\n" << std::endl;
+          spdlog::info("RemoveOutliers failed after StereoMatch");
           return -1;
         }
       }
@@ -384,8 +383,7 @@ int ImageProcessor::ProcessThread() {
       if (tracked_pts != points[t_c0_t1].cols ||
           tracked_pts != points[t_c1_t0].cols ||
           tracked_pts != points[t_c1_t1].cols) {
-        std::cerr << "ERROR! There are differences in the numbers of tracked points " << counter
-          << std::endl;
+        spdlog::error("ERROR! There are differences in the numbers of tracked points ");
         return -1;
       }
     }
@@ -410,7 +408,7 @@ int ImageProcessor::ProcessThread() {
         D_cam1_, ransac_threshold_, 0.99, cam1_ransac_inliers);
 
       if (ret1 == 0 && ret2 == 0) {
-        // std::cout <<" before RANSAC " << tracked_pts_cam0_t1.size() << std::endl;
+        // spdlog::info(" before RANSAC " << tracked_pts_cam0_t1.size());
         std::vector<unsigned char> status;
         status.reserve(cam0_ransac_inliers.size());
 
@@ -419,11 +417,11 @@ int ImageProcessor::ProcessThread() {
         }
 
         if (!points.RemoveOutliers(status, {t_c0_t0, t_c0_t1, t_c1_t0, t_c1_t1}, {ids_t0})) {
-          std::cout << "RemoveOutliers failed after Ransac\n" << std::endl;
-          std::cout << "RemoveOutliers failed after Detection\n" << std::endl;
+          spdlog::info("RemoveOutliers failed after Ransac");
+          spdlog::info("RemoveOutliers failed after Detection");
         }
-          // std::cout << "vec after " << points.GetCpu(t_c0_t0).size() << std::endl;
-        // std::cout <<" after RANSAC " << tracked_pts_cam0_t1.size() << std::endl;
+          // spdlog::info("vec after {}", points.GetCpu(t_c0_t0).size());
+        // spdlog::info(" after RANSAC {}", tracked_pts_cam0_t1.size());
       }
     }
     debug_num_pts[3] = points.GetCpu(t_c0_t1).size();
@@ -442,17 +440,17 @@ int ImageProcessor::ProcessThread() {
 
     if (points[d_c0_t1].cols != 0) {
       if (!points.MarkPointsOutOfFrame(d_frame_cam0_t1.size(), d_c1_t1, d_status)) {
-        std::cout << "d status" << d_status.cols << std::endl;
-        std::cout << "vec " << points[d_c1_t1].cols << std::endl;
-        std::cout << "MarkPointsOutOfFrame failed after detection\n" << std::endl;
+        spdlog::info("d status: {}", d_status.cols);
+        spdlog::info("vec: {}", points[d_c1_t1].cols);
+        spdlog::info("MarkPointsOutOfFrame failed after detection");
         return -1;
       }
 
       if (!points.RemoveOutliers(d_status, {d_c0_t1, d_c1_t1})) {
-          std::cout << "d status " << d_status.cols << std::endl;
-        std::cout << "vec " << points[d_c0_t1].cols << std::endl;
-        std::cout << "vec " << points[d_c1_t1].cols << std::endl;
-        std::cout << "RemoveOutliers failed after Detection\n" << std::endl;
+          spdlog::info("d status: {}", d_status.cols);
+        spdlog::info("vec: {}", points[d_c0_t1].cols);
+        spdlog::info("vec: {}", points[d_c1_t1].cols);
+        spdlog::info("RemoveOutliers failed after Detection");
         return -1;
       }
       debug_num_pts[5] = points[d_c0_t1].cols;
@@ -466,7 +464,7 @@ int ImageProcessor::ProcessThread() {
       points.ids[ids_t1].push_back(current_id++);
     }
 
-    // std::cout << "num points: cam0 " << points[1).cols << " cam1 " <<
+    // spdlog::info("num points: cam0 " << points[1).cols << " cam1 " <<
     //   points[3).cols << " start: " << debug_num_pts[0] << " tracking: " <<
     //   debug_num_pts[1] << " matching: " << debug_num_pts[2] << " ransac: " << debug_num_pts[3]
     //    << " detection: " << debug_num_pts[4] << " detection matching: " << debug_num_pts[5]
@@ -512,8 +510,8 @@ int ImageProcessor::ProcessThread() {
     points[d_c0_t0] = points[d_c0_t1].clone();
     points[d_c1_t0] = points[d_c1_t1].clone();
 
-    // std::cout << "fps " << 1.0 / static_cast<std::chrono::duration<double> >
-    //   ((std::chrono::system_clock::now() - time_end)).count() << std::endl;
+    // spdlog::info("fps: {}", 1.0 / static_cast<std::chrono::duration<double> >
+    //   ((std::chrono::system_clock::now() - time_end)).count());
     time_end = std::chrono::system_clock::now();
   }
 }
@@ -556,7 +554,7 @@ int ImageProcessor::StereoMatch(cv::Ptr<cv::cuda::SparsePyrLKOpticalFlow> opt,
 
   // Mark the points out of the frame
   if (!points.MarkPointsOutOfFrame(d_frame_cam1.size(), indices.second, d_status)) {
-    std::cout << "RemovePointsOutOfFrame failed 2\n" << std::endl;
+    spdlog::info("RemovePointsOutOfFrame failed 2");
     return -1;
   }
 
@@ -703,8 +701,7 @@ int ImageProcessor::twoPointRansac(
 
   // Check the size of input point size.
   if (pts1.size() != pts2.size()) {
-    std::cerr << "Sets of different size (" << pts1.size() <<" and " <<
-      pts2.size() << ") are used..." << std::endl;
+    spdlog::error("Sets of different size ({}) and ({}) are used...", pts1.size(), pts2.size());
     return -1;
   }
 

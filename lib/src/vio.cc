@@ -6,6 +6,8 @@
 #include <fstream>
 
 // Package includes
+#include "spdlog/spdlog.h"
+#include "spdlog/fmt/ostr.h"  // To print out Eigen objects
 #include "Eigen/Geometry"
 #include "opencv2/calib3d.hpp"
 #include "opencv2/core/eigen.hpp"
@@ -55,7 +57,7 @@ Vio::Vio(const YAML::Node &input_params, const YAML::Node &stereo_calibration) :
     Eigen::AngleAxisd(interface_vec[1],  Eigen::Vector3d::UnitY()) *
     Eigen::AngleAxisd(interface_vec[2], Eigen::Vector3d::UnitZ()).toRotationMatrix();
 
-  std::cout << " rotation " << R_imu_cam0_eigen_ << std::endl;
+  spdlog::info(" rotation: {}", R_imu_cam0_eigen_);
 
   interface_vec = stereo_calibration["R"]["data"].as<std::vector<double>>();
   R_cam0_cam1_ = cv::Matx33d(interface_vec.data());
@@ -115,9 +117,10 @@ int Vio::ProcessPoints(const ImagePoints &pts, vio_t &vio) {
       .toRotationMatrix().transpose();
 
     pose_cam0_.block<3, 3>(0, 0) = initial_rotation;
-    std::cout << "first imu point: " << pts.imu_pts[0].roll << " " << pts.imu_pts[0].pitch << " " << pts.imu_pts[0].yaw << " " << std::endl;
-    std::cout << "Mat1: " << initial_rotation << std::endl;
-    std::cout << "Mat2: " << R_imu_cam0_eigen_ << std::endl;
+    spdlog::info("first imu point: {}, {}, {}", pts.imu_pts[0].roll, pts.imu_pts[0].pitch,
+      pts.imu_pts[0].yaw);
+    spdlog::info("Mat1: {}", initial_rotation);
+    spdlog::info("Mat2: {}", R_imu_cam0_eigen_);
   }
 
   Eigen::Matrix4d pose_update;
@@ -165,7 +168,7 @@ int Vio::ProcessPoints(const ImagePoints &pts, vio_t &vio) {
 //     u(4) = imu_pts[i].accelXYZ[2] - gravity_vec_rotated(2);
 //     u(4) = imu_pts[i].accelXYZ[2] - gravity_vec_rotated(2);
 
-//     std::cout << "U!!! " << u << std::endl;
+//     spdlog::info("U!!! " << u << std::endl;
 //     if (last_timestamp_ != 0) {
 //       kf_.Predict(u, static_cast<double>(imu_pts[i].timestamp_us - last_timestamp_) / 1.0E6);
 //     }
@@ -234,7 +237,7 @@ int Vio::CalculatePoseUpdate(const ImagePoints &pts, const Eigen::Matrix3d &imu_
   }
 
   if (num_pts_cam0_t0 < 6) {
-    std::cout << "Not enough points for algorithm!" << std::endl;
+    spdlog::warn("Not enough points for algorithm!");
     return -1;
   }
 

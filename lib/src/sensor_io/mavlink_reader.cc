@@ -155,9 +155,6 @@ void MavlinkReader::SendVioMsg(const vio_t &vio) {
   vio_msg.quat[2] = vio.quat.y();
   vio_msg.quat[3] = vio.quat.z();
 
-
-  std::cout << "sending vio message: " << vio_msg.position[0] << "!!" << std::endl;
-
   mavlink_msg_vio_encode(1 ,200, &msg, &vio_msg);
   uint16_t len = mavlink_msg_to_send_buffer(buf, &msg);
 

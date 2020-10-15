@@ -56,7 +56,7 @@ RUN cd /opt && \
   make -j$('nproc') && \
   make install
 
-# Build and install OpenCV
+# Build and install OpenGV
 RUN cd /opt && \
   git clone https://github.com/laurentkneip/opengv.git && \
   cd opengv && \
@@ -64,6 +64,16 @@ RUN cd /opt && \
   cd build && \
   cmake -D CMAKE_BUILD_TYPE=RELEASE .. && \
   make -j$('nproc') && \
+  make install
+
+# Build and install Eigen
+RUN cd /opt && \
+  git clone https://github.com/gabime/spdlog.git && \
+  cd spdlog && \
+  git checkout v1.8.1 && \
+  mkdir build && \
+  cd build && \
+  cmake .. && \
   make install
 
 # Install the python script that will show eigen matrices when running gdb

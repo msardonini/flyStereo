@@ -197,7 +197,6 @@ struct OpticalFlowPoints {
     return true;
   }
 
-
   // Access
   std::vector<cv::Point2f> GetCpu(const unsigned int index) {
     if (d_points[index].empty()) {
@@ -213,12 +212,9 @@ struct OpticalFlowPoints {
     d_points[index].upload(vec);
   }
 
-  cv::cuda::GpuMat& operator[] (unsigned int index) {
+  cv::cuda::GpuMat& operator[](unsigned int index) {
     return d_points[index];
   }
-
-
-  // Data Members
 
   // Data structure for tracked points
   // index 0: tracked points, cam0 t0
