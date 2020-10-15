@@ -10,6 +10,8 @@
 #include <chrono>
 #include <iostream>
 
+#include "spdlog/spdlog.h"
+
 MavlinkReader::MavlinkReader() {}
 
 MavlinkReader::~MavlinkReader() {
@@ -33,7 +35,7 @@ int MavlinkReader::Init(YAML::Node input_params) {
   serial_dev_ = open(input_params["device"].as<std::string>().c_str(),
     O_RDWR | O_NOCTTY | O_NDELAY);
   if(serial_dev_ == -1) {
-    std::cerr << "Failed to open the serial device" << std::endl;
+    spdlog::error("Failed to open the serial device");
     return -1;
   }
 
@@ -68,7 +70,7 @@ int MavlinkReader::Init(YAML::Node input_params) {
 
     // int chmod_ret = chmod(replay_file.c_str(), S_IRWXU | S_IRWXG);
     if (replay_file_fd_ <= 0) {
-      std::cerr << "error opening log file at: " << replay_file << std::endl;
+      spdlog::error("error opening log file at: {}", replay_file);
     }
   }
 
@@ -84,7 +86,7 @@ int MavlinkReader::SetSerialParams(int device) {
   // Get the current configuration of the serial interface
   //
   if(tcgetattr(device, &config) < 0) {
-    std::cerr << "Failed to get the serial device attributes" << std::endl;
+    spdlog::error("Failed to get the serial device attributes");
     return -1;
   }
 
@@ -109,7 +111,7 @@ int MavlinkReader::SetSerialParams(int device) {
   // constants)
   //
   if(cfsetispeed(&config, B115200) < 0 || cfsetospeed(&config, B115200) < 0) {
-    std::cerr << "Failed to set the baudrate on the serial port!" << std::endl;
+    spdlog::error("Failed to set the baudrate on the serial port!");
     return -1;
   }
 
@@ -117,7 +119,7 @@ int MavlinkReader::SetSerialParams(int device) {
   // Finally, apply the configuration
   //
   if(tcsetattr(device, TCSAFLUSH, &config) < 0) {
-    std::cerr << "Failed to set the baudrate on the serial port!" << std::endl;
+    spdlog::error("Failed to set the baudrate on the serial port!");
     return -1;
   }
   return 0;
@@ -134,7 +136,7 @@ void MavlinkReader::SendCounterReset() {
   uint16_t len = mavlink_msg_to_send_buffer(buf, &msg);
 
   if (write(serial_dev_write_, buf, len) < 0) {
-    std::cerr << "error on write! Counter Reset" << std::endl;
+    spdlog::error("error on write! Counter Reset");
   }
 }
 
@@ -159,7 +161,7 @@ void MavlinkReader::SendVioMsg(const vio_t &vio) {
   uint16_t len = mavlink_msg_to_send_buffer(buf, &msg);
 
   if (write(serial_dev_write_, buf, len) < 0) {
-    std::cerr << "error on write! Vio Msg" << std::endl;
+    spdlog::error("error on write! Vio Msg");
   }
 
 }
@@ -172,7 +174,7 @@ void MavlinkReader::SerialReadThread() {
     ssize_t ret = read(serial_dev_, buf, buf_size);
 
     if (ret < 0) {
-      std::cerr << "Error on read(), errno: " << strerror(errno) << std::endl;
+      spdlog::error("Error on read(), errno: {}", strerror(errno));
       continue;
     }
 
@@ -206,9 +208,9 @@ void MavlinkReader::SerialReadThread() {
             }
             break;
           }
-          default:
-            std::cerr << "Unrecognized message with ID:" << static_cast<int>(
-              mav_message.msgid) << std::endl;
+          default: {
+            spdlog::debug("Unrecognized message with ID: {}", static_cast<int>(mav_message.msgid));
+          }
         }
       }
     }
@@ -216,7 +218,7 @@ void MavlinkReader::SerialReadThread() {
     // If we have requested to record a replay file, write the data to it
     if (replay_file_fd_ > 0) {
       if (write(replay_file_fd_, buf, ret) < 0) {
-        std::cerr << "error on write! Save Replay" << std::endl;
+        spdlog::error("error on write! Save Replay");
       }
     }
 

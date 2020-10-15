@@ -126,7 +126,7 @@ int Vio::ProcessPoints(const ImagePoints &pts, vio_t &vio) {
   Eigen::Matrix4d pose_update;
   if (CalculatePoseUpdate(pts, R_imu_cam0_eigen_.transpose() * pts.R_t0_t1_cam0,
     pose_update)) {
-    std::cerr << "Error in CalculatePoseUpdate" << std::endl;
+    spdlog::warn("Error in CalculatePoseUpdate");
     return -1;
   }
 
@@ -230,7 +230,7 @@ int Vio::CalculatePoseUpdate(const ImagePoints &pts, const Eigen::Matrix3d &imu_
   if (num_pts_cam0_t0 != pts_cam0_t1.size() ||
       num_pts_cam0_t0 != pts_cam1_t0.size() ||
       num_pts_cam0_t0 != pts_cam1_t1.size()) {
-    std::cerr << "Error! [ProcessPoints] points are not the same size!" << std::endl;
+    spdlog::error("Error! [ProcessPoints] points are not the same size!");
     return -1;
   } else if (pts_cam0_t0.size() == 0) {
     return -1;
@@ -388,7 +388,7 @@ int Vio::CalculatePoseUpdate(const ImagePoints &pts, const Eigen::Matrix3d &imu_
 
   if (pose_update.block<3, 1>(0, 3).norm() > 1) {
     pose_update = Eigen::Matrix4d::Identity();
-    std::cerr << "Error! Single frame distance over threshold. Discarding update\n";
+    spdlog::error("Error! Single frame distance over threshold. Discarding update");
   }
 
 
