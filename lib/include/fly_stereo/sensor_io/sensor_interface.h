@@ -40,12 +40,19 @@ class SensorInterface {
   std::unique_ptr<Camera> cam1_;
 
  private:
+
+  uint64_t time_first_trigger_flystereo_ = 0;
+  uint64_t time_first_trigger_flyMS_ = 0;
+
   // IMU objects
   std::queue<mavlink_imu_t> imu_queue_;
   std::mutex imu_queue_mutex_;
   uint64_t last_imu_ts_us_;
   std::chrono::steady_clock::time_point last_trigger_time_;
   uint64_t min_camera_dt_ms_;
+
+  // Config params
+  uint64_t time_assoc_thresh_us_;
 };
 
 

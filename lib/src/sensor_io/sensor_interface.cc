@@ -4,6 +4,7 @@
 
 #include <iostream>
 
+#include "spdlog/spdlog.h"
 #include "opencv2/calib3d.hpp"
 #include "opencv2/imgproc.hpp"
 #include "fly_stereo/utility.h"
@@ -32,6 +33,7 @@ int SensorInterface::Init(YAML::Node input_params) {
   }
 
   min_camera_dt_ms_ = input_params["min_camera_dt_ms"].as<uint64_t>();
+  time_assoc_thresh_us_ = input_params["time_assoc_thresh_us"].as<uint64_t>();
 
   return 0;
 }
@@ -95,7 +97,20 @@ int SensorInterface::ReceiveImu(mavlink_imu_t imu_msg) {
 
 int SensorInterface::AssociateImuData(std::vector<mavlink_imu_t> &imu_msgs,
   uint64_t &current_frame_time) {
+  // Guard against the imu queue
+  std::lock_guard<std::mutex> lock(imu_queue_mutex_);
+  
+  // Get the flyStereo side trigger count and timing information
   std::queue<std::pair<uint32_t, uint64_t> > trigger_queue = camera_trigger_->GetTriggerCount();
+
+  // Save the timestamp of the first image so we can use it to compare deltas in the future
+  if (trigger_queue.front().first == 0) {
+    time_first_trigger_flystereo_ = trigger_queue.front().second;
+  }
+  if (imu_queue_.front().trigger_count == 0) {
+    time_first_trigger_flyMS_ = imu_queue_.front().timestamp_us - imu_queue_.front().
+      time_since_trigger_us;
+  }
 
   // The first image will not have relvant imu data
   if (image_counter_ < 3) {
@@ -107,26 +122,47 @@ int SensorInterface::AssociateImuData(std::vector<mavlink_imu_t> &imu_msgs,
     return 1;
   }
 
-  // Reserve some memory in our vector to prevent copies. We should expect this to fill up to
-  //  roughly (IMU acquisition rate / image acquisition rate )
-  imu_msgs.reserve(20);
-
-
   while(trigger_queue.size() > 1) {
     std::cerr << "Error! Mismatch between number of triggers and proccesed frames" << std::endl;
     trigger_queue.pop();
   }
-
-  if (image_counter_ != std::get<0>(trigger_queue.front())) {
+  if (image_counter_ != trigger_queue.front().first) {
     std::cerr << "Error! Mismatch between number of triggers and proccesed frames, image: "
       << image_counter_ << ", from_imu: " << std::get<0>(trigger_queue.front()) << std::endl;
     return -1;
   }
 
+
+  // Use the timestamps relative to the first image to figure out which trigger matches the 
+  // correct image
+  while (imu_queue_.size() > 0) {
+    uint64_t delta_t_flyMS = imu_queue_.front().timestamp_us - imu_queue_.front().
+      time_since_trigger_us - time_first_trigger_flyMS_;
+    uint64_t delta_t_flystereo = trigger_queue.front().second - time_first_trigger_flystereo_;
+
+    if (delta_t_flystereo - delta_t_flyMS > time_assoc_thresh_us_) {
+      // The current imu messages are behind the frame, delete them
+      spdlog::warn("Unsuccessful association, dropping imu messages");
+      int current_trig_count = imu_queue_.front().trigger_count;
+      while (current_trig_count == imu_queue_.front().trigger_count && !imu_queue_.empty()) {
+        imu_queue_.pop();
+      }
+    } else if (delta_t_flyMS - delta_t_flystereo > time_assoc_thresh_us_) {
+      // The current frame is a timestep behind the imu data, return
+      spdlog::warn("Unsuccessful association, dropping image frame");
+      return 1;
+    } else {  // Successful association
+      break;
+    }
+  }
+
   // The objective is to get all the imu measurements that correspond to this frame,
   // take all the imu measurements that correspond to the current frame minus 1
-  int image_of_interest = image_counter_ - 3;
-  std::lock_guard<std::mutex> lock(imu_queue_mutex_);
+  int image_of_interest = imu_queue_.front().trigger_count;
+
+  // Reserve some memory in our vector to prevent copies. We should expect this to fill up to
+  //  roughly (IMU acquisition rate / image acquisition rate )
+  imu_msgs.reserve(20);
 
   // Do a sanity check that we didn't miss a bunch of IMU messages, or sometimes a message from a
   // previous recording makes it into the front of our queueu
