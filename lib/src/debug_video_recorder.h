@@ -49,7 +49,6 @@ struct debug_video_recorder {
     cv::Scalar color = CV_RGB(0, 255, 255);
     circle(frame_local, cv::Point(cyan_pts[i].x, cyan_pts[i].y), myradius, color, -1, 8, 0);
   }
-
 }
 
  void WriteFrame() {
@@ -61,10 +60,13 @@ struct debug_video_recorder {
   // std::cout << "Size " << concat_frame.size() << std::endl;
 
   if (!writer) {
-    writer = std::make_unique<cv::VideoWriter> ("./debug_video.mp4", cv::VideoWriter::fourcc('M', 'J', 'P', 'G'), 2, concat_frame.size(), true );
+    writer = std::make_unique<cv::VideoWriter> ("./debug_video.avi", cv::VideoWriter::fourcc('M', 'J', 'P', 'G'), 2, concat_frame.size(), true );
   }
-
-  writer->write(concat_frame);
+  if (writer->isOpened()) {
+    writer->write(concat_frame);
+  } else {
+    std::cerr << "failed to open video!!\n";
+  }
  }
 
 };

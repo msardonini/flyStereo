@@ -30,7 +30,7 @@ Vio::Vio(const YAML::Node &input_params, const YAML::Node &stereo_calibration) :
   // If we have recording enabled, initialize the logging files
   if (input_params["record_mode"].as<bool>()) {
     std::string run_file = input_params["run_folder"].as<std::string>();
-    trajecotry_file_ = std::make_unique<std::ofstream> (run_file + "/trajecotry.txt",\
+    trajecotry_file_ = std::make_unique<std::ofstream> (run_file + "/trajectory.txt",
       std::ios::out);
   }
 
@@ -144,7 +144,7 @@ int Vio::ProcessPoints(const ImagePoints &pts, vio_t &vio) {
 
   ProcessVio(pose_body, pts.timestamp_us, kf_state);
 
-  Debug_SaveOutput(pose_body);
+  Debug_SaveOutput(pose_body, pts.R_t0_t1_cam0);
 
   // Copy the results to the output of this function
   vio.position << kf_state(0), kf_state(2), kf_state(4);
@@ -401,7 +401,7 @@ int Vio::CalculatePoseUpdate(const ImagePoints &pts, const Eigen::Matrix3d &imu_
   return 0;
 }
 
-int Vio::Debug_SaveOutput(const Eigen::Matrix4d &pose_update) {
+int Vio::Debug_SaveOutput(const Eigen::Matrix4d &pose_update, const Eigen::Matrix3d &R_imu) {
   static int g = 0;
   // if (ransac.model_coefficients_(0,3) > 5 || ransac.model_coefficients_(1,3) > 5 || ransac.model_coefficients_(2,3) > 5) {
   if (1) {
@@ -424,7 +424,10 @@ int Vio::Debug_SaveOutput(const Eigen::Matrix4d &pose_update) {
     if (trajecotry_file_) {
       Eigen::Matrix<double, 3, 4> writer_pose = pose_update.block<3, 4> (0, 0);
       Eigen::Map<Eigen::RowVectorXd> v(writer_pose.data(), writer_pose.size());
-      *trajecotry_file_ << v << kf_.GetState() << std::endl;
+
+      Eigen::Matrix3d R_imu_temp = R_imu;
+      Eigen::Map<Eigen::RowVectorXd> imu(R_imu_temp.data(), R_imu_temp.size());
+      *trajecotry_file_ << v << kf_.GetState() << imu << std::endl;
     }
 
     // for (int i = 0; i < points.size(); i++) {

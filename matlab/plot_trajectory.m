@@ -1,30 +1,35 @@
 clear all; clc; close all
 clear all; clc;
 
-data = dlmread('../build_docker/file.txt');
+data = dlmread('../build_docker/replay/run026/trajectory.txt');
 
 % data = dlmread('/home/msardonini/mntNano/fly_stereo/build/file.txt');
 % data = dlmread('/home/msardonini/git/fly_stereo/replay_data/flight/run011/trajecotry.txt');
 
 
 pose = data(:,1:12);
-kalman_output = data(:,13:end);
+kalman_output = data(:,13:18);
+R_imu = zeros(3, 3, size(data,1));
 % Initialize the variables
 Xform = repmat(eye(4), [1, 1, size(data,1)]);
 points = zeros(4, size(data,1));
 velocity = zeros(4, size(data,1));
 bearing = zeros(3, size(data,1)); bearing(:,1) = [0 0 1];
 euler = zeros(3, size(data,1));
+imu_euler = zeros(3, size(data,1));
 
 running_xform = eye(4);
+running_r_imu = eye(3);
 for i = 1:size(data,1)
    Xform(1:3, 1:4, i) = reshape(pose(i,:),[3,4]);
+   running_r_imu = running_r_imu * reshape(data(i,19:27),[3,3])';
+   R_imu(:, :, i) = running_r_imu;
 
-   
 %    running_xform = running_xform * Xform(:,:, i); %uncomment for running delta xforms
    running_xform = Xform(:,:, i); % uncomment for logged absolute xform
    
    euler(:,i) = R2Euler(running_xform);
+   imu_euler(:,i) = R2Euler(R_imu(:,:,i));
    bearing(:, i) = running_xform(1:3, 1:3) * [0; 0; 1];
    points(:, i) = running_xform * [0; 0; 0; 1];
    if (i ~= 1)
@@ -60,10 +65,11 @@ xlabel('X axis'); ylabel('Y axis'); zlabel('Z axis'); axis equal
 
 %% 
 figure
-plot(euler(1,:))
+plot(euler')
 hold on
-plot(euler(2,:))
-plot(euler(3,:))
+plot(imu_euler')
+title('Euler Angles')
+legend('x', 'y', 'z', 'X', 'Y', 'Z') 
 
 
 % Figure to show the weird linear relationship between distance travelled

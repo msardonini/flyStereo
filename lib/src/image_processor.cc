@@ -73,22 +73,6 @@ ImageProcessor::ImageProcessor(const YAML::Node &input_params,
   E_ = T_cross_mat * R_cam0_cam1_;
   F_ = K_cam0_.inv().t() * E_ * K_cam1_.inv();
 
-  // interface_vec = stereo_calibration["R1"]["data"].as<std::vector<double>>();
-  // R_cam0_ = cv::Matx33d(interface_vec.data());
-
-  // interface_vec = stereo_calibration["R2"]["data"].as<std::vector<double>>();
-  // R_cam1_ = cv::Matx33d(interface_vec.data());
-
-  // interface_vec = stereo_calibration["P1"]["data"].as<std::vector<double>>();
-  // P_cam0_ = cv::Matx34d(interface_vec.data());
-
-  // interface_vec = stereo_calibration["P2"]["data"].as<std::vector<double>>();
-  // P_cam1_ = cv::Matx34d(interface_vec.data());
-
-  // interface_vec = stereo_calibration["Q"]["data"].as<std::vector<double>>();
-  // Q_ = cv::Matx44d(interface_vec.data());
-
-
   std::vector<float> imu_cam0_vec = stereo_calibration["R_imu_cam0"].as<std::vector<float>>();
   cv::Vec3f angles_imu_cam0 = {imu_cam0_vec[0], imu_cam0_vec[1], imu_cam0_vec[2]};
   R_imu_cam0_ = utility::eulerAnglesToRotationMatrix<float>(angles_imu_cam0);
@@ -311,18 +295,18 @@ int ImageProcessor::ProcessThread() {
     *********************************************************************/
     if (counter++ != 0 && !points[t_c0_t0].empty()) {
       // // DEBUG CODE
+      // std::vector<cv::Point2f> pts_t0;
       // write_to_debug = true;
       // if (write_to_debug) {
       //   cv::Mat frame0;
-      //   std::vector<cv::Point2f> pts_t0;
       //   d_frame_cam0_t0.download(frame0);
-      //   if (d_tracked_pts_cam0_t0.cols > 0) {
-      //     d_tracked_pts_cam0_t0.download(pts_t0);
+      //   if (points[t_c0_t0].cols > 0) {
+      //     points[t_c0_t0].download(pts_t0);
       //   }
       //   debug_record.DrawPts(frame0, 0, pts_t0);
       // }
       // std::vector<cv::Point2f> pts_t1_debug;
-      // d_tracked_pts_cam0_t1.download(pts_t1_debug);
+      // points[t_c0_t1].download(pts_t1_debug);
       // // END DEBUG CODE
 
 
@@ -357,10 +341,10 @@ int ImageProcessor::ProcessThread() {
       //   cv::Mat frame1;
       //   std::vector<cv::Point2f> pts_t1;
       //   d_frame_cam0_t1.download(frame1);
-      //   if (d_tracked_pts_cam0_t1.cols > 0) {
-      //     d_tracked_pts_cam0_t1.download(pts_t1);
+      //   if (points[t_c0_t1].cols > 0) {
+      //     points[t_c0_t1].download(pts_t1);
       //   }
-      //   debug_record.DrawPts(frame1, 1, pts_t1, pts_t1_debug);
+      //   debug_record.DrawPts(frame1, 1, pts_t0, pts_t1_debug, pts_t1);
       //   debug_record.WriteFrame();
       // }
       // // END DEBUG CODE

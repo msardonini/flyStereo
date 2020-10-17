@@ -38,7 +38,7 @@ class Vio {
   int ProcessImu(const std::vector<mavlink_imu_t> &imu_pts);
   int ProcessVio(const Eigen::Matrix4d &pose_update, uint64_t image_timestamp,
     Eigen::Matrix<double, 6, 1> &output);
-  int Debug_SaveOutput(const Eigen::Matrix4d &pose_update);
+  int Debug_SaveOutput(const Eigen::Matrix4d &pose_update, const Eigen::Matrix3d &R_imu);
 
   // The calibrated offsets for vio. These numbers will be subtracted off the result of the VIO
   // calculation to lower the drift
