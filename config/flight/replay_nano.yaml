@@ -61,6 +61,7 @@ fly_stereo:
     # Minumum time before two triggers are allowed
     min_camera_dt_ms: 40
     time_assoc_thresh_us: 50000
+    time_sync_frame: 4
 
     CameraTrigger:
       replay_mode: true

@@ -168,7 +168,7 @@ void MavlinkReader::SendVioMsg(const vio_t &vio) {
 void MavlinkReader::SerialReadThread() {
   unsigned char buf[1024];
   size_t buf_size = 1024;
-  std::chrono::time_point<std::chrono::system_clock> time_end;
+  // std::chrono::time_point<std::chrono::system_clock> time_end;
   while (is_running_.load()) {
     ssize_t ret = read(serial_dev_, buf, buf_size);
 
@@ -187,6 +187,11 @@ void MavlinkReader::SerialReadThread() {
           case MAVLINK_MSG_ID_IMU: {
             mavlink_imu_t attitude_msg;
             mavlink_msg_imu_decode(&mav_message, &attitude_msg);
+
+            // spdlog::info("fps: {}", 1.0 / static_cast<std::chrono::duration<double> >
+            //   ((std::chrono::system_clock::now() - time_end)).count());
+            // time_end = std::chrono::system_clock::now();
+
 
             // Push the message to our output queue
             std::lock_guard<std::mutex> lock(queue_mutex_);

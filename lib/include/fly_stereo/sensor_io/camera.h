@@ -12,8 +12,6 @@
 #include "gst/app/gstappsink.h"
 #include "gst/video/video.h"
 
-
-
 struct GstParams {
   GMainLoop *loop;
   GstElement *pipeline;
@@ -26,7 +24,6 @@ struct GstParams {
   // Params
   int appsink_max_buffers;
 };
-
 
 class Camera {
  public:
@@ -60,7 +57,6 @@ class Camera {
   int InitGstPipeline();
   int GetFrameGst(cv::Mat &frame);
   int RunAutoExposure(const cv::Scalar &mean_pixel_val);
-
 
   bool enable_videoflip_;
   int flip_method_;

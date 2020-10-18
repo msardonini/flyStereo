@@ -11,11 +11,11 @@
 
 // #define GPIOHANDLE_REQUEST_OUTPUT (1UL << 1)
 constexpr unsigned long output_pin = 1UL << 1;
-
+constexpr int num_frames_in_bufer = 3;
 
 CameraTrigger::CameraTrigger(YAML::Node input_params) {
   is_running_.store(false);
-  trigger_count_ = 0;
+  trigger_count_ = -num_frames_in_bufer;
   chip_num_ = input_params["chip_num"].as<int>();
   pin_num_ = input_params["pin_num"].as<int>();
   auto_trigger_async_ = input_params["auto_trigger_async"].as<bool>();
@@ -84,21 +84,17 @@ void CameraTrigger::TriggerThread() {
   }
 }
 
-std::queue<std::pair<uint32_t, uint64_t> > CameraTrigger::GetTriggerCount() {
-
+std::pair<uint32_t, uint64_t> CameraTrigger::GetTriggerCount() {
   std::lock_guard<std::mutex> lock(trigger_count_mutex_);
-
-  // std::cout << "counter " << std::get<0>(time_counter_queue_.front()) << std::endl;
-  std::queue<std::pair<uint32_t, uint64_t> > temp;
-  std::swap(temp, time_counter_queue_);
-  return temp;
+  return time_counter_;
 }
-
 
 int CameraTrigger::TriggerCamera() {
   // If we are in replay mode, don't mess with the hardware and just update the counters
   if (replay_mode_) {
-    return UpdateCounter();
+    uint64_t timestamp_us = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::
+      steady_clock::now().time_since_epoch()).count();
+    return UpdateCounter(timestamp_us);
   }
 
   // The cameras get triggered by receiving a pulse 1us to 1ms width
@@ -119,17 +115,15 @@ int CameraTrigger::TriggerCamera() {
     perror("ERROR in rc_gpio_set_value");
     return -1;
   }
-
-  return UpdateCounter();
-}
-
-int CameraTrigger::UpdateCounter() {
-  // Update our trigger counter
-  std::lock_guard<std::mutex> lock(trigger_count_mutex_);
-
   uint64_t timestamp_us = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::
     steady_clock::now().time_since_epoch()).count();
-  std::pair<uint32_t, uint64_t> time_counter(trigger_count_++, timestamp_us);
-  time_counter_queue_.push(time_counter);
+
+  return UpdateCounter(timestamp_us);
+}
+
+int CameraTrigger::UpdateCounter(uint64_t trigger_time) {
+  // Update our trigger counter
+  std::lock_guard<std::mutex> lock(trigger_count_mutex_);
+  time_counter_ = std::pair<uint32_t, uint64_t>(++trigger_count_, trigger_time);
   return 0;
 }

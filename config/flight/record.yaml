@@ -53,6 +53,7 @@ fly_stereo:
     # Minumum time before two triggers are allowed
     min_camera_dt_ms: 40
     time_assoc_thresh_us: 50000
+    time_sync_frame: 4
 
     CameraTrigger:
       chip_num: 0
@@ -68,7 +69,7 @@ fly_stereo:
         enable: true
         auto_exposure_update_percentage: 0.1
         pixel_range_limits: [78, 118]
-        exposure_limits: [51, 2500]
+        exposure_limits: [10, 2500]
         num_frames_to_calc: 3
 
       src_pipeline: "v4l2src device=/dev/video0 ! video/x-raw,width=1280,height=720 ! nvvidconv ! video/x-raw, format=(string)GRAY8 ! appsink max-buffers=10 drop=false"
@@ -91,7 +92,7 @@ fly_stereo:
         enable: true
         auto_exposure_update_percentage: 0.1
         pixel_range_limits: [78, 118]
-        exposure_limits: [51, 2500]
+        exposure_limits: [10, 2500]
         num_frames_to_calc: 3
 
       src_pipeline: "v4l2src device=/dev/video1 ! video/x-raw,width=1280,height=720 ! nvvidconv ! video/x-raw, format=(string)GRAY8 ! videoflip method=rotate-180 ! appsink max-buffers=10 drop=false"
