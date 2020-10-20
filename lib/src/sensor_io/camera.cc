@@ -138,7 +138,7 @@ int Camera::RunAutoExposure(const cv::Scalar &mean_pixel_val) {
   if (mean_pixel_val(0) < pixel_range_limits_[0]) {
     // If the image is too dark then update the exposure time first, then gain when that maxes
     // Also, calculate the value the exposure time would get updated to
-    int new_exposure_time = exposure_time_ * (1.0f + auto_exposure_update_percentage_);
+    unsigned int new_exposure_time = exposure_time_ * (1.0f + auto_exposure_update_percentage_);
     spdlog::debug("new {} max {}", new_exposure_time, exposure_limits_[1]);
     if (new_exposure_time <= exposure_limits_[1]) {
       exposure_time_ = new_exposure_time;
@@ -151,7 +151,7 @@ int Camera::RunAutoExposure(const cv::Scalar &mean_pixel_val) {
         " brighter", device_num_);
     }
   } else if (mean_pixel_val(0) > pixel_range_limits_[1]) {
-    int new_exposure_time = exposure_time_ * (1.0f - auto_exposure_update_percentage_);
+    unsigned int new_exposure_time = exposure_time_ * (1.0f - auto_exposure_update_percentage_);
     // If the image is too bright lower the gain first, then move to exposure time
     if (gain_ > 1) {
       gain_--;

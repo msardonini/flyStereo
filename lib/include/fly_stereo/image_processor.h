@@ -22,7 +22,6 @@
 #include "fly_stereo/sensor_io/mavlink/fly_stereo/mavlink.h"
 #include "fly_stereo/optical_flow_points.h"
 
-
 class ImageProcessor {
  public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
@@ -120,6 +119,8 @@ class ImageProcessor {
 
   // Video I/O
   std::unique_ptr<SensorInterface> sensor_interface_;
+  std::unique_ptr<SqlLogger> sql_logger_;
+  bool draw_points_to_frame_;
 
   // config params for LK optical flow
   int window_size_;

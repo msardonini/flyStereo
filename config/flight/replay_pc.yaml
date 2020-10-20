@@ -1,7 +1,11 @@
 fly_stereo:
+  # Global Commands
   wait_for_start_command: false
   record_mode: true
+  replay_mode: false
   log_dir: /root/fly_stereo/build_docker/replay
+  replay_dir: /root/fly_stereo/build_docker/replay/run040
+
   mavlink_reader:
     # device: /dev/ttyTHS1
     # replay_mode: false
@@ -50,6 +54,8 @@ fly_stereo:
       bins_height: 15
       max_pts_in_bin: 1
 
+
+  sensor_interface:
     # Minumum time before two triggers are allowed
     min_camera_dt_ms: 40
     time_assoc_thresh_us: 50000

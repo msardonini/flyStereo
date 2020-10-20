@@ -52,7 +52,6 @@ Vio::Vio(const YAML::Node &input_params, const YAML::Node &stereo_calibration) :
   D_cam1_ = stereo_calibration["D1"]["data"].as<std::vector<double>>();
 
   interface_vec = stereo_calibration["R_imu_cam0"].as<std::vector<double>>();
-  cv::Vec3d R_imu_cam0_vec = cv::Vec3d(interface_vec.data());
   R_imu_cam0_eigen_ =  Eigen::AngleAxisd(interface_vec[0], Eigen::Vector3d::UnitX()) *
     Eigen::AngleAxisd(interface_vec[1],  Eigen::Vector3d::UnitY()) *
     Eigen::AngleAxisd(interface_vec[2], Eigen::Vector3d::UnitZ()).toRotationMatrix();
@@ -216,7 +215,7 @@ int Vio::CalculatePoseUpdate(const ImagePoints &pts, const Eigen::Matrix3d &imu_
   std::vector<int> pts_ids(num_pts);
 
   // Take our points out of the grid and put into vectors for processing
-    for (int i = 0; i < num_pts; i++) {
+    for (size_t i = 0; i < num_pts; i++) {
       pts_cam0_t0[i] = cv::Point2d(pts.pts[i].cam0_t0[0], pts.pts[i].cam0_t0[1]);
       pts_cam0_t1[i] = cv::Point2d(pts.pts[i].cam0_t1[0], pts.pts[i].cam0_t1[1]);
       pts_cam1_t0[i] = cv::Point2d(pts.pts[i].cam1_t0[0], pts.pts[i].cam1_t0[1]);
@@ -298,7 +297,7 @@ int Vio::CalculatePoseUpdate(const ImagePoints &pts, const Eigen::Matrix3d &imu_
 
   // Fill the bearing/correspondence vectors. The bearing unit vector is unit vector pointing in
   // the same direction as the homogeneous 3D point
-  for (int i = 0; i < pts_cam0_t0.size(); i++) {
+  for (size_t i = 0; i < pts_cam0_t0.size(); i++) {
     opengv::bearingVector_t bearing_vec;
     cv::cv2eigen(static_cast<cv::Vec3d>(xform_vec_cam0_t0[i]), bearing_vec);
     bearing_vec /= bearing_vec.norm();
@@ -402,7 +401,6 @@ int Vio::CalculatePoseUpdate(const ImagePoints &pts, const Eigen::Matrix3d &imu_
 }
 
 int Vio::Debug_SaveOutput(const Eigen::Matrix4d &pose_update, const Eigen::Matrix3d &R_imu) {
-  static int g = 0;
   // if (ransac.model_coefficients_(0,3) > 5 || ransac.model_coefficients_(1,3) > 5 || ransac.model_coefficients_(2,3) > 5) {
   if (1) {
     // unsigned int index_temp = Modulo(point_history_index_ - 2, history_size);

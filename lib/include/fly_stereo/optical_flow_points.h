@@ -50,7 +50,7 @@ struct OpticalFlowPoints {
     &vecs_to_use, const std::vector<unsigned int> &id_vec_to_use = {}) {
     // We need a CPU vector for this operation, download it and run the remove function, and
     // re-upload it again
-    for (int i = 0; i < vecs_to_use.size(); i++) {
+    for (size_t i = 0; i < vecs_to_use.size(); i++) {
       std::vector<cv::Point2f> points = GetCpu(vecs_to_use[i]);
       if(!RemovePoints<cv::Point2f>(status, points)) {
         return false;
@@ -87,7 +87,7 @@ struct OpticalFlowPoints {
     }
 
     // Mark those tracked points out of the image region as untracked.
-    for (int j = 0; j < points.size(); j++) {
+    for (size_t j = 0; j < points.size(); j++) {
       if (status[j] == 0) {
         continue;
       }
@@ -164,7 +164,7 @@ struct OpticalFlowPoints {
 
     status.resize(points.size());
     // Initially set all the statuses to true
-    for (int i = 0; i < status.size(); i++) {
+    for (size_t i = 0; i < status.size(); i++) {
       status[i] = 1;
     }
 
@@ -189,7 +189,7 @@ struct OpticalFlowPoints {
           { return std::get<1>(a) > std::get<1>(b); });
 
         // Mark the points that should be deleted
-        for (int i = max_pts_in_bin; i < it->second.size(); i++) {
+        for (size_t i = max_pts_in_bin; i < it->second.size(); i++) {
           status[std::get<0>(it->second[i])] = 0;
         }
       }

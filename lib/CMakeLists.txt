@@ -27,6 +27,7 @@ add_library(fly_stereo_lib
   src/image_processor.cc
   src/vio.cc
   src/kalman_filter.cc
+  src/sql_logger.cc
   src/sensor_io/sensor_interface.cc
   src/sensor_io/mavlink_reader.cc
   src/sensor_io/camera_trigger.cc
@@ -42,6 +43,7 @@ target_include_directories(fly_stereo_lib
 
 target_link_libraries(fly_stereo_lib
   PRIVATE
+    sqlite3
     pthread
   PUBLIC
     Eigen3::Eigen
@@ -51,6 +53,11 @@ target_link_libraries(fly_stereo_lib
     yaml-cpp
     opengv
     ${GST_LIBRARIES}
+)
+
+target_compile_options(fly_stereo_lib
+  PRIVATE
+    -Wall
 )
 
 target_compile_definitions(fly_stereo_lib

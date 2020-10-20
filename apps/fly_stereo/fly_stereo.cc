@@ -81,15 +81,15 @@ void UpdateLogDirectory(YAML::Node &node) {
   imu_filepath.replace(pos, symbol.length(), run_folder);
   node["mavlink_reader"]["replay_imu_data_file"] = imu_filepath;
 
-  std::string cam0_fp = node["image_processor"]["Camera0"]["sink_pipeline"].as<std::string>();
+  std::string cam0_fp = node["sensor_interface"]["Camera0"]["sink_pipeline"].as<std::string>();
   pos = cam0_fp.find(symbol);
   cam0_fp.replace(pos, symbol.length(), run_folder);
-  node["image_processor"]["Camera0"]["sink_pipeline"] = cam0_fp;
+  node["sensor_interface"]["Camera0"]["sink_pipeline"] = cam0_fp;
 
-  std::string cam1_fp = node["image_processor"]["Camera1"]["sink_pipeline"].as<std::string>();
+  std::string cam1_fp = node["sensor_interface"]["Camera1"]["sink_pipeline"].as<std::string>();
   pos = cam1_fp.find(symbol);
   cam1_fp.replace(pos, symbol.length(), run_folder);
-  node["image_processor"]["Camera1"]["sink_pipeline"] = cam1_fp;
+  node["sensor_interface"]["Camera1"]["sink_pipeline"] = cam1_fp;
 }
 
 int InitializeSpdLog(const std::string &log_dir) {
@@ -151,7 +151,7 @@ int main(int argc, char* argv[]) {
   MavlinkReader mavlink_reader;
   mavlink_reader.Init(fly_stereo_params["mavlink_reader"]);
 
-  if (fly_stereo_params["wait_for_start_command"].as<bool>()) {  
+  if (fly_stereo_params["wait_for_start_command"].as<bool>()) {
     while(is_running.load()) {
       if(mavlink_reader.WaitForStartCmd() == true) {
         break;
@@ -159,7 +159,7 @@ int main(int argc, char* argv[]) {
     }
   }
 
-  ImageProcessor image_processor(fly_stereo_params["image_processor"], 
+  ImageProcessor image_processor(fly_stereo_params,
     fly_stereo_params["stereo_calibration"]);
   image_processor.Init();
 
@@ -173,7 +173,7 @@ int main(int argc, char* argv[]) {
 
   while (is_running.load()) {
     // If we are receiving start/finish commands then wait for the signal
-    if (fly_stereo_params["wait_for_start_command"].as<bool>()) {  
+    if (fly_stereo_params["wait_for_start_command"].as<bool>()) {
       if(mavlink_reader.WaitForShutdownCmd() == true) {
         is_running.store(false);
       }

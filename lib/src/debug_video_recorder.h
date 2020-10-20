@@ -27,25 +27,25 @@ struct debug_video_recorder {
 
   int myradius=5;
   // Draw blue points
-  for (int i = 0; i < blue_pts.size(); i++) {
+  for (size_t i = 0; i < blue_pts.size(); i++) {
     cv::Scalar color = CV_RGB(0, 0, 255);
     circle(frame_local, cv::Point(blue_pts[i].x, blue_pts[i].y), myradius, color, -1, 8, 0);
   }
 
   // Draw green points
-  for (int i = 0; i < green_pts.size(); i++) {
+  for (size_t i = 0; i < green_pts.size(); i++) {
     cv::Scalar color = CV_RGB(0, 255, 0);
     circle(frame_local, cv::Point(green_pts[i].x, green_pts[i].y), myradius, color, -1, 8, 0);
   }
 
   // Draw red points
-  for (int i = 0; i < red_pts.size(); i++) {
+  for (size_t i = 0; i < red_pts.size(); i++) {
     cv::Scalar color = CV_RGB(255, 0, 0);
     circle(frame_local, cv::Point(red_pts[i].x, red_pts[i].y), myradius, color, -1, 8, 0);
   }
 
   // Draw cyan points
-  for (int i = 0; i < cyan_pts.size(); i++) {
+  for (size_t i = 0; i < cyan_pts.size(); i++) {
     cv::Scalar color = CV_RGB(0, 255, 255);
     circle(frame_local, cv::Point(cyan_pts[i].x, cyan_pts[i].y), myradius, color, -1, 8, 0);
   }

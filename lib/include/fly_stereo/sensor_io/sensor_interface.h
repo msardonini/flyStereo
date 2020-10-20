@@ -9,6 +9,7 @@
 #include "fly_stereo/sensor_io/camera_trigger.h"
 #include "fly_stereo/sensor_io/mavlink_reader.h"
 #include "fly_stereo/interface.h"
+#include "fly_stereo/sql_logger.h"
 
 class SensorInterface {
  public:
@@ -26,7 +27,7 @@ class SensorInterface {
   
   int Init(YAML::Node input_params);
 
-  int ReceiveImu(mavlink_imu_t imu_msg);
+  void ReceiveImu(mavlink_imu_t imu_msg);
 
   int AssociateImuData(std::vector<mavlink_imu_t> &imu_msgs,
   uint64_t &current_frame_time);
@@ -58,7 +59,10 @@ class SensorInterface {
 
   // Config params
   int64_t time_assoc_thresh_us_;
-  int time_sync_frame_;
+  unsigned int time_sync_frame_;
+  bool record_mode_ = false;
+  bool replay_mode_ = false;
+  std::unique_ptr<SqlLogger> sql_logger_;
 };
 
 

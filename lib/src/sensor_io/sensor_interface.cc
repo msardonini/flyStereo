@@ -18,23 +18,35 @@ SensorInterface::~SensorInterface() {
 }
 
 int SensorInterface::Init(YAML::Node input_params) {
-  cam0_ = std::make_unique<Camera> (input_params["Camera0"]);
+  if (input_params["replay_mode"].as<bool>()) {
+    replay_mode_ = true;
+  }
+  if (input_params["record_mode"].as<bool>()) {
+    record_mode_ = true;
+  }
+  if (record_mode_ || replay_mode_) {
+    sql_logger_ = std::make_unique<SqlLogger>(input_params);
+  }
+
+  YAML::Node sensor_params = input_params["sensor_interface"];
+
+  cam0_ = std::make_unique<Camera> (sensor_params["Camera0"]);
   if(cam0_->Init()) {
     return -1;
   }
-  cam1_ = std::make_unique<Camera> (input_params["Camera1"]);
+  cam1_ = std::make_unique<Camera> (sensor_params["Camera1"]);
   if (cam1_->Init()) {
     return -1;
   }
-  camera_trigger_ = std::make_unique<CameraTrigger> (input_params["CameraTrigger"]);
+  camera_trigger_ = std::make_unique<CameraTrigger> (sensor_params["CameraTrigger"]);
 
   if (camera_trigger_->Init()) {
     return -1;
   }
 
-  time_sync_frame_ = input_params["time_sync_frame"].as<int>();
-  min_camera_dt_ms_ = input_params["min_camera_dt_ms"].as<uint64_t>();
-  time_assoc_thresh_us_ = input_params["time_assoc_thresh_us"].as<int64_t>();
+  time_sync_frame_ = sensor_params["time_sync_frame"].as<unsigned int>();
+  min_camera_dt_ms_ = sensor_params["min_camera_dt_ms"].as<uint64_t>();
+  time_assoc_thresh_us_ = sensor_params["time_assoc_thresh_us"].as<int64_t>();
 
   return 0;
 }
@@ -42,6 +54,17 @@ int SensorInterface::Init(YAML::Node input_params) {
 int SensorInterface::GetSynchronizedData(cv::cuda::GpuMat &d_frame_cam0,
     cv::cuda::GpuMat &d_frame_cam1, std::vector<mavlink_imu_t> &imu_data,
     uint64_t &current_frame_time) {
+
+  if (replay_mode_ && sql_logger_) {
+    cv::Mat frame0, frame1;
+    uint64_t timestamp_flyMS, timestamp_flyStereo;
+    int ret = sql_logger_->QueryEntry(timestamp_flyMS, timestamp_flyStereo, frame0, frame1,
+      imu_data);
+    d_frame_cam0.upload(frame0);
+    d_frame_cam1.upload(frame1);
+    return ret;
+  }
+
   // Check we aren't going to trigger the camera too soon. This can cause the program to hang
   uint64_t time_now_us = std::chrono::duration_cast<std::chrono::milliseconds>(
     std::chrono::steady_clock::now().time_since_epoch()).count();
@@ -69,13 +92,22 @@ int SensorInterface::GetSynchronizedData(cv::cuda::GpuMat &d_frame_cam0,
 
   imu_data.clear();
   int ret = AssociateImuData(imu_data, current_frame_time);
+
+  if (record_mode_ && sql_logger_) {
+    cv::Mat frame0, frame1;
+    d_frame_cam0.download(frame0);
+    d_frame_cam1.download(frame1);
+    spdlog::info("number of imu messages! {}", imu_data.size());
+    sql_logger_->LogEntry(2, 3, frame0, frame1, imu_data);
+  }
+
   return ret;
 }
 
 void SensorInterface::DrawPoints(const std::vector<cv::Point2f> &mypoints,
     cv::Mat &myimage) {
-  int myradius=5;
-  for (int i = 0; i < mypoints.size(); i++) {
+  int myradius = 5;
+  for (size_t i = 0; i < mypoints.size(); i++) {
     cv::Scalar color;
     if (i == 0) {
       color = CV_RGB(0, 0, 255);
@@ -87,7 +119,7 @@ void SensorInterface::DrawPoints(const std::vector<cv::Point2f> &mypoints,
 }
 
 
-int SensorInterface::ReceiveImu(mavlink_imu_t imu_msg) {
+void SensorInterface::ReceiveImu(mavlink_imu_t imu_msg) {
   std::lock_guard<std::mutex> lock(imu_queue_mutex_);
   imu_queue_.push(imu_msg);
 }
