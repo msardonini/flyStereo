@@ -42,24 +42,18 @@ class SensorInterface {
 
  private:
   bool first_iteration_ = true;
-  uint64_t time_first_trigger_flystereo_ = 0;
-  uint64_t time_first_trigger_flyMS_ = 0;
 
   // first value in the pair contains the current value, second is the value from the
   // previous iteration
-  using TrigTimestamp = std::pair<uint32_t, uint64_t>;
+  using TrigTimestamp = std::pair<int, uint64_t>;
   std::pair<TrigTimestamp, TrigTimestamp> triggers_;
 
   // IMU objects
   std::queue<mavlink_imu_t> imu_queue_;
   std::mutex imu_queue_mutex_;
-  uint64_t last_imu_ts_us_;
-  std::chrono::steady_clock::time_point last_trigger_time_;
   uint64_t min_camera_dt_ms_;
 
   // Config params
-  int64_t time_assoc_thresh_us_;
-  unsigned int time_sync_frame_;
   bool record_mode_ = false;
   bool replay_mode_ = false;
   std::unique_ptr<SqlLogger> sql_logger_;

@@ -119,7 +119,6 @@ class ImageProcessor {
 
   // Video I/O
   std::unique_ptr<SensorInterface> sensor_interface_;
-  std::unique_ptr<SqlLogger> sql_logger_;
   bool draw_points_to_frame_;
 
   // config params for LK optical flow

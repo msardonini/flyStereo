@@ -39,7 +39,8 @@ void imu_thread(MavlinkReader *mavlink_reader, ImageProcessor *image_processor) 
   }
 }
 
-void tracked_features_thread(ImageProcessor *image_processor, Vio *vio, MavlinkReader *mavlink_reader) {
+void tracked_features_thread(ImageProcessor *image_processor, Vio *vio, MavlinkReader
+  *mavlink_reader) {
   while(is_running.load()) {
     ImagePoints pts;
     if(image_processor->GetTrackedPoints(&pts)) {
@@ -76,20 +77,26 @@ void UpdateLogDirectory(YAML::Node &node) {
 
   std::string symbol("<log_dir>");
 
-  std::string imu_filepath = node["mavlink_reader"]["replay_imu_data_file"].as<std::string>();
-  size_t pos = imu_filepath.find(symbol);
-  imu_filepath.replace(pos, symbol.length(), run_folder);
-  node["mavlink_reader"]["replay_imu_data_file"] = imu_filepath;
+  if (node["mavlink_reader"]["replay_imu_data_file"]) {
+    std::string imu_filepath = node["mavlink_reader"]["replay_imu_data_file"].as<std::string>();
+    size_t pos = imu_filepath.find(symbol);
+    imu_filepath.replace(pos, symbol.length(), run_folder);
+    node["mavlink_reader"]["replay_imu_data_file"] = imu_filepath;
+  }
 
-  std::string cam0_fp = node["sensor_interface"]["Camera0"]["sink_pipeline"].as<std::string>();
-  pos = cam0_fp.find(symbol);
-  cam0_fp.replace(pos, symbol.length(), run_folder);
-  node["sensor_interface"]["Camera0"]["sink_pipeline"] = cam0_fp;
+  if (node["sensor_interface"]["Camera0"]["sink_pipeline"]) {
+    std::string cam0_fp = node["sensor_interface"]["Camera0"]["sink_pipeline"].as<std::string>();
+    size_t pos = cam0_fp.find(symbol);
+    cam0_fp.replace(pos, symbol.length(), run_folder);
+    node["sensor_interface"]["Camera0"]["sink_pipeline"] = cam0_fp;
+  }
 
-  std::string cam1_fp = node["sensor_interface"]["Camera1"]["sink_pipeline"].as<std::string>();
-  pos = cam1_fp.find(symbol);
-  cam1_fp.replace(pos, symbol.length(), run_folder);
-  node["sensor_interface"]["Camera1"]["sink_pipeline"] = cam1_fp;
+  if (node["sensor_interface"]["Camera1"]["sink_pipeline"]) {
+    std::string cam1_fp = node["sensor_interface"]["Camera1"]["sink_pipeline"].as<std::string>();
+    size_t pos = cam1_fp.find(symbol);
+    cam1_fp.replace(pos, symbol.length(), run_folder);
+    node["sensor_interface"]["Camera1"]["sink_pipeline"] = cam1_fp;
+  }
 }
 
 int InitializeSpdLog(const std::string &log_dir) {

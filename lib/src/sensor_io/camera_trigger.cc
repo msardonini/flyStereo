@@ -84,7 +84,7 @@ void CameraTrigger::TriggerThread() {
   }
 }
 
-std::pair<uint32_t, uint64_t> CameraTrigger::GetTriggerCount() {
+std::pair<int, uint64_t> CameraTrigger::GetTriggerCount() {
   std::lock_guard<std::mutex> lock(trigger_count_mutex_);
   return time_counter_;
 }
@@ -124,6 +124,6 @@ int CameraTrigger::TriggerCamera() {
 int CameraTrigger::UpdateCounter(uint64_t trigger_time) {
   // Update our trigger counter
   std::lock_guard<std::mutex> lock(trigger_count_mutex_);
-  time_counter_ = std::pair<uint32_t, uint64_t>(++trigger_count_, trigger_time);
+  time_counter_ = std::pair<int, uint64_t>(++trigger_count_, trigger_time);
   return 0;
 }

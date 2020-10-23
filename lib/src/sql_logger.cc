@@ -5,6 +5,9 @@
 #include "sqlite3.h"
 #include "spdlog/spdlog.h"
 
+
+constexpr size_t MAX_QUEUE_SIZE = 100;
+
 struct Sqlite3_params {
   sqlite3 *data_base_;
   sqlite3_stmt *sq_stmt;
@@ -35,12 +38,15 @@ SqlLogger::SqlLogger(const YAML::Node &input_params) {
     // output vars
     ret = sqlite3_exec(sql3_->data_base_, sql_cmd.c_str(), nullptr, nullptr, nullptr);
     if (ret != SQLITE_OK) {
-      spdlog::error("Error in sqlite3_exec, return code is: {}");
+      spdlog::error("Error in sqlite3_exec, return code is: {}", ret);
     }
+
+    is_running_.store(true);
+    queue_thread_ = std::thread(&SqlLogger::LogThread, this);
   } else if (input_params["replay_mode"].as<bool>()) {
     replay_mode_ = true;
-    std::string filename = input_params["replay_dir"].as<std::string>();
-    filename += "/database.dat";
+    std::string filename = input_params["replay_dir"].as<std::string>() + "/database.dat";
+
     // Open the database
     int ret = sqlite3_open(filename.c_str(), &sql3_->data_base_);
     if (ret) {
@@ -59,11 +65,43 @@ SqlLogger::SqlLogger(const YAML::Node &input_params) {
 }
 
 SqlLogger::~SqlLogger() {
+  is_running_.store(false);
   sqlite3_finalize(sql3_->sq_stmt);
   sqlite3_close(sql3_->data_base_);
+
+  if (queue_thread_.joinable()) {
+    queue_thread_.join();
+  }
 }
 
-int SqlLogger::LogEntry(uint64_t timestamp_flyms, uint64_t timestamp_flystereo,
+void SqlLogger::LogThread() {
+  while (is_running_.load()) {
+    std::unique_lock<std::mutex> lock(queue_mutex_);
+    if (log_queue_.size() > MAX_QUEUE_SIZE) {
+      spdlog::error("Can't keep up writing data, dropping a frame!!");
+      log_queue_.pop();
+    }
+    if (!log_queue_.empty()) {
+      LogEntry(log_queue_.front());
+      log_queue_.pop();
+    } else {
+      lock.unlock();
+      std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+  }
+}
+
+void SqlLogger::QueueEntry(const LogParams &params) {
+  std::lock_guard<std::mutex> lock(queue_mutex_);
+  log_queue_.push(params);
+}
+
+int SqlLogger::LogEntry(const LogParams &params) {
+  return LogEntry(params.timestamp_flyms, params.timestamp_flystereo, params.frame0, params.frame1,
+    params.imu_msgs);
+}
+
+int SqlLogger::LogEntry(const uint64_t timestamp_flyms, const uint64_t timestamp_flystereo,
   const cv::Mat &frame0, const cv::Mat &frame1, const std::vector<mavlink_imu_t> &imu_msgs) {
   if (!record_mode_) {
     spdlog::error("LogEntry called when not in record mode");
@@ -88,12 +126,14 @@ int SqlLogger::LogEntry(uint64_t timestamp_flyms, uint64_t timestamp_flystereo,
     spdlog::error("error in bind, code: {}", ret);
     return -1;
   }
-  ret = sqlite3_bind_blob(sql3_->sq_stmt, 3, frame0.data, frame0.total() * frame0.elemSize(), nullptr);
+  ret = sqlite3_bind_blob(sql3_->sq_stmt, 3, frame0.data, frame0.total() * frame0.elemSize(),
+    nullptr);
   if(ret != SQLITE_OK) {
     spdlog::error("error in bind, code: {}", ret);
     return -1;
   }
-  ret = sqlite3_bind_blob(sql3_->sq_stmt, 4, frame1.data, frame1.total() * frame1.elemSize(), nullptr);
+  ret = sqlite3_bind_blob(sql3_->sq_stmt, 4, frame1.data, frame1.total() * frame1.elemSize(),
+    nullptr);
   if(ret != SQLITE_OK) {
     spdlog::error("error in bind, code: {}", ret);
     return -1;
@@ -133,7 +173,6 @@ int SqlLogger::LogEntry(uint64_t timestamp_flyms, uint64_t timestamp_flystereo,
   }
 
   sqlite3_reset(sql3_->sq_stmt);
-
   return 0;
 }
 
@@ -151,12 +190,14 @@ int SqlLogger::QueryEntry(uint64_t &timestamp_flyms, uint64_t &timestamp_flyster
 
   timestamp_flyms = sqlite3_column_int64(sql3_->sq_stmt, 0);
   timestamp_flystereo = sqlite3_column_int64(sql3_->sq_stmt, 1);
-  frame0 = cv::Mat(720, 1280, CV_8UC1, const_cast<void*>(sqlite3_column_blob(sql3_->sq_stmt, 2))).clone();
-  frame1 = cv::Mat(720, 1280, CV_8UC1, const_cast<void*>(sqlite3_column_blob(sql3_->sq_stmt, 3))).clone();
-  
+  frame0 = cv::Mat(720, 1280, CV_8UC1, const_cast<void*>(sqlite3_column_blob(sql3_->sq_stmt, 2))).
+    clone();
+  frame1 = cv::Mat(720, 1280, CV_8UC1, const_cast<void*>(sqlite3_column_blob(sql3_->sq_stmt, 3))).
+    clone();
+
   size_t imu_msg_count = sqlite3_column_int(sql3_->sq_stmt, 4);
-  const uint8_t* imu_blob = reinterpret_cast<const uint8_t*>(sqlite3_column_blob(sql3_->sq_stmt,
-    5));
+  const uint8_t* imu_blob = reinterpret_cast<const uint8_t*>(sqlite3_column_blob(
+    sql3_->sq_stmt, 5));
   size_t imu_blob_size = sqlite3_column_bytes(sql3_->sq_stmt, 5);
 
   imu_msgs.clear(); imu_msgs.reserve(imu_msg_count);
@@ -166,8 +207,8 @@ int SqlLogger::QueryEntry(uint64_t &timestamp_flyms, uint64_t &timestamp_flyster
     uint8_t msg_received = mavlink_parse_char(MAVLINK_COMM_1, imu_blob[i], &mav_message,
       &mav_status);
 
-  if (msg_received) {
-    if (mav_message.msgid == MAVLINK_MSG_ID_IMU) {
+    if (msg_received) {
+      if (mav_message.msgid == MAVLINK_MSG_ID_IMU) {
         mavlink_imu_t attitude_msg;
         mavlink_msg_imu_decode(&mav_message, &attitude_msg);
         imu_msgs.push_back(attitude_msg);
@@ -176,7 +217,3 @@ int SqlLogger::QueryEntry(uint64_t &timestamp_flyms, uint64_t &timestamp_flyster
   }
   return 0;
 }
-
-
-
-

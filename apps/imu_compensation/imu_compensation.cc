@@ -84,7 +84,7 @@ int main(int argc, char *argv[]) {
   YAML::Node imu_comp_params = YAML::LoadFile(config_file)["fly_stereo"];
 
   SensorInterface sensor_interface;
-  sensor_interface.Init(imu_comp_params["image_processor"]);
+  sensor_interface.Init(imu_comp_params);
 
   std::thread imu_thread_obj(imu_thread, imu_comp_params["mavlink_reader"], &sensor_interface);
 

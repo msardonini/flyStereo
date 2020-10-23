@@ -55,8 +55,6 @@ fly_stereo:
     # Minumum time before two triggers are allowed
   sensor_interface:
     min_camera_dt_ms: 40
-    time_assoc_thresh_us: 50000
-    time_sync_frame: 4
 
     CameraTrigger:
       chip_num: 0
@@ -76,7 +74,7 @@ fly_stereo:
         num_frames_to_calc: 3
 
       src_pipeline: "v4l2src device=/dev/video0 ! video/x-raw,width=1280,height=720 ! nvvidconv ! video/x-raw, format=(string)GRAY8 ! appsink max-buffers=10 drop=false"
-      sink_pipeline: "appsrc do-timestamp=true ! queue max-size-buffers=400 ! videoconvert ! nvvidconv ! nvv4l2h264enc maxperf-enable=true bitrate=107456000 ! h264parse ! qtmux ! filesink location=<log_dir>/cam0.mp4 "
+      # sink_pipeline: "appsrc do-timestamp=true ! queue max-size-buffers=400 ! videoconvert ! nvvidconv ! nvv4l2h264enc maxperf-enable=true bitrate=107456000 ! h264parse ! qtmux ! filesink location=<log_dir>/cam0.mp4 "
 
       enable_videoflip: false
       flip_method: -1
@@ -99,7 +97,7 @@ fly_stereo:
         num_frames_to_calc: 3
 
       src_pipeline: "v4l2src device=/dev/video1 ! video/x-raw,width=1280,height=720 ! nvvidconv ! video/x-raw, format=(string)GRAY8 ! videoflip method=rotate-180 ! appsink max-buffers=10 drop=false"
-      sink_pipeline: "appsrc do-timestamp=true ! queue max-size-buffers=400 ! videoconvert ! nvvidconv ! nvv4l2h264enc maxperf-enable=true bitrate=107456000 ! h264parse ! qtmux ! filesink location=<log_dir>/cam1.mp4 "
+      # sink_pipeline: "appsrc do-timestamp=true ! queue max-size-buffers=400 ! videoconvert ! nvvidconv ! nvv4l2h264enc maxperf-enable=true bitrate=107456000 ! h264parse ! qtmux ! filesink location=<log_dir>/cam1.mp4 "
 
       device_num: 1
       enable_videoflip: true

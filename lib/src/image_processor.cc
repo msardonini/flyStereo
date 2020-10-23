@@ -21,10 +21,6 @@ debug_video_recorder debug_record;
 
 ImageProcessor::ImageProcessor(const YAML::Node &input_params,
   const YAML::Node &stereo_calibration) {
-  if (input_params["run_folder"]) {
-    sql_logger_ = std::make_unique<SqlLogger>(input_params);
-  }
-
   YAML::Node image_processor_params = input_params["image_processor"];
   // Params for OpenCV function goodFeaturesToTrack
   YAML::Node features_params = image_processor_params["goodFeaturesToTrack"];

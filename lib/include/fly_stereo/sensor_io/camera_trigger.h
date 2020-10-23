@@ -19,7 +19,7 @@ class CameraTrigger {
 
   int Init();
   int TriggerCamera();
-  std::pair<uint32_t, uint64_t> GetTriggerCount();
+  std::pair<int, uint64_t> GetTriggerCount();
 
  private:
   void TriggerThread();
@@ -40,8 +40,8 @@ class CameraTrigger {
   bool replay_mode_ = false;
   double auto_trigger_async_rate_hz_ = 0.0;
 
-  uint32_t trigger_count_ = 0;
-  std::pair<uint32_t, uint64_t> time_counter_;
+  int trigger_count_ = 0;
+  std::pair<int, uint64_t> time_counter_;
   std::mutex trigger_count_mutex_;
 };
 

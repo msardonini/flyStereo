@@ -44,10 +44,7 @@ int SensorInterface::Init(YAML::Node input_params) {
     return -1;
   }
 
-  time_sync_frame_ = sensor_params["time_sync_frame"].as<unsigned int>();
   min_camera_dt_ms_ = sensor_params["min_camera_dt_ms"].as<uint64_t>();
-  time_assoc_thresh_us_ = sensor_params["time_assoc_thresh_us"].as<int64_t>();
-
   return 0;
 }
 
@@ -98,7 +95,21 @@ int SensorInterface::GetSynchronizedData(cv::cuda::GpuMat &d_frame_cam0,
     d_frame_cam0.download(frame0);
     d_frame_cam1.download(frame1);
     spdlog::info("number of imu messages! {}", imu_data.size());
-    sql_logger_->LogEntry(2, 3, frame0, frame1, imu_data);
+
+    LogParams params;
+    if (imu_data.size() > 0) {
+      params.timestamp_flyms = imu_data.front().timestamp_us - imu_data.front().
+        time_since_trigger_us ;
+      } else {
+        params.timestamp_flyms = 0;
+      }
+
+    params.timestamp_flystereo = triggers_.first.second;
+    params.frame0 = frame0;
+    params.frame1 = frame1;
+    params.imu_msgs = imu_data;
+
+    sql_logger_->QueueEntry(params);
   }
 
   return ret;
@@ -141,74 +152,23 @@ int SensorInterface::AssociateImuData(std::vector<mavlink_imu_t> &imu_msgs,
     return 1;
   }
 
-  // Save the timestamp of the first image so we can use it to compare deltas in the future
-  if (time_first_trigger_flystereo_ == 0 && triggers_.first.first == time_sync_frame_) {
-    time_first_trigger_flystereo_ = triggers_.second.second;
-    spdlog::info("time flyStereo start {} ", time_first_trigger_flystereo_);
-  }
-  if (time_first_trigger_flyMS_ == 0 && !imu_queue_.empty() &&
-      imu_queue_.front().trigger_count <= time_sync_frame_ - 1) {
-    // Pop all the values prior to the one we will use for the timestamp
-    while (!imu_queue_.empty() && imu_queue_.front().trigger_count < time_sync_frame_ - 1) {
-      imu_queue_.pop();
-    }
-    if (!imu_queue_.empty() && imu_queue_.front().trigger_count == time_sync_frame_ - 1) {
-      time_first_trigger_flyMS_ = imu_queue_.front().timestamp_us - imu_queue_.front().
-        time_since_trigger_us;
-      spdlog::info("time flyMS start {}", time_first_trigger_flyMS_);
-    } else {
-      spdlog::info("trigger not at {}", time_sync_frame_ - 1);
-    }
-  }
-
-  if (time_first_trigger_flyMS_ == 0 || time_first_trigger_flystereo_ == 0) {
-    spdlog::info("not initialized, returning");
-    return 1;
-  }
-
   if (imu_queue_.size() == 0) {
     std::cerr << "Imu queue empty!" << std::endl;
     return 1;
   }
 
   // The objective is to get all the imu measurements that correspond to this frame,
-  // take all the imu measurements that correspond to the current frame minus 1
-  int image_of_interest;
-  // Use the timestamps relative to the first image to figure out which trigger matches the
-  // correct image
-  while (imu_queue_.size() > 0) {
-    uint64_t delta_t_flyMS = imu_queue_.front().timestamp_us - imu_queue_.front().
-      time_since_trigger_us - time_first_trigger_flyMS_;
-    uint64_t delta_t_flystereo = triggers_.second.second - time_first_trigger_flystereo_;
-
-    const int64_t delta_t_dt = static_cast<int64_t>(delta_t_flystereo - delta_t_flyMS);
-    // Check to make sure the times are within our threshold
-    if (delta_t_dt > time_assoc_thresh_us_) {
-      // The current imu messages are behind the frame, delete them
-      spdlog::warn("Unsuccessful association, dropping imu messages");
-      int current_trig_count = imu_queue_.front().trigger_count;
-      while (!imu_queue_.empty() && current_trig_count == imu_queue_.front().trigger_count) {
-        imu_queue_.pop();
-      }
-      if (imu_queue_.empty()) {
-        spdlog::warn("imu queue empty, resetting");
-        return 1;
-      }
-    } else if (-delta_t_dt > time_assoc_thresh_us_) {
-      // The current frame is a timestep behind the imu data, return
-      spdlog::warn("Unsuccessful association, dropping image frame");
-      return 1;
-    } else {  // Successful association
-      image_of_interest = imu_queue_.front().trigger_count;
-      break;
-    }
-  }
+  // The imu messages recorded between the current and previous frame will have the label of the
+  // previous image
+  int image_of_interest = triggers_.second.first;
 
   // Reserve some memory in our vector to prevent copies. We should expect this to fill up to
   //  roughly (IMU acquisition rate / image acquisition rate )
   imu_msgs.reserve(20);
-  while (!imu_queue_.empty() && imu_queue_.front().trigger_count <= image_of_interest) {
-    if (imu_queue_.front().trigger_count == image_of_interest) {
+
+  while (!imu_queue_.empty() && static_cast<int>(imu_queue_.front().trigger_count) <=
+    image_of_interest) {
+    if (static_cast<int>(imu_queue_.front().trigger_count) == image_of_interest) {
       imu_msgs.push_back(imu_queue_.front());
     }
     imu_queue_.pop();
@@ -236,13 +196,17 @@ int SensorInterface::GenerateImuXform(const std::vector<mavlink_imu_t> &imu_msgs
   // Integrate the roll/pitch/yaw values
   cv::Vec3f delta_rpw = {0.0f, 0.0f, 0.0f};
   if (imu_msgs.size() == 1) {
-    uint64_t delta_t = current_frame_time - (imu_msgs[0].timestamp_us - imu_msgs[0].
-      time_since_trigger_us);
+    uint64_t delta_t;
+    if (current_frame_time == 0) {
+      delta_t = imu_msgs[0].time_since_trigger_us;
+    } else {
+      delta_t = current_frame_time - (imu_msgs[0].timestamp_us - imu_msgs[0].
+        time_since_trigger_us);
+    }
     delta_rpw += cv::Vec3f(imu_msgs[0].gyroXYZ[0], imu_msgs[0].gyroXYZ[1], imu_msgs[0].gyroXYZ[2])
       * static_cast<float>(delta_t) / 1.0E6f;
-    spdlog::info("delta t {}, {}, {}", static_cast<float>(delta_t) / 1.0E6f, current_frame_time,(imu_msgs[0].timestamp_us - imu_msgs[0].time_since_trigger_us));
   } else {
-    for (int i = 0; i < imu_msgs.size(); i++) {
+    for (size_t i = 0; i < imu_msgs.size(); i++) {
       uint64_t delta_t;
       // Handle the edge cases where i = 0, or i is max
       if (i == 0) {
@@ -256,8 +220,8 @@ int SensorInterface::GenerateImuXform(const std::vector<mavlink_imu_t> &imu_msgs
         delta_t = imu_msgs[i].timestamp_us - imu_msgs[i - 1].timestamp_us;
       }
 
-      delta_rpw += cv::Vec3f(imu_msgs[i].gyroXYZ[0], imu_msgs[i].gyroXYZ[1],
-        imu_msgs[i].gyroXYZ[2]) * (static_cast<float>(delta_t) / 1.0E6f);
+      delta_rpw += cv::Vec3f(imu_msgs[i].gyroXYZ[0], imu_msgs[i].gyroXYZ[1], imu_msgs[i].
+        gyroXYZ[2]) * (static_cast<float>(delta_t) / 1.0E6f);
     }
   }
   rotation_t0_t1_cam0 = utility::eulerAnglesToRotationMatrix<float>(R_imu_cam0 * delta_rpw);

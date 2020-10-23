@@ -1,6 +1,7 @@
 fly_stereo:
   wait_for_start_command: false
   record_mode: false
+  replay_mode: false
   log_dir: /home/msardonini/log
   vio:
     vio_calibration: [-0.0021, 0.0004, -0.0012]
@@ -51,11 +52,9 @@ fly_stereo:
       bins_height: 15
       max_pts_in_bin: 2
 
-  image_processor:
+  sensor_interface:
     # Minumum time before two triggers are allowed
     min_camera_dt_ms: 40
-    time_assoc_thresh_us: 20000
-    time_sync_frame: 5
 
     CameraTrigger:
       chip_num: 0
