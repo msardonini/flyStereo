@@ -2,6 +2,11 @@ fly_stereo:
   wait_for_start_command: false
   record_mode: false
   log_dir: /home/msardonini/log
+
+  record_outputs:
+    SQL_database: false
+    trajectory: true
+
   mavlink_reader:
     # device: /dev/ttyTHS1
     # replay_mode: false

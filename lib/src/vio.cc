@@ -28,7 +28,8 @@ Vio::Vio(const YAML::Node &input_params, const YAML::Node &stereo_calibration) :
   kf_(input_params["vio"]["kalman_filter"]) {
 
   // If we have recording enabled, initialize the logging files
-  if (input_params["record_mode"].as<bool>()) {
+  if (input_params["record_mode"].as<bool>() && input_params["record_outputs"][
+    "trajectory"].as<bool>()) {
     std::string run_file = input_params["run_folder"].as<std::string>();
     trajecotry_file_ = std::make_unique<std::ofstream> (run_file + "/trajectory.txt",
       std::ios::out);

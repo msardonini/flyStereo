@@ -53,6 +53,11 @@ class SensorInterface {
   std::mutex imu_queue_mutex_;
   uint64_t min_camera_dt_ms_;
 
+  // Var used to keep the timing during replay
+  uint64_t last_replay_time_ = 0;
+  uint64_t last_replay_time_recorded_ = 0;
+  float replay_speed_multiplier_ = 1;
+
   // Config params
   bool record_mode_ = false;
   bool replay_mode_ = false;

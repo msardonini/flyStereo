@@ -60,7 +60,8 @@ struct debug_video_recorder {
   // std::cout << "Size " << concat_frame.size() << std::endl;
 
   if (!writer) {
-    writer = std::make_unique<cv::VideoWriter> ("./debug_video.avi", cv::VideoWriter::fourcc('M', 'J', 'P', 'G'), 2, concat_frame.size(), true );
+    writer = std::make_unique<cv::VideoWriter> ("./debug_video.avi", cv::VideoWriter::fourcc('M',
+      'J', 'P', 'G'), 2, concat_frame.size(), true );
   }
   if (writer->isOpened()) {
     writer->write(concat_frame);

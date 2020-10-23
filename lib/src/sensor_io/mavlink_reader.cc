@@ -204,6 +204,7 @@ void MavlinkReader::SerialReadThread() {
             mavlink_msg_command_decode(&mav_message, &mav_cmd);
             std::lock_guard<std::mutex> lock(cmd_msg_mutex_);
             if (mav_cmd.engage) {
+              spdlog::debug("Received Start Command!");
               command_on_ = true;
               cmd_msg_cond_var_.notify_one();
             } else if (mav_cmd.shutdown) {

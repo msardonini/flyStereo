@@ -3,6 +3,11 @@ fly_stereo:
   record_mode: true
   replay_mode: false
   log_dir: /home/msardonini/log
+
+  record_outputs:
+    SQL_database: true
+    trajectory: true
+
   vio:
     vio_calibration: [-0.0021, 0.0004, -0.0012]
     kalman_filter:

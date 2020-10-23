@@ -16,7 +16,8 @@ struct Sqlite3_params {
 SqlLogger::SqlLogger(const YAML::Node &input_params) {
   sql3_ = std::make_unique<Sqlite3_params>();
 
-  if (input_params["record_mode"].as<bool>()) {
+  if (input_params["record_mode"].as<bool>() && input_params["record_outputs"][
+    "SQL_database"].as<bool>()) {
     record_mode_ = true;
     std::string filename = input_params["run_folder"].as<std::string>();
     filename += "/database.dat";

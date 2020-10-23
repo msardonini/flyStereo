@@ -2,9 +2,15 @@ fly_stereo:
   # Global Commands
   wait_for_start_command: false
   record_mode: true
-  replay_mode: false
+  replay_mode: true
   log_dir: /root/fly_stereo/build_docker/replay
-  replay_dir: /root/fly_stereo/build_docker/replay/run040
+  replay_dir: /root/fly_stereo/replay_data/flight/8_22_20/run051
+  replay_speed_multiplier: 2
+
+  record_outputs:
+    SQL_database: false
+    trajectory: true
+
 
   mavlink_reader:
     # device: /dev/ttyTHS1
@@ -16,20 +22,20 @@ fly_stereo:
   vio:
     vio_calibration: [-0.0018, 0.0001, -0.0019]
     kalman_filter:
-        dt: 0.2
-        sigma_a: 0.1
-        f: [0.0, 1.0, 0.0, 0.0, 0.0, 0.0,
-            0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
-            0.0, 0.0, 0.0, 1.0, 0.0, 0.0,
-            0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
-            0.0, 0.0, 0.0, 0.0, 0.0, 1.0,
-            0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-        h:  [1.0, 0.0, 0.0, 0.0, 0.0, 0.0,
-            0.0, 0.0, 1.0, 0.0, 0.0, 0.0,
-            0.0, 0.0, 0.0, 0.0, 1.0, 0.0]
-        r:  [0.001, 0.0, 0.0, 
-            0.0, 0.001, 0.0, 
-            0.0, 0.0, 0.001]
+      dt: 0.2
+      sigma_a: 0.1
+      f: [0.0, 1.0, 0.0, 0.0, 0.0, 0.0,
+          0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+          0.0, 0.0, 0.0, 1.0, 0.0, 0.0,
+          0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+          0.0, 0.0, 0.0, 0.0, 0.0, 1.0,
+          0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+      h:  [1.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+          0.0, 0.0, 1.0, 0.0, 0.0, 0.0,
+          0.0, 0.0, 0.0, 0.0, 1.0, 0.0]
+      r:  [0.001, 0.0, 0.0,
+          0.0, 0.001, 0.0,
+          0.0, 0.0, 0.001]
 
   image_processor:
     draw_points_to_frame: true
@@ -37,7 +43,7 @@ fly_stereo:
 
     thresholds:
       stereo_threshold: 45
-      ransac_threshold: 10
+      ransac_threshold: 1000
 
     goodFeaturesToTrack:
       max_corners: 300
@@ -77,7 +83,8 @@ fly_stereo:
 
       src_pipeline: "filesrc location=/root/fly_stereo/replay_data/flight/8_15_20/run005/cam0.mp4 ! decodebin ! videoconvert ! video/x-raw, format=(string)GRAY8 ! appsink sync=true "
       # src_pipeline: "filesrc location=/root/fly_stereo/replay_data/test_replay/cam0.mp4 ! decodebin ! videoconvert ! appsink "
-      sink_pipeline: "appsrc ! videoconvert ! tee name=t ! queue ! autovideosink t. ! queue ! jpegenc ! avimux ! filesink location=<log_dir>/cam0_annotated.avi"
+      sink_pipeline: "appsrc ! videoconvert ! queue ! xvimagesink sync=false "
+      # sink_pipeline: "appsrc ! videoconvert ! tee name=t ! queue ! autovideosink t. ! queue ! jpegenc ! avimux ! filesink location=<log_dir>/cam0_annotated.avi"
 
       enable_videoflip: false
       flip_method: -1
@@ -101,7 +108,7 @@ fly_stereo:
 
       src_pipeline: "filesrc location=/root/fly_stereo/replay_data/flight/8_15_20/run005/cam1.mp4 ! decodebin ! videoconvert ! video/x-raw, format=(string)GRAY8 ! appsink sync=true "
       # src_pipeline: "filesrc location=/root/fly_stereo/replay_data/test_replay/cam1.mp4 ! decodebin ! videoconvert ! appsink max-buffers=1"
-      sink_pipeline: "appsrc ! videoconvert ! tee name=t ! queue ! autovideosink t. ! queue ! jpegenc ! avimux ! filesink location=<log_dir>/cam1_annotated.avi"
+      # sink_pipeline: "appsrc ! videoconvert ! tee name=t ! queue ! autovideosink t. ! queue ! jpegenc ! avimux ! filesink location=<log_dir>/cam1_annotated.avi"
 
       device_num: 1
       enable_videoflip: false

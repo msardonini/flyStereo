@@ -19,9 +19,11 @@ SensorInterface::~SensorInterface() {
 
 int SensorInterface::Init(YAML::Node input_params) {
   if (input_params["replay_mode"].as<bool>()) {
+    replay_speed_multiplier_ = input_params["replay_speed_multiplier"].as<float>();
     replay_mode_ = true;
   }
-  if (input_params["record_mode"].as<bool>()) {
+  if (input_params["record_mode"].as<bool>() &&
+    input_params["record_outputs"]["SQL_database"].as<bool>()) {
     record_mode_ = true;
   }
   if (record_mode_ || replay_mode_) {
@@ -59,6 +61,27 @@ int SensorInterface::GetSynchronizedData(cv::cuda::GpuMat &d_frame_cam0,
       imu_data);
     d_frame_cam0.upload(frame0);
     d_frame_cam1.upload(frame1);
+
+    // Add a delay equivalent to what was experienced during the recording
+    if (last_replay_time_ != 0) {
+      uint64_t delta_t_recording = timestamp_flyMS - last_replay_time_recorded_;
+      uint64_t delta_t_processing = std::chrono::duration_cast<std::chrono::microseconds>(
+        std::chrono::steady_clock::now().time_since_epoch()).count() - last_replay_time_;
+
+      int64_t sleep_time = (delta_t_recording - delta_t_processing) / replay_speed_multiplier_;
+      if (sleep_time > 0) {
+        // Do not sleep for more than 5 seconds
+        if (sleep_time < 5E6) {
+          std::this_thread::sleep_for(std::chrono::microseconds(sleep_time));
+        }
+      } else {
+        spdlog::warn("Replay did not execute fast enough!");
+      }
+    }
+
+    last_replay_time_recorded_ = timestamp_flyMS;
+    last_replay_time_ = std::chrono::duration_cast<std::chrono::microseconds>(
+      std::chrono::steady_clock::now().time_since_epoch()).count();
     return ret;
   }
 

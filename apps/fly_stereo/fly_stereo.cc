@@ -8,6 +8,7 @@
 #include <thread>
 #include <atomic>
 #include <csignal>
+#include <fstream>
 
 #include "spdlog/spdlog.h"
 #include "spdlog/sinks/stdout_color_sinks.h"
@@ -80,22 +81,28 @@ void UpdateLogDirectory(YAML::Node &node) {
   if (node["mavlink_reader"]["replay_imu_data_file"]) {
     std::string imu_filepath = node["mavlink_reader"]["replay_imu_data_file"].as<std::string>();
     size_t pos = imu_filepath.find(symbol);
-    imu_filepath.replace(pos, symbol.length(), run_folder);
-    node["mavlink_reader"]["replay_imu_data_file"] = imu_filepath;
+    if (pos < imu_filepath.length()) {
+      imu_filepath.replace(pos, symbol.length(), run_folder);
+      node["mavlink_reader"]["replay_imu_data_file"] = imu_filepath;
+    }
   }
 
   if (node["sensor_interface"]["Camera0"]["sink_pipeline"]) {
     std::string cam0_fp = node["sensor_interface"]["Camera0"]["sink_pipeline"].as<std::string>();
     size_t pos = cam0_fp.find(symbol);
-    cam0_fp.replace(pos, symbol.length(), run_folder);
-    node["sensor_interface"]["Camera0"]["sink_pipeline"] = cam0_fp;
+    if (pos < cam0_fp.length()) {
+      cam0_fp.replace(pos, symbol.length(), run_folder);
+      node["sensor_interface"]["Camera0"]["sink_pipeline"] = cam0_fp;
+    }
   }
 
   if (node["sensor_interface"]["Camera1"]["sink_pipeline"]) {
     std::string cam1_fp = node["sensor_interface"]["Camera1"]["sink_pipeline"].as<std::string>();
     size_t pos = cam1_fp.find(symbol);
-    cam1_fp.replace(pos, symbol.length(), run_folder);
-    node["sensor_interface"]["Camera1"]["sink_pipeline"] = cam1_fp;
+    if (pos < cam1_fp.length()) {
+      cam1_fp.replace(pos, symbol.length(), run_folder);
+      node["sensor_interface"]["Camera1"]["sink_pipeline"] = cam1_fp;
+    }
   }
 }
 
@@ -118,10 +125,20 @@ int InitializeSpdLog(const std::string &log_dir) {
   spdlog::set_default_logger(flyMS_log);
 }
 
-
-
+// Application Entry Point
 int main(int argc, char* argv[]) {
-  std::cout << "PID of this process: " << getpid() << std::endl;
+  pid_t pid = getpid();
+  spdlog::info("PID of this process: {}", pid);
+  // Check if a PID file exists for this program, if so, shut down
+  std::string pid_file("/home/msardonini/.pid/flyStereo.pid");
+  if (access(pid_file.c_str(), F_OK ) != -1) {
+    spdlog::error("PID file found, program already running. Exiting now");
+    return -1;
+  } else {
+    std::ofstream pid_file_stream(pid_file, std::ofstream::out);
+    pid_file_stream << pid;
+  }
+
   signal(SIGINT, SignalHandler);
 
   // Argument params
@@ -199,5 +216,7 @@ int main(int argc, char* argv[]) {
   }
 
   std::cout << "Shutting down main " << std::endl;
+  // Remove the PID file
+  remove(pid_file.c_str());
   return 0;
 }

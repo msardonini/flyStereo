@@ -373,7 +373,7 @@ int ImageProcessor::ProcessThread() {
     /*********************************************************************
     * Run the Two Point RANSAC algorithm to find more outliers
     *********************************************************************/
-    if (points[t_c0_t0].cols > 1 && points[t_c1_t0].cols > 1) {
+    if (points[t_c0_t0].cols > 1 && points[t_c1_t0].cols > 1 && 0) {
       // Copy local versions for the CPU run ransac algorithm
       std::vector<cv::Point2f> vec_t_c0_t0 = points.GetCpu(t_c0_t0);
       std::vector<cv::Point2f> vec_t_c0_t1 = points.GetCpu(t_c0_t1);
