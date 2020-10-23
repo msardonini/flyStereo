@@ -25,7 +25,7 @@ struct debug_video_recorder {
     frame_local = frame_local0;
   }
 
-  int myradius=5;
+  int myradius = 5;
   // Draw blue points
   for (size_t i = 0; i < blue_pts.size(); i++) {
     cv::Scalar color = CV_RGB(0, 0, 255);
