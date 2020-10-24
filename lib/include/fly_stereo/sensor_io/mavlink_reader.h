@@ -31,7 +31,6 @@ class MavlinkReader {
   std::atomic<bool> is_running_;
   std::thread reader_thread_;
   int serial_dev_ = 0;
-  int serial_dev_write_ = 0;
 
   // Variables for imu message passing
   std::mutex queue_mutex_;
@@ -43,9 +42,6 @@ class MavlinkReader {
   std::condition_variable cmd_msg_cond_var_;
   bool command_on_ = false;
   bool command_shutdown_ = false;
-
-  int replay_file_fd_ = 0;
-
 };
 
 #endif  // INCLUDE_FLY_STEREO_MAVLINK_READER_H_

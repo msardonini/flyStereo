@@ -144,7 +144,7 @@ int main(int argc, char* argv[]) {
 
   // Initialze the mavlink reader object
   MavlinkReader mavlink_reader;
-  mavlink_reader.Init(fly_stereo_params["mavlink_reader"]);
+  mavlink_reader.Init(fly_stereo_params);
 
   if (fly_stereo_params["wait_for_start_command"].as<bool>()) {
     while(is_running.load()) {

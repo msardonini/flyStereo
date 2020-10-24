@@ -24,35 +24,20 @@ MavlinkReader::~MavlinkReader() {
   if (serial_dev_ != 0) {
     close(serial_dev_);
   }
-
-  if (replay_file_fd_ != 0) {
-    close(replay_file_fd_);
-  }
 }
 
 int MavlinkReader::Init(YAML::Node input_params) {
-  // Open the device
-  serial_dev_ = open(input_params["device"].as<std::string>().c_str(),
-    O_RDWR | O_NOCTTY | O_NDELAY);
-  if(serial_dev_ == -1) {
-    spdlog::error("Failed to open the serial device");
-    return -1;
-  }
-
-  // Mark the device we want to send data to, usually will be the same as the input device unless
-  // in a hilsim
-  if (input_params["device_write"]) {
-    serial_dev_write_ = open(input_params["device_write"].as<std::string>().c_str(),
-      O_RDWR | O_NOCTTY | O_NDELAY);
-    SetSerialParams(serial_dev_write_);
+  // Open the serial device if not in replay mode
+  if (!input_params["replay_mode"] ||
+      !input_params["replay_mode"]["enable"].as<bool>() ||
+      input_params["replay_mode"]["enable_serial_replay"].as<bool>()) {
+    std::string dev = input_params["mavlink_reader"]["device"].as<std::string>();
+    serial_dev_ = open(dev.c_str(), O_RDWR | O_NOCTTY | O_NDELAY);
+    if(serial_dev_ == -1) {
+      spdlog::error("Failed to open the serial device");
+      return -1;
+    }
   } else {
-    serial_dev_write_ = serial_dev_;
-  }
-
-  if (input_params["replay_mode"].as<bool>()) {
-    is_running_.store(true);
-    // fcntl(serial_dev_, F_SETFL, fcntl(serial_dev_, F_GETFL) | O_NONBLOCK);
-    reader_thread_ = std::thread(&MavlinkReader::SerialReadThread, this);
     return 0;
   }
 
@@ -61,18 +46,6 @@ int MavlinkReader::Init(YAML::Node input_params) {
   // Now that our serial port is intialized, send the signal to reset the trigger counters
   // in case the flight program has been running already
   SendCounterReset();
-
-  // If we want to save this data for replay, open a file to do this
-  if (input_params["replay_imu_data_file"] && !input_params["replay_mode"].as<bool>()) {
-    std::string replay_file = input_params["replay_imu_data_file"].as<std::string>();
-
-    replay_file_fd_ = open(replay_file.c_str(), O_RDWR | O_NOCTTY | O_NDELAY | O_CREAT, 0660);
-
-    // int chmod_ret = chmod(replay_file.c_str(), S_IRWXU | S_IRWXG);
-    if (replay_file_fd_ <= 0) {
-      spdlog::error("error opening log file at: {}", replay_file);
-    }
-  }
 
   is_running_.store(true);
   reader_thread_ = std::thread(&MavlinkReader::SerialReadThread, this);
@@ -126,6 +99,9 @@ int MavlinkReader::SetSerialParams(int device) {
 }
 
 void MavlinkReader::SendCounterReset() {
+  if (serial_dev_ == 0) {
+    return;
+  }
   mavlink_message_t msg;
   mavlink_reset_counters_t reset_msg;
   uint8_t buf[1024];
@@ -135,13 +111,16 @@ void MavlinkReader::SendCounterReset() {
   mavlink_msg_reset_counters_encode(1, 200, &msg, &reset_msg);
   uint16_t len = mavlink_msg_to_send_buffer(buf, &msg);
 
-  if (write(serial_dev_write_, buf, len) < 0) {
+  if (write(serial_dev_, buf, len) < 0) {
     spdlog::error("error on write! Counter Reset");
   }
 }
 
 
 void MavlinkReader::SendVioMsg(const vio_t &vio) {
+  if (serial_dev_ == 0) {
+    return;
+  }
   mavlink_message_t msg;
   mavlink_vio_t vio_msg;
   uint8_t buf[1024];
@@ -160,7 +139,7 @@ void MavlinkReader::SendVioMsg(const vio_t &vio) {
   mavlink_msg_vio_encode(1, 200, &msg, &vio_msg);
   uint16_t len = mavlink_msg_to_send_buffer(buf, &msg);
 
-  if (write(serial_dev_write_, buf, len) < 0) {
+  if (write(serial_dev_, buf, len) < 0) {
     spdlog::error("error on write! Vio Msg");
   }
 }
@@ -217,13 +196,6 @@ void MavlinkReader::SerialReadThread() {
             spdlog::debug("Unrecognized message with ID: {}", static_cast<int>(mav_message.msgid));
           }
         }
-      }
-    }
-
-    // If we have requested to record a replay file, write the data to it
-    if (replay_file_fd_ > 0) {
-      if (write(replay_file_fd_, buf, ret) < 0) {
-        spdlog::error("error on write! Save Replay");
       }
     }
 

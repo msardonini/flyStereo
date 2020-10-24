@@ -6,6 +6,7 @@ fly_stereo:
     enable: true
     replay_dir: /root/fly_stereo/replay_data/flight/8_22_20/run051
     replay_speed_multiplier: 2
+    enable_serial_replay: false
 
   record_mode:
     enable: true  # Enables logging
@@ -14,13 +15,8 @@ fly_stereo:
       SQL_database: false
       trajectory: true
 
-
   mavlink_reader:
-    # device: /dev/ttyTHS1
-    # replay_mode: false
-    device: /root/fly_stereo/replay_data/flight/8_15_20/run005/imu.dat
-    replay_mode: true
-    replay_imu_data_file: <log_dir>/imu.dat
+    # device: /root/fly_stereo/replay_data/flight/8_15_20/run005/imu.dat
 
   vio:
     vio_calibration: [-0.0018, 0.0001, -0.0019]
