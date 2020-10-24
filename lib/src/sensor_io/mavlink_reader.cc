@@ -24,10 +24,6 @@ MavlinkReader::~MavlinkReader() {
   if (serial_dev_ != 0) {
     close(serial_dev_);
   }
-
-  if (replay_file_fd_ != 0) {
-    close(replay_file_fd_);
-  }
 }
 
 int MavlinkReader::Init(YAML::Node input_params) {
@@ -49,30 +45,11 @@ int MavlinkReader::Init(YAML::Node input_params) {
     serial_dev_write_ = serial_dev_;
   }
 
-  if (input_params["replay_mode"].as<bool>()) {
-    is_running_.store(true);
-    // fcntl(serial_dev_, F_SETFL, fcntl(serial_dev_, F_GETFL) | O_NONBLOCK);
-    reader_thread_ = std::thread(&MavlinkReader::SerialReadThread, this);
-    return 0;
-  }
-
   SetSerialParams(serial_dev_);
 
   // Now that our serial port is intialized, send the signal to reset the trigger counters
   // in case the flight program has been running already
   SendCounterReset();
-
-  // If we want to save this data for replay, open a file to do this
-  if (input_params["replay_imu_data_file"] && !input_params["replay_mode"].as<bool>()) {
-    std::string replay_file = input_params["replay_imu_data_file"].as<std::string>();
-
-    replay_file_fd_ = open(replay_file.c_str(), O_RDWR | O_NOCTTY | O_NDELAY | O_CREAT, 0660);
-
-    // int chmod_ret = chmod(replay_file.c_str(), S_IRWXU | S_IRWXG);
-    if (replay_file_fd_ <= 0) {
-      spdlog::error("error opening log file at: {}", replay_file);
-    }
-  }
 
   is_running_.store(true);
   reader_thread_ = std::thread(&MavlinkReader::SerialReadThread, this);
@@ -217,13 +194,6 @@ void MavlinkReader::SerialReadThread() {
             spdlog::debug("Unrecognized message with ID: {}", static_cast<int>(mav_message.msgid));
           }
         }
-      }
-    }
-
-    // If we have requested to record a replay file, write the data to it
-    if (replay_file_fd_ > 0) {
-      if (write(replay_file_fd_, buf, ret) < 0) {
-        spdlog::error("error on write! Save Replay");
       }
     }
 

@@ -8,7 +8,7 @@ fly_stereo:
 
   record_mode:
     enable: true  # Enables logging
-    log_root_dir: /root/fly_stereo/build_docker/replay
+    log_root_dir: /home/msardonini/log
     outputs:
       SQL_database: true
       trajectory: true
