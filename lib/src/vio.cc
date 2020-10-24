@@ -85,8 +85,6 @@ Vio::Vio(const YAML::Node &input_params, const YAML::Node &stereo_calibration) :
   point_history_.resize(history_size);
   pose_history_.resize(history_size);
 
-
-
   ofs_ = std::make_unique<std::ofstream> ("points.las", std::ios::out | std::ios::binary);
   header_ = std::make_unique<liblas::Header>();
   header_->SetDataFormatId(liblas::ePointFormat1); // Time only
@@ -124,8 +122,16 @@ int Vio::ProcessPoints(const ImagePoints &pts, vio_t &vio) {
     spdlog::info("Mat2: {}", R_imu_cam0_eigen_);
   }
 
+
+  Eigen::Vector3d R_t0_t1_cam0_v = pts.R_t0_t1_cam0.eulerAngles(0, 1, 2);
+  Eigen::Vector3d R_t0_t1_imu_v = R_imu_cam0_eigen_.transpose() * R_t0_t1_cam0_v;
+  Eigen::Matrix3d R_t0_t1_imu = Eigen::AngleAxisd(R_t0_t1_imu_v(0), Eigen::Vector3d::UnitX()) *
+    Eigen::AngleAxisd(R_t0_t1_imu_v(1),  Eigen::Vector3d::UnitY()) *
+    Eigen::AngleAxisd(R_t0_t1_imu_v(2), Eigen::Vector3d::UnitZ()).toRotationMatrix();
+
+
   Eigen::Matrix4d pose_update;
-  if (CalculatePoseUpdate(pts, R_imu_cam0_eigen_.transpose() * pts.R_t0_t1_cam0,
+  if (CalculatePoseUpdate(pts, R_t0_t1_imu,
     pose_update)) {
     spdlog::warn("Error in CalculatePoseUpdate");
     return -1;
@@ -136,16 +142,19 @@ int Vio::ProcessPoints(const ImagePoints &pts, vio_t &vio) {
 
   // Update our Pose
   pose_cam0_ = pose_cam0_ * pose_update;
+  spdlog::info("pose_cam0_ {},", pose_cam0_);
+
 
   // Convert the pose to the body frame
-  Eigen::Matrix4d R_imu_cam0_eigen_affine = Eigen::Matrix4d::Identity();
-  R_imu_cam0_eigen_affine.block<3, 3>(0, 0) = R_imu_cam0_eigen_.transpose();
-  Eigen::Matrix4d pose_body = R_imu_cam0_eigen_affine * pose_cam0_;
+  Eigen::Matrix4d T_cam0_imu = Eigen::Matrix4d::Identity();
+  T_cam0_imu.block<3, 3>(0, 0) = R_imu_cam0_eigen_.transpose();
+  Eigen::Matrix4d pose_body = T_cam0_imu * pose_cam0_;
   // Eigen::Matrix4d pose_body = pose_cam0_;
 
   ProcessVio(pose_body, pts.timestamp_us, kf_state);
 
-  Debug_SaveOutput(pose_body, pts.R_t0_t1_cam0);
+  Debug_SaveOutput(pose_body, R_t0_t1_imu);
+  // Debug_SaveOutput(pose_body, pts.R_t0_t1_cam0 * R_imu_cam0_eigen_.transpose());
 
   // Copy the results to the output of this function
   vio.position << kf_state(0), kf_state(2), kf_state(4);
@@ -200,7 +209,7 @@ int Vio::ProcessVio(const Eigen::Matrix4d &pose_update, uint64_t image_timestamp
 inline unsigned int Vio::Modulo(int value, unsigned m) {
   int mod = value % (int)m;
   if (value < 0) {
-      mod += m;
+    mod += m;
   }
   return mod;
 }
@@ -218,12 +227,12 @@ int Vio::CalculatePoseUpdate(const ImagePoints &pts, const Eigen::Matrix3d &imu_
   std::vector<int> pts_ids(num_pts);
 
   // Take our points out of the grid and put into vectors for processing
-    for (size_t i = 0; i < num_pts; i++) {
-      pts_cam0_t0[i] = cv::Point2d(pts.pts[i].cam0_t0[0], pts.pts[i].cam0_t0[1]);
-      pts_cam0_t1[i] = cv::Point2d(pts.pts[i].cam0_t1[0], pts.pts[i].cam0_t1[1]);
-      pts_cam1_t0[i] = cv::Point2d(pts.pts[i].cam1_t0[0], pts.pts[i].cam1_t0[1]);
-      pts_cam1_t1[i] = cv::Point2d(pts.pts[i].cam1_t1[0], pts.pts[i].cam1_t1[1]);
-      pts_ids[i] = pts.pts[i].id;
+  for (size_t i = 0; i < num_pts; i++) {
+    pts_cam0_t0[i] = cv::Point2d(pts.pts[i].cam0_t0[0], pts.pts[i].cam0_t0[1]);
+    pts_cam0_t1[i] = cv::Point2d(pts.pts[i].cam0_t1[0], pts.pts[i].cam0_t1[1]);
+    pts_cam1_t0[i] = cv::Point2d(pts.pts[i].cam1_t0[0], pts.pts[i].cam1_t0[1]);
+    pts_cam1_t1[i] = cv::Point2d(pts.pts[i].cam1_t1[0], pts.pts[i].cam1_t1[1]);
+    pts_ids[i] = pts.pts[i].id;
   }
 
   // Check to make sure all of our vectors have the same number of points, otherwise, something
@@ -423,12 +432,17 @@ int Vio::Debug_SaveOutput(const Eigen::Matrix4d &pose_update, const Eigen::Matri
     //   writer_->WritePoint(point);
     // }
     if (trajecotry_file_) {
-      Eigen::Matrix<double, 3, 4> writer_pose = pose_update.block<3, 4> (0, 0);
-      Eigen::Map<Eigen::RowVectorXd> v(writer_pose.data(), writer_pose.size());
+      // Eigen::Matrix<double, 3, 4> writer_pose = pose_update.block<3, 4> (0, 0);
+      // Eigen::Map<Eigen::RowVectorXd> v(writer_pose.data(), writer_pose.size());
 
-      Eigen::Matrix3d R_imu_temp = R_imu;
-      Eigen::Map<Eigen::RowVectorXd> imu(R_imu_temp.data(), R_imu_temp.size());
-      *trajecotry_file_ << v << kf_.GetState() << imu << std::endl;
+
+
+      const Eigen::IOFormat csv_format(Eigen::FullPrecision, Eigen::DontAlignCols, ",", "");
+
+      // Eigen::Matrix3d R_imu_temp = R_imu;
+      // Eigen::Map<Eigen::RowVectorXd> imu(R_imu_temp.data(), R_imu_temp.size());
+      *trajecotry_file_ << pose_update.format(csv_format) << kf_.GetState().format(csv_format) <<
+        R_imu.format(csv_format) << std::endl;
     }
 
     // for (int i = 0; i < points.size(); i++) {

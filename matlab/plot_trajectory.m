@@ -1,10 +1,10 @@
 clear all; clc; close all
 clear all; clc;
 
-data = dlmread('../build_docker/replay/run026/trajectory.txt');
+data = dlmread('../build_docker/replay/run101/trajectory.txt');
 
 % data = dlmread('/home/msardonini/mntNano/fly_stereo/build/file.txt');
-% data = dlmread('/home/msardonini/git/fly_stereo/replay_data/flight/run011/trajecotry.txt');
+% data = dlmread('/home/msardonini/git/fly_stereo/replay_data/flight/8_22_20/run051/trajectory.txt');
 
 
 pose = data(:,1:12);
@@ -65,9 +65,9 @@ xlabel('X axis'); ylabel('Y axis'); zlabel('Z axis'); axis equal
 
 %% 
 figure
-plot(euler')
+plot(unwrap(euler'))
 hold on
-plot(imu_euler')
+plot(unwrap(imu_euler'))
 title('Euler Angles')
 legend('x', 'y', 'z', 'X', 'Y', 'Z') 
 

@@ -1,19 +1,23 @@
 fly_stereo:
   wait_for_start_command: false
-  record_mode: false
-  log_dir: /home/msardonini/log
 
-  record_outputs:
-    SQL_database: false
-    trajectory: true
+  replay_mode:
+    enable: true
+    replay_dir: /root/fly_stereo/replay_data/flight/8_22_20/run051
+    replay_speed_multiplier: 10
+    enable_serial_replay: true
+
+  record_mode:
+    enable: true  # Enables logging
+    log_root_dir: /root/fly_stereo/build_docker/replay
+    outputs:
+      SQL_database: false
+      trajectory: true
+
+
 
   mavlink_reader:
-    # device: /dev/ttyTHS1
-    # replay_mode: false
     device: /home/msardonini/log/run014/imu.dat
-    device_write: /dev/ttyTHS1
-    replay_mode: true
-    # replay_imu_data_file: /home/msardonini/git/fly_stereo/replay_data/test_replay/imu.dat
 
   vio:
     vio_calibration: [-0.0018, 0.0001, -0.0019]

@@ -31,7 +31,6 @@ class MavlinkReader {
   std::atomic<bool> is_running_;
   std::thread reader_thread_;
   int serial_dev_ = 0;
-  int serial_dev_write_ = 0;
 
   // Variables for imu message passing
   std::mutex queue_mutex_;

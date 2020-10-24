@@ -217,7 +217,7 @@ int SensorInterface::GenerateImuXform(const std::vector<mavlink_imu_t> &imu_msgs
   }
 
   // Integrate the roll/pitch/yaw values
-  cv::Vec3f delta_rpw = {0.0f, 0.0f, 0.0f};
+  cv::Vec3f delta_rpy_imu = {0.0f, 0.0f, 0.0f};
   if (imu_msgs.size() == 1) {
     uint64_t delta_t;
     if (current_frame_time == 0) {
@@ -226,8 +226,8 @@ int SensorInterface::GenerateImuXform(const std::vector<mavlink_imu_t> &imu_msgs
       delta_t = current_frame_time - (imu_msgs[0].timestamp_us - imu_msgs[0].
         time_since_trigger_us);
     }
-    delta_rpw += cv::Vec3f(imu_msgs[0].gyroXYZ[0], imu_msgs[0].gyroXYZ[1], imu_msgs[0].gyroXYZ[2])
-      * static_cast<float>(delta_t) / 1.0E6f;
+    delta_rpy_imu += cv::Vec3f(imu_msgs[0].gyroXYZ[0], imu_msgs[0].gyroXYZ[1],
+      imu_msgs[0].gyroXYZ[2]) * static_cast<float>(delta_t) / 1.0E6f;
   } else {
     for (size_t i = 0; i < imu_msgs.size(); i++) {
       uint64_t delta_t;
@@ -243,12 +243,12 @@ int SensorInterface::GenerateImuXform(const std::vector<mavlink_imu_t> &imu_msgs
         delta_t = imu_msgs[i].timestamp_us - imu_msgs[i - 1].timestamp_us;
       }
 
-      delta_rpw += cv::Vec3f(imu_msgs[i].gyroXYZ[0], imu_msgs[i].gyroXYZ[1], imu_msgs[i].
+      delta_rpy_imu += cv::Vec3f(imu_msgs[i].gyroXYZ[0], imu_msgs[i].gyroXYZ[1], imu_msgs[i].
         gyroXYZ[2]) * (static_cast<float>(delta_t) / 1.0E6f);
     }
   }
-  rotation_t0_t1_cam0 = utility::eulerAnglesToRotationMatrix<float>(R_imu_cam0 * delta_rpw);
-  rotation_t0_t1_cam1 = utility::eulerAnglesToRotationMatrix<float>(R_imu_cam1 * delta_rpw);
-  // std::cout << "delta_rpw: " << delta_rpw << std::endl;
+  rotation_t0_t1_cam0 = utility::eulerAnglesToRotationMatrix<float>(R_imu_cam0 * delta_rpy_imu);
+  rotation_t0_t1_cam1 = utility::eulerAnglesToRotationMatrix<float>(R_imu_cam1 * delta_rpy_imu);
+  // std::cout << "delta_rpy_imu: " << delta_rpy_imu << std::endl;
   return 0;
 }

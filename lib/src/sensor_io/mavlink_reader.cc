@@ -27,22 +27,18 @@ MavlinkReader::~MavlinkReader() {
 }
 
 int MavlinkReader::Init(YAML::Node input_params) {
-  // Open the device
-  serial_dev_ = open(input_params["device"].as<std::string>().c_str(),
-    O_RDWR | O_NOCTTY | O_NDELAY);
-  if(serial_dev_ == -1) {
-    spdlog::error("Failed to open the serial device");
-    return -1;
-  }
-
-  // Mark the device we want to send data to, usually will be the same as the input device unless
-  // in a hilsim
-  if (input_params["device_write"]) {
-    serial_dev_write_ = open(input_params["device_write"].as<std::string>().c_str(),
-      O_RDWR | O_NOCTTY | O_NDELAY);
-    SetSerialParams(serial_dev_write_);
+  // Open the serial device if not in replay mode
+  if (!input_params["replay_mode"] ||
+      !input_params["replay_mode"]["enable"].as<bool>() ||
+      input_params["replay_mode"]["enable_serial_replay"].as<bool>()) {
+    std::string dev = input_params["mavlink_reader"]["device"].as<std::string>();
+    serial_dev_ = open(dev.c_str(), O_RDWR | O_NOCTTY | O_NDELAY);
+    if(serial_dev_ == -1) {
+      spdlog::error("Failed to open the serial device");
+      return -1;
+    }
   } else {
-    serial_dev_write_ = serial_dev_;
+    return 0;
   }
 
   SetSerialParams(serial_dev_);
@@ -103,6 +99,9 @@ int MavlinkReader::SetSerialParams(int device) {
 }
 
 void MavlinkReader::SendCounterReset() {
+  if (serial_dev_ == 0) {
+    return;
+  }
   mavlink_message_t msg;
   mavlink_reset_counters_t reset_msg;
   uint8_t buf[1024];
@@ -112,13 +111,16 @@ void MavlinkReader::SendCounterReset() {
   mavlink_msg_reset_counters_encode(1, 200, &msg, &reset_msg);
   uint16_t len = mavlink_msg_to_send_buffer(buf, &msg);
 
-  if (write(serial_dev_write_, buf, len) < 0) {
+  if (write(serial_dev_, buf, len) < 0) {
     spdlog::error("error on write! Counter Reset");
   }
 }
 
 
 void MavlinkReader::SendVioMsg(const vio_t &vio) {
+  if (serial_dev_ == 0) {
+    return;
+  }
   mavlink_message_t msg;
   mavlink_vio_t vio_msg;
   uint8_t buf[1024];
@@ -137,7 +139,7 @@ void MavlinkReader::SendVioMsg(const vio_t &vio) {
   mavlink_msg_vio_encode(1, 200, &msg, &vio_msg);
   uint16_t len = mavlink_msg_to_send_buffer(buf, &msg);
 
-  if (write(serial_dev_write_, buf, len) < 0) {
+  if (write(serial_dev_, buf, len) < 0) {
     spdlog::error("error on write! Vio Msg");
   }
 }

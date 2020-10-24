@@ -5,6 +5,7 @@ fly_stereo:
     enable: false
     replay_dir: /root/fly_stereo/replay_data/flight/8_22_20/run051
     replay_speed_multiplier: 2
+    enable_serial_replay: false
 
   record_mode:
     enable: false  # Enables logging
@@ -33,10 +34,6 @@ fly_stereo:
 
   mavlink_reader:
     device: /dev/ttyTHS1
-    replay_mode: false
-    # device: /tmp/imu.dat
-    # replay_mode: true
-    # replay_imu_data_file: <log_dir>/imu.dat
 
   # All params for the image processing process
   image_processor:
