@@ -21,7 +21,7 @@ SqlLogger::SqlLogger(const YAML::Node &input_params) {
       input_params["record_mode"]["enable"].as<bool>() &&
       input_params["record_mode"]["outputs"]["SQL_database"].as<bool>()) {
     record_mode_ = true;
-    std::string filename = input_params["run_folder"].as<std::string>();
+    std::string filename = input_params["record_mode"]["log_dir"].as<std::string>();
     filename += "/database.dat";
     // Open the database
     int ret = sqlite3_open(filename.c_str(), &sql3_->data_base_);
