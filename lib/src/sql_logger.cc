@@ -16,8 +16,10 @@ struct Sqlite3_params {
 SqlLogger::SqlLogger(const YAML::Node &input_params) {
   sql3_ = std::make_unique<Sqlite3_params>();
 
-  if (input_params["record_mode"].as<bool>() && input_params["record_outputs"][
-    "SQL_database"].as<bool>()) {
+  // Check if we are configured to be in record mode or replay mode
+  if (input_params["record_mode"] &&
+      input_params["record_mode"]["enable"].as<bool>() &&
+      input_params["record_mode"]["outputs"]["SQL_database"].as<bool>()) {
     record_mode_ = true;
     std::string filename = input_params["run_folder"].as<std::string>();
     filename += "/database.dat";
@@ -44,9 +46,12 @@ SqlLogger::SqlLogger(const YAML::Node &input_params) {
 
     is_running_.store(true);
     queue_thread_ = std::thread(&SqlLogger::LogThread, this);
-  } else if (input_params["replay_mode"].as<bool>()) {
+  } else if (input_params["replay_mode"] &&
+      input_params["replay_mode"]["enable"].as<bool>()) {
+    // We are in replay mode
     replay_mode_ = true;
-    std::string filename = input_params["replay_dir"].as<std::string>() + "/database.dat";
+    std::string filename = input_params["replay_mode"]["replay_dir"].as<std::string>()
+      + "/database.dat";
 
     // Open the database
     int ret = sqlite3_open(filename.c_str(), &sql3_->data_base_);
@@ -92,9 +97,20 @@ void SqlLogger::LogThread() {
   }
 }
 
-void SqlLogger::QueueEntry(const LogParams &params) {
+int SqlLogger::QueueEntry(const LogParams &params) {
+  if (!record_mode_) {
+    spdlog::error("LogEntry called when not in record mode");
+    return -1;
+  }
+
+  // Push the data to the logging queue
   std::lock_guard<std::mutex> lock(queue_mutex_);
+  if (log_queue_.size() >= MAX_QUEUE_SIZE) {
+    spdlog::warn("Logging queue full! Cannot queue entry");
+    return -1;
+  }
   log_queue_.push(params);
+  return 0;
 }
 
 int SqlLogger::LogEntry(const LogParams &params) {
@@ -181,6 +197,7 @@ int SqlLogger::QueryEntry(uint64_t &timestamp_flyms, uint64_t &timestamp_flyster
   cv::Mat &frame0, cv::Mat &frame1, std::vector<mavlink_imu_t> &imu_msgs) {
   if (!replay_mode_) {
     spdlog::error("QueryEntry called when not in replay mode");
+    return -1;
   }
 
   int ret = sqlite3_step(sql3_->sq_stmt);

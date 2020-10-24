@@ -76,9 +76,9 @@ fly_stereo:
     Camera0:
       auto_exposure:
         enable: false
-        pixel_range_limits: [108, 148]
+        pixel_range_limits: [58, 98]
         exposure_limits: [51, 2500]
-        num_frames_to_calc: 3
+        num_frames_to_calc: 1
 
       gstreamer_pipeline:
         enable: false
@@ -101,7 +101,7 @@ fly_stereo:
         enable: false
         pixel_range_limits: [108, 148]
         exposure_limits: [51, 2500]
-        num_frames_to_calc: 3
+        num_frames_to_calc: 1
 
       gstreamer_pipeline:
         enable: false

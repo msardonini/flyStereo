@@ -29,15 +29,25 @@ class SqlLogger {
 
   ~SqlLogger();
 
-
   /**
    * @brief      Queue up a sample to be logged by a separate thread
    *
    * @param[in]  params  The parameters
    */
-  void QueueEntry(const LogParams &params);
+  int QueueEntry(const LogParams &params);
 
-
+  /**
+   * @brief      Queries an entry of associated imu and camera data. This is
+   *             typically used for replay functionality
+   *
+   * @param      timestamp_flyms      The timestamp flyms
+   * @param      timestamp_flystereo  The timestamp flystereo
+   * @param      frame0               The frame for camera 0
+   * @param      frame1               The frame for camera 1
+   * @param      imu_msgs             The imu msgs
+   *
+   * @return     0 on success, -1 on failure
+   */
   int QueryEntry(uint64_t &timestamp_flyms, uint64_t &timestamp_flystereo, cv::Mat &frame0,
     cv::Mat &frame1, std::vector<mavlink_imu_t> &imu_msgs);
 

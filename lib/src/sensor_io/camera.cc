@@ -291,7 +291,7 @@ int Camera::GetFrameGst(cv::Mat &frame) {
   // Pull in the next sample
   GstAppSink *appsink = reinterpret_cast<GstAppSink *>(gst_params_.appsink);
 
-  GstSample *sample = gst_app_sink_try_pull_sample(appsink, 1E9);  // timeout of 1 second
+  GstSample *sample = gst_app_sink_try_pull_sample(appsink, 2.5E8);  // timeout of 0.25 seconds
   // At EOS or timeout this will return NULL
   if (sample == NULL) {
     if (gst_app_sink_is_eos(appsink)) {

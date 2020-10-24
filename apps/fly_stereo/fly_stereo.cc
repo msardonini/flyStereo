@@ -55,55 +55,26 @@ void tracked_features_thread(ImageProcessor *image_processor, Vio *vio, MavlinkR
 }
 
 void UpdateLogDirectory(YAML::Node &node) {
-  std::string log_location = node["log_dir"].as<std::string>();
+  std::string log_location = node["record_mode"]["log_root_dir"].as<std::string>();
   // First make sure our logging directory exists
   int run_number = 1;
   std::stringstream run_str;
   run_str << std::internal << std::setfill('0') << std::setw(3) << run_number;
 
-  std::string run_folder(log_location + std::string("/run") + run_str.str());
+  std::string log_dir(log_location + std::string("/run") + run_str.str());
 
   //Find the next run number folder that isn't in use
   struct stat st = {0};
-  while (!stat(run_folder.c_str(), &st)) {
+  while (!stat(log_dir.c_str(), &st)) {
     run_str.str(std::string());
     run_str << std::internal << std::setfill('0') << std::setw(3) << ++run_number;
-    run_folder = (log_location + std::string("/run") + run_str.str());
+    log_dir = (log_location + std::string("/run") + run_str.str());
   }
   //Make a new folder to hold the logged data
-  mkdir(run_folder.c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
+  mkdir(log_dir.c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
 
   // Save the run folder to our YAML params
-  node["run_folder"] = run_folder;
-
-  std::string symbol("<log_dir>");
-
-  if (node["mavlink_reader"]["replay_imu_data_file"]) {
-    std::string imu_filepath = node["mavlink_reader"]["replay_imu_data_file"].as<std::string>();
-    size_t pos = imu_filepath.find(symbol);
-    if (pos < imu_filepath.length()) {
-      imu_filepath.replace(pos, symbol.length(), run_folder);
-      node["mavlink_reader"]["replay_imu_data_file"] = imu_filepath;
-    }
-  }
-
-  if (node["sensor_interface"]["Camera0"]["sink_pipeline"]) {
-    std::string cam0_fp = node["sensor_interface"]["Camera0"]["sink_pipeline"].as<std::string>();
-    size_t pos = cam0_fp.find(symbol);
-    if (pos < cam0_fp.length()) {
-      cam0_fp.replace(pos, symbol.length(), run_folder);
-      node["sensor_interface"]["Camera0"]["sink_pipeline"] = cam0_fp;
-    }
-  }
-
-  if (node["sensor_interface"]["Camera1"]["sink_pipeline"]) {
-    std::string cam1_fp = node["sensor_interface"]["Camera1"]["sink_pipeline"].as<std::string>();
-    size_t pos = cam1_fp.find(symbol);
-    if (pos < cam1_fp.length()) {
-      cam1_fp.replace(pos, symbol.length(), run_folder);
-      node["sensor_interface"]["Camera1"]["sink_pipeline"] = cam1_fp;
-    }
-  }
+  node["record_mode"]["log_dir"] = log_dir;
 }
 
 int InitializeSpdLog(const std::string &log_dir) {
@@ -166,9 +137,9 @@ int main(int argc, char* argv[]) {
   YAML::Node fly_stereo_params = YAML::LoadFile(config_file)["fly_stereo"];
 
   // If we are running in logging mode, change the log directory in the config file
-  if (fly_stereo_params["record_mode"].as<bool>()) {
+  if (fly_stereo_params["record_mode"] && fly_stereo_params["record_mode"]["enable"].as<bool>()) {
     UpdateLogDirectory(fly_stereo_params);
-    InitializeSpdLog(fly_stereo_params["run_folder"].as<std::string>());
+    InitializeSpdLog(fly_stereo_params["record_mode"]["log_dir"].as<std::string>());
   }
 
   // Initialze the mavlink reader object

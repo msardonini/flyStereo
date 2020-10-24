@@ -18,12 +18,12 @@ SensorInterface::~SensorInterface() {
 }
 
 int SensorInterface::Init(YAML::Node input_params) {
-  if (input_params["replay_mode"].as<bool>()) {
-    replay_speed_multiplier_ = input_params["replay_speed_multiplier"].as<float>();
+  if (input_params["replay_mode"] && input_params["replay_mode"]["enable"].as<bool>()) {
+    replay_speed_multiplier_ = input_params["replay_mode"]["replay_speed_multiplier"].as<float>();
     replay_mode_ = true;
   }
-  if (input_params["record_mode"].as<bool>() &&
-    input_params["record_outputs"]["SQL_database"].as<bool>()) {
+  if (input_params["record_mode"] && input_params["record_mode"]["enable"].as<bool>() &&
+    input_params["record_mode"]["outputs"]["SQL_database"].as<bool>()) {
     record_mode_ = true;
   }
   if (record_mode_ || replay_mode_) {

@@ -1,12 +1,17 @@
 fly_stereo:
   wait_for_start_command: true
-  record_mode: true
-  replay_mode: false
-  log_dir: /home/msardonini/log
 
-  record_outputs:
-    SQL_database: true
-    trajectory: true
+  replay_mode:
+    enable: false
+    replay_dir: /root/fly_stereo/replay_data/flight/8_22_20/run051
+    replay_speed_multiplier: 2
+
+  record_mode:
+    enable: true  # Enables logging
+    log_root_dir: /root/fly_stereo/build_docker/replay
+    outputs:
+      SQL_database: true
+      trajectory: true
 
   vio:
     vio_calibration: [-0.0021, 0.0004, -0.0012]
@@ -25,7 +30,6 @@ fly_stereo:
         r:  [0.001, 0.0, 0.0,
             0.0, 0.001, 0.0,
             0.0, 0.0, 0.001]
-
 
   mavlink_reader:
     device: /dev/ttyTHS1
@@ -74,9 +78,9 @@ fly_stereo:
       auto_exposure:
         enable: true
         auto_exposure_update_percentage: 0.1
-        pixel_range_limits: [78, 118]
+        pixel_range_limits: [58, 98]
         exposure_limits: [10, 2500]
-        num_frames_to_calc: 3
+        num_frames_to_calc: 1
 
       src_pipeline: "v4l2src device=/dev/video0 ! video/x-raw,width=1280,height=720 ! nvvidconv ! video/x-raw, format=(string)GRAY8 ! appsink max-buffers=10 drop=false"
       # sink_pipeline: "appsrc do-timestamp=true ! queue max-size-buffers=400 ! videoconvert ! nvvidconv ! nvv4l2h264enc maxperf-enable=true bitrate=107456000 ! h264parse ! qtmux ! filesink location=<log_dir>/cam0.mp4 "
@@ -97,9 +101,9 @@ fly_stereo:
       auto_exposure:
         enable: true
         auto_exposure_update_percentage: 0.1
-        pixel_range_limits: [78, 118]
+        pixel_range_limits: [58, 98]
         exposure_limits: [10, 2500]
-        num_frames_to_calc: 3
+        num_frames_to_calc: 1
 
       src_pipeline: "v4l2src device=/dev/video1 ! video/x-raw,width=1280,height=720 ! nvvidconv ! video/x-raw, format=(string)GRAY8 ! videoflip method=rotate-180 ! appsink max-buffers=10 drop=false"
       # sink_pipeline: "appsrc do-timestamp=true ! queue max-size-buffers=400 ! videoconvert ! nvvidconv ! nvv4l2h264enc maxperf-enable=true bitrate=107456000 ! h264parse ! qtmux ! filesink location=<log_dir>/cam1.mp4 "

@@ -1,15 +1,18 @@
 fly_stereo:
   # Global Commands
   wait_for_start_command: false
-  record_mode: true
-  replay_mode: true
-  log_dir: /root/fly_stereo/build_docker/replay
-  replay_dir: /root/fly_stereo/replay_data/flight/8_22_20/run051
-  replay_speed_multiplier: 2
 
-  record_outputs:
-    SQL_database: false
-    trajectory: true
+  replay_mode:
+    enable: true
+    replay_dir: /root/fly_stereo/replay_data/flight/8_22_20/run051
+    replay_speed_multiplier: 2
+
+  record_mode:
+    enable: true  # Enables logging
+    log_root_dir: /root/fly_stereo/build_docker/replay
+    outputs:
+      SQL_database: false
+      trajectory: true
 
 
   mavlink_reader:
@@ -74,9 +77,9 @@ fly_stereo:
       auto_exposure:
         enable: false
         auto_exposure_update_percentage: 0.1
-        pixel_range_limits: [108, 148]
+        pixel_range_limits: [58, 98]
         exposure_limits: [51, 2500]
-        num_frames_to_calc: 3
+        num_frames_to_calc: 1
 
       gstreamer_pipeline:
         enable: false
@@ -101,7 +104,7 @@ fly_stereo:
         auto_exposure_update_percentage: 0.1
         pixel_range_limits: [108, 148]
         exposure_limits: [51, 2500]
-        num_frames_to_calc: 3
+        num_frames_to_calc: 1
 
       gstreamer_pipeline:
         enable: false

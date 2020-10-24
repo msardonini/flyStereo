@@ -28,9 +28,10 @@ Vio::Vio(const YAML::Node &input_params, const YAML::Node &stereo_calibration) :
   kf_(input_params["vio"]["kalman_filter"]) {
 
   // If we have recording enabled, initialize the logging files
-  if (input_params["record_mode"].as<bool>() && input_params["record_outputs"][
-    "trajectory"].as<bool>()) {
-    std::string run_file = input_params["run_folder"].as<std::string>();
+  if (input_params["record_mode"] &&
+      input_params["record_mode"]["enable"].as<bool>() &&
+      input_params["record_mode"]["outputs"]["trajectory"].as<bool>()) {
+    std::string run_file = input_params["record_mode"]["log_dir"].as<std::string>();
     trajecotry_file_ = std::make_unique<std::ofstream> (run_file + "/trajectory.txt",
       std::ios::out);
   }
@@ -150,6 +151,7 @@ int Vio::ProcessPoints(const ImagePoints &pts, vio_t &vio) {
   vio.position << kf_state(0), kf_state(2), kf_state(4);
   vio.velocity << kf_state(1), kf_state(3), kf_state(5);
   vio.quat = Eigen::Quaterniond(pose_update.block<3, 3>(0, 0));
+  return 0;
 }
 
 // int Vio::ProcessImu(const std::vector<mavlink_imu_t> &imu_pts) {
