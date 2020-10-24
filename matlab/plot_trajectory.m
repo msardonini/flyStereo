@@ -1,14 +1,14 @@
 clear all; clc; close all
 clear all; clc;
 
-data = dlmread('../build_docker/replay/run101/trajectory.txt');
+data = dlmread('../build_docker/replay/run116/trajectory.txt');
 
 % data = dlmread('/home/msardonini/mntNano/fly_stereo/build/file.txt');
 % data = dlmread('/home/msardonini/git/fly_stereo/replay_data/flight/8_22_20/run051/trajectory.txt');
 
 
-pose = data(:,1:12);
-kalman_output = data(:,13:18);
+pose = data(:,1:16);
+kalman_output = data(:,17:22);
 R_imu = zeros(3, 3, size(data,1));
 % Initialize the variables
 Xform = repmat(eye(4), [1, 1, size(data,1)]);
@@ -21,8 +21,8 @@ imu_euler = zeros(3, size(data,1));
 running_xform = eye(4);
 running_r_imu = eye(3);
 for i = 1:size(data,1)
-   Xform(1:3, 1:4, i) = reshape(pose(i,:),[3,4]);
-   running_r_imu = running_r_imu * reshape(data(i,19:27),[3,3])';
+   Xform(:, :, i) = reshape(pose(i,:),[4,4])';
+   running_r_imu = running_r_imu * reshape(data(i,23:31),[3,3])';
    R_imu(:, :, i) = running_r_imu;
 
 %    running_xform = running_xform * Xform(:,:, i); %uncomment for running delta xforms

@@ -122,13 +122,8 @@ int Vio::ProcessPoints(const ImagePoints &pts, vio_t &vio) {
     spdlog::info("Mat2: {}", R_imu_cam0_eigen_);
   }
 
-
-  Eigen::Vector3d R_t0_t1_cam0_v = pts.R_t0_t1_cam0.eulerAngles(0, 1, 2);
-  Eigen::Vector3d R_t0_t1_imu_v = R_imu_cam0_eigen_.transpose() * R_t0_t1_cam0_v;
-  Eigen::Matrix3d R_t0_t1_imu = Eigen::AngleAxisd(R_t0_t1_imu_v(0), Eigen::Vector3d::UnitX()) *
-    Eigen::AngleAxisd(R_t0_t1_imu_v(1),  Eigen::Vector3d::UnitY()) *
-    Eigen::AngleAxisd(R_t0_t1_imu_v(2), Eigen::Vector3d::UnitZ()).toRotationMatrix();
-
+  Eigen::Matrix3d R_t0_t1_imu = R_imu_cam0_eigen_ * pts.R_t0_t1_cam0 *
+    R_imu_cam0_eigen_.transpose();
 
   Eigen::Matrix4d pose_update;
   if (CalculatePoseUpdate(pts, R_t0_t1_imu,
@@ -147,8 +142,10 @@ int Vio::ProcessPoints(const ImagePoints &pts, vio_t &vio) {
 
   // Convert the pose to the body frame
   Eigen::Matrix4d T_cam0_imu = Eigen::Matrix4d::Identity();
+  Eigen::Matrix4d T_imu_cam0 = Eigen::Matrix4d::Identity();
+  T_imu_cam0.block<3, 3>(0, 0) = R_imu_cam0_eigen_;
   T_cam0_imu.block<3, 3>(0, 0) = R_imu_cam0_eigen_.transpose();
-  Eigen::Matrix4d pose_body = T_cam0_imu * pose_cam0_;
+  Eigen::Matrix4d pose_body = T_imu_cam0 * pose_cam0_ * T_cam0_imu;
   // Eigen::Matrix4d pose_body = pose_cam0_;
 
   ProcessVio(pose_body, pts.timestamp_us, kf_state);
@@ -434,15 +431,11 @@ int Vio::Debug_SaveOutput(const Eigen::Matrix4d &pose_update, const Eigen::Matri
     if (trajecotry_file_) {
       // Eigen::Matrix<double, 3, 4> writer_pose = pose_update.block<3, 4> (0, 0);
       // Eigen::Map<Eigen::RowVectorXd> v(writer_pose.data(), writer_pose.size());
-
-
-
-      const Eigen::IOFormat csv_format(Eigen::FullPrecision, Eigen::DontAlignCols, ",", "");
+      const Eigen::IOFormat csv_format(Eigen::FullPrecision, Eigen::DontAlignCols, ",", ",");
 
       // Eigen::Matrix3d R_imu_temp = R_imu;
       // Eigen::Map<Eigen::RowVectorXd> imu(R_imu_temp.data(), R_imu_temp.size());
-      *trajecotry_file_ << pose_update.format(csv_format) << kf_.GetState().format(csv_format) <<
-        R_imu.format(csv_format) << std::endl;
+      *trajecotry_file_ << pose_update.format(csv_format) << "," << kf_.GetState().format(csv_format) << "," << R_imu.format(csv_format) << std::endl;
     }
 
     // for (int i = 0; i < points.size(); i++) {

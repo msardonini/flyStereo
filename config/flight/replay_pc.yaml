@@ -4,7 +4,7 @@ fly_stereo:
 
   replay_mode:
     enable: true
-    replay_dir: /root/fly_stereo/replay_data/flight/8_22_20/run051
+    replay_dir: /root/fly_stereo/replay_data/flight/8_24_20/run075
     replay_speed_multiplier: 2
     enable_serial_replay: false
 

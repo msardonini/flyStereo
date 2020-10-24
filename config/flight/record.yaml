@@ -75,7 +75,7 @@ fly_stereo:
       auto_exposure:
         enable: true
         auto_exposure_update_percentage: 0.1
-        pixel_range_limits: [58, 98]
+        pixel_range_limits: [70, 110]
         exposure_limits: [10, 2500]
         num_frames_to_calc: 1
 
@@ -98,7 +98,7 @@ fly_stereo:
       auto_exposure:
         enable: true
         auto_exposure_update_percentage: 0.1
-        pixel_range_limits: [58, 98]
+        pixel_range_limits: [70, 110]
         exposure_limits: [10, 2500]
         num_frames_to_calc: 1
 
