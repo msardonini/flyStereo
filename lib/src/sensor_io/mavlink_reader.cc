@@ -171,7 +171,6 @@ void MavlinkReader::SerialReadThread() {
             //   ((std::chrono::system_clock::now() - time_end)).count());
             // time_end = std::chrono::system_clock::now();
 
-
             // Push the message to our output queue
             std::lock_guard<std::mutex> lock(queue_mutex_);
             output_queue_.push(attitude_msg);
@@ -240,6 +239,11 @@ bool MavlinkReader::WaitForStartCmd() {
   }
 
   return true;
+}
+
+void MavlinkReader::ResetShutdownCmds() {
+  std::unique_lock<std::mutex> lock(cmd_msg_mutex_);
+  command_shutdown_ = false;
 }
 
 bool MavlinkReader::WaitForShutdownCmd() {

@@ -1,12 +1,13 @@
 #include "fly_stereo/sql_logger.h"
 
 #include <string>
+#include <chrono>
 
 #include "sqlite3.h"
 #include "spdlog/spdlog.h"
 
 
-constexpr size_t MAX_QUEUE_SIZE = 100;
+constexpr size_t MAX_QUEUE_SIZE = 1000;
 
 struct Sqlite3_params {
   sqlite3 *data_base_;
@@ -71,35 +72,69 @@ SqlLogger::SqlLogger(const YAML::Node &input_params) {
 }
 
 SqlLogger::~SqlLogger() {
+  spdlog::debug("In destructor SqlLogger");
+
+  // Prevent and more entries from getting queued
+  record_mode_ = false;
+
+  // Allow the rest of the queued buffers to get logged
+  std::unique_lock<std::mutex> lock(queue_mutex_);
+
+  auto max_wait_time = std::chrono::seconds(10);
+  auto start = std::chrono::system_clock::now();
+  while (!log_queue_.empty()) {
+    if (start + max_wait_time < std::chrono::system_clock::now()) {
+      spdlog::error("Cannot save the buffer fast enough, exiting");
+      break;
+    }
+    spdlog::info("Saving buffers to disk. {} Left ...", log_queue_.size());
+    lock.unlock();
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    lock.lock();
+  }
+  lock.unlock();
+
   is_running_.store(false);
-  sqlite3_finalize(sql3_->sq_stmt);
-  sqlite3_close(sql3_->data_base_);
+
 
   if (queue_thread_.joinable()) {
     queue_thread_.join();
   }
+
+  sqlite3_finalize(sql3_->sq_stmt);
+  sqlite3_close(sql3_->data_base_);
+
+  spdlog::debug("Joined log thread!");
 }
 
 void SqlLogger::LogThread() {
   while (is_running_.load()) {
-    std::unique_lock<std::mutex> lock(queue_mutex_);
-    if (log_queue_.size() > MAX_QUEUE_SIZE) {
-      spdlog::error("Can't keep up writing data, dropping a frame!!");
-      log_queue_.pop();
-    }
-    if (!log_queue_.empty()) {
-      LogEntry(log_queue_.front());
-      log_queue_.pop();
+    if (queue_mutex_.try_lock()) {
+      // We own the mutex, log the next element in the queue
+      if (log_queue_.size() >= MAX_QUEUE_SIZE) {
+        spdlog::error("Can't keep up writing data, dropping a frame!!");
+        log_queue_.pop();
+      }
+      if (!log_queue_.empty()) {
+        // "LogEntry" can take some time and it will lock the main processing thread if we own the
+        // mutex. Make a local copy and log outside of the mutex
+        LogParams params = log_queue_.front();
+        queue_mutex_.unlock();
+        LogEntry(params);
+
+        queue_mutex_.lock();
+        log_queue_.pop();
+      }
+      queue_mutex_.unlock();
     } else {
-      lock.unlock();
-      std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
   }
 }
 
 int SqlLogger::QueueEntry(const LogParams &params) {
   if (!record_mode_) {
-    spdlog::error("LogEntry called when not in record mode");
+    spdlog::error("QueueEntry called when not in record mode");
     return -1;
   }
 
@@ -120,10 +155,6 @@ int SqlLogger::LogEntry(const LogParams &params) {
 
 int SqlLogger::LogEntry(const uint64_t timestamp_flyms, const uint64_t timestamp_flystereo,
   const cv::Mat &frame0, const cv::Mat &frame1, const std::vector<mavlink_imu_t> &imu_msgs) {
-  if (!record_mode_) {
-    spdlog::error("LogEntry called when not in record mode");
-    return -1;
-  }
 
   std::string sql_cmd = std::string("INSERT INTO FLY_STEREO_DATA VALUES (?,?,?,?,?,?)");
 
@@ -201,9 +232,14 @@ int SqlLogger::QueryEntry(uint64_t &timestamp_flyms, uint64_t &timestamp_flyster
   }
 
   int ret = sqlite3_step(sql3_->sq_stmt);
-  if (ret != SQLITE_ROW && ret != SQLITE_DONE) {
-    spdlog::error("Failed Query, val: {}", ret);
-    return -1;
+  if (ret != SQLITE_ROW) {
+    if (ret == SQLITE_DONE) {
+      spdlog::info("Finished Replay");
+      return -2;
+    } else {
+      spdlog::error("Failed Query, val: {}", ret);
+      return -1;
+    }
   }
 
   timestamp_flyms = sqlite3_column_int64(sql3_->sq_stmt, 0);

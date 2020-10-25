@@ -42,14 +42,28 @@ void imu_thread(MavlinkReader *mavlink_reader, ImageProcessor *image_processor) 
 
 void tracked_features_thread(ImageProcessor *image_processor, Vio *vio, MavlinkReader
   *mavlink_reader) {
+
+  std::chrono::time_point<std::chrono::system_clock> t_start = std::chrono::system_clock::now();
+  std::chrono::time_point<std::chrono::system_clock> t_ip = std::chrono::system_clock::now();
+  std::chrono::time_point<std::chrono::system_clock> t_vio = std::chrono::system_clock::now();
+  std::chrono::time_point<std::chrono::system_clock> t_mav = std::chrono::system_clock::now();
+
   while(is_running.load()) {
+    t_start = std::chrono::system_clock::now();
     ImagePoints pts;
     if(image_processor->GetTrackedPoints(&pts)) {
+      t_ip = std::chrono::system_clock::now();
       vio_t vio_data;
       // Send the features to the vio object
       vio->ProcessPoints(pts, vio_data);
+      t_vio = std::chrono::system_clock::now();
 
       mavlink_reader->SendVioMsg(vio_data);
+      t_mav = std::chrono::system_clock::now();
+
+
+    spdlog::info("dts ms: ip: {}, vio: {}, mav: {} ", (t_ip - t_start).count() / 1E6, (t_vio - t_ip).count() / 1E6, (t_mav - t_vio).count() / 1E6);
+
     }
   }
 }
@@ -132,15 +146,8 @@ int main(int argc, char* argv[]) {
     return -1;
   }
 
-
   // Parse the yaml file with our configuration parameters
   YAML::Node fly_stereo_params = YAML::LoadFile(config_file)["fly_stereo"];
-
-  // If we are running in logging mode, change the log directory in the config file
-  if (fly_stereo_params["record_mode"] && fly_stereo_params["record_mode"]["enable"].as<bool>()) {
-    UpdateLogDirectory(fly_stereo_params);
-    InitializeSpdLog(fly_stereo_params["record_mode"]["log_dir"].as<std::string>());
-  }
 
   // Initialze the mavlink reader object
   MavlinkReader mavlink_reader;
@@ -153,19 +160,26 @@ int main(int argc, char* argv[]) {
       }
     }
   }
+  // If we are running in logging mode, change the log directory in the config file
+  if (fly_stereo_params["record_mode"] && fly_stereo_params["record_mode"]["enable"].as<bool>()) {
+    UpdateLogDirectory(fly_stereo_params);
+    InitializeSpdLog(fly_stereo_params["record_mode"]["log_dir"].as<std::string>());
+  }
 
-  ImageProcessor image_processor(fly_stereo_params,
-    fly_stereo_params["stereo_calibration"]);
+
+  ImageProcessor image_processor(fly_stereo_params, fly_stereo_params["stereo_calibration"]);
   image_processor.Init();
 
-  std::thread imu_thread_obj(imu_thread, &mavlink_reader,
-    &image_processor);
+  std::thread imu_thread_obj(imu_thread, &mavlink_reader, &image_processor);
 
 
   Vio vio(fly_stereo_params, fly_stereo_params["stereo_calibration"]);
   std::thread features_thread_obj(tracked_features_thread, &image_processor, &vio,
     &mavlink_reader);
 
+  // If we have received shutdown commands prior to starting, we do not want to shut down.
+  // Reset them
+  mavlink_reader.ResetShutdownCmds();
   while (is_running.load()) {
     // If we are receiving start/finish commands then wait for the signal
     if (fly_stereo_params["wait_for_start_command"].as<bool>()) {

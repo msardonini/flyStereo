@@ -37,6 +37,7 @@ fly_stereo:
 
   # All params for the image processing process
   image_processor:
+    rate_limit_fps: 12
     draw_points_to_frame: true
     max_error_counter: 10
 

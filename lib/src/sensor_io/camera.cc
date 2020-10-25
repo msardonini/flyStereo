@@ -7,7 +7,9 @@
 #include "spdlog/spdlog.h"
 
 
-Camera::Camera(YAML::Node input_params) {
+Camera::Camera(YAML::Node input_params, bool replay_mode) {
+  replay_mode_ = replay_mode;
+
   hardware_trigger_mode_ = input_params["hardware_trigger_mode"].as<bool>();
   gain_ = input_params["gain"].as<int>();
   exposure_time_ = input_params["exposure_time"].as<int>();
@@ -53,6 +55,11 @@ Camera::Camera(YAML::Node input_params) {
 Camera::~Camera() {}
 
 int Camera::Init() {
+  // In replay mode we are not accessing hardware here
+  if (replay_mode_) {
+    return 0;
+  }
+
   if (use_gstreamer_pipeline_) {
     InitGstPipeline();
   } else {
@@ -139,7 +146,6 @@ int Camera::RunAutoExposure(const cv::Scalar &mean_pixel_val) {
     // If the image is too dark then update the exposure time first, then gain when that maxes
     // Also, calculate the value the exposure time would get updated to
     unsigned int new_exposure_time = exposure_time_ * (1.0f + auto_exposure_update_percentage_);
-    spdlog::debug("new {} max {}", new_exposure_time, exposure_limits_[1]);
     if (new_exposure_time <= exposure_limits_[1]) {
       exposure_time_ = new_exposure_time;
       UpdateExposure();
@@ -291,7 +297,7 @@ int Camera::GetFrameGst(cv::Mat &frame) {
   // Pull in the next sample
   GstAppSink *appsink = reinterpret_cast<GstAppSink *>(gst_params_.appsink);
 
-  GstSample *sample = gst_app_sink_try_pull_sample(appsink, 2.5E8);  // timeout of 0.25 seconds
+  GstSample *sample = gst_app_sink_try_pull_sample(appsink, 2.5E7);  // timeout of 0.25 seconds
   // At EOS or timeout this will return NULL
   if (sample == NULL) {
     if (gst_app_sink_is_eos(appsink)) {

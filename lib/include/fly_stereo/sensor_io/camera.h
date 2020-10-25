@@ -27,7 +27,7 @@ struct GstParams {
 
 class Camera {
  public:
-  explicit Camera(YAML::Node input_params);
+  explicit Camera(YAML::Node input_params, bool replay_mode = false);
   ~Camera();
 
   Camera() = delete;
@@ -81,6 +81,7 @@ class Camera {
   std::unique_ptr<cv::VideoCapture> cam_src_;
   std::unique_ptr<cv::VideoWriter> cam_sink_;
 
+  bool replay_mode_;
   bool use_gstreamer_pipeline_;
   struct GstParams gst_params_;
   uint64_t timestamp_ns_ = 0;

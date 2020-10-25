@@ -137,8 +137,6 @@ int Vio::ProcessPoints(const ImagePoints &pts, vio_t &vio) {
 
   // Update our Pose
   pose_cam0_ = pose_cam0_ * pose_update;
-  spdlog::info("pose_cam0_ {},", pose_cam0_);
-
 
   // Convert the pose to the body frame
   Eigen::Matrix4d T_cam0_imu = Eigen::Matrix4d::Identity();

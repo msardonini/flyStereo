@@ -36,6 +36,7 @@ fly_stereo:
     device: /dev/ttyTHS1
 
   image_processor:
+    rate_limit_fps: 13
     draw_points_to_frame: false
     max_error_counter: 10
 

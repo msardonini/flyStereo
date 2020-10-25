@@ -32,11 +32,11 @@ int SensorInterface::Init(YAML::Node input_params) {
 
   YAML::Node sensor_params = input_params["sensor_interface"];
 
-  cam0_ = std::make_unique<Camera> (sensor_params["Camera0"]);
+  cam0_ = std::make_unique<Camera> (sensor_params["Camera0"], replay_mode_);
   if(cam0_->Init()) {
     return -1;
   }
-  cam1_ = std::make_unique<Camera> (sensor_params["Camera1"]);
+  cam1_ = std::make_unique<Camera> (sensor_params["Camera1"], replay_mode_);
   if (cam1_->Init()) {
     return -1;
   }
@@ -53,6 +53,15 @@ int SensorInterface::Init(YAML::Node input_params) {
 int SensorInterface::GetSynchronizedData(cv::cuda::GpuMat &d_frame_cam0,
     cv::cuda::GpuMat &d_frame_cam1, std::vector<mavlink_imu_t> &imu_data,
     uint64_t &current_frame_time) {
+
+  // Time checks for performance monitoring
+  std::chrono::time_point<std::chrono::system_clock> t_start = std::chrono::system_clock::now();
+  std::chrono::time_point<std::chrono::system_clock> t_trig;
+  std::chrono::time_point<std::chrono::system_clock> t_frame;
+  std::chrono::time_point<std::chrono::system_clock> t_assoc;
+  std::chrono::time_point<std::chrono::system_clock> t_log1;
+  std::chrono::time_point<std::chrono::system_clock> t_log2;
+
 
   if (replay_mode_ && sql_logger_) {
     cv::Mat frame0, frame1;
@@ -97,6 +106,8 @@ int SensorInterface::GetSynchronizedData(cv::cuda::GpuMat &d_frame_cam0,
   // Trigger the camera and set the time we did this
   camera_trigger_->TriggerCamera();
 
+  t_trig = std::chrono::system_clock::now();
+
   triggers_.second = triggers_.first;
   triggers_.first = camera_trigger_->GetTriggerCount();
 
@@ -109,10 +120,12 @@ int SensorInterface::GetSynchronizedData(cv::cuda::GpuMat &d_frame_cam0,
     spdlog::warn("Timeout getting frame");
     return 2;
   }
+  t_frame = std::chrono::system_clock::now();
 
   imu_data.clear();
   int ret = AssociateImuData(imu_data, current_frame_time);
 
+  t_assoc = std::chrono::system_clock::now();
   if (record_mode_ && sql_logger_) {
     cv::Mat frame0, frame1;
     d_frame_cam0.download(frame0);
@@ -132,8 +145,12 @@ int SensorInterface::GetSynchronizedData(cv::cuda::GpuMat &d_frame_cam0,
     params.frame1 = frame1;
     params.imu_msgs = imu_data;
 
+    t_log1 = std::chrono::system_clock::now();
     sql_logger_->QueueEntry(params);
   }
+  t_log2 = std::chrono::system_clock::now();
+
+    spdlog::info("SI dts, trig: {}, frame: {}, assoc: {}, log1 {}, log2 {}", (t_trig - t_start).count() / 1E6, (t_frame - t_trig).count() / 1E6, (t_assoc - t_frame).count() / 1E6, (t_log1 - t_assoc).count() / 1E6, (t_log2 - t_log1).count() / 1E6);
 
   return ret;
 }

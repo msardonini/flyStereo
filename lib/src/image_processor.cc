@@ -22,6 +22,9 @@ debug_video_recorder debug_record;
 ImageProcessor::ImageProcessor(const YAML::Node &input_params,
   const YAML::Node &stereo_calibration) {
   YAML::Node image_processor_params = input_params["image_processor"];
+
+  rate_limit_fps_ = input_params["image_processor"]["rate_limit_fps"].as<float>();
+
   // Params for OpenCV function goodFeaturesToTrack
   YAML::Node features_params = image_processor_params["goodFeaturesToTrack"];
   max_corners_ = features_params["max_corners"].as<int>();
@@ -228,7 +231,18 @@ int ImageProcessor::ProcessThread() {
     SparsePyrLKOpticalFlow::create(cv::Size(window_size_, window_size_), max_pyramid_level_,
       max_iters_, true);
 
+  auto invFpsLimit = std::chrono::round<std::chrono::system_clock::duration>(std::chrono::
+    duration<double>(1. / rate_limit_fps_));
+
+  // Time checks for performance monitoring
+  std::chrono::time_point<std::chrono::system_clock> t_start = std::chrono::system_clock::now();
+  std::chrono::time_point<std::chrono::system_clock> t_data = std::chrono::system_clock::now();
+  std::chrono::time_point<std::chrono::system_clock> t_lk1 = std::chrono::system_clock::now();
+  std::chrono::time_point<std::chrono::system_clock> t_det = std::chrono::system_clock::now();
+  std::chrono::time_point<std::chrono::system_clock> t_log = std::chrono::system_clock::now();
+
   while (is_running_.load()) {
+    t_start = std::chrono::system_clock::now();
     uint64_t current_time;
     // Read the frames and check for errors
     int ret_val = sensor_interface_->GetSynchronizedData(d_frame_cam0_t1, d_frame_cam1_t1,
@@ -245,7 +259,12 @@ int ImageProcessor::ProcessThread() {
     } else if (ret_val == 2) {
       // This will happen if we don't have IMU data, for now continue on as is
       continue;
+    } else if (ret_val == -2) {
+      // This will happen if we have a critical error or the replay has finished. Shut down
+      is_running_.store(false);
+      continue;
     }
+    t_data = std::chrono::system_clock::now();
     // Reset the Error Counter
     error_counter = 0;
 
@@ -370,6 +389,8 @@ int ImageProcessor::ProcessThread() {
       }
     }
 
+    t_lk1 = std::chrono::system_clock::now();
+
     /*********************************************************************
     * Run the Two Point RANSAC algorithm to find more outliers
     *********************************************************************/
@@ -408,6 +429,7 @@ int ImageProcessor::ProcessThread() {
     }
     // debug_num_pts[3] = points.GetCpu(t_c0_t1).size();
 
+
     /*********************************************************************
     * Detect new features for the next iteration
     *********************************************************************/
@@ -437,6 +459,7 @@ int ImageProcessor::ProcessThread() {
       }
       // debug_num_pts[5] = points[d_c0_t1].cols;
     }
+    t_det = std::chrono::system_clock::now();
 
     // Fill in the ids vector with our new detected features
     points.ids[ids_t1].clear();
@@ -491,6 +514,13 @@ int ImageProcessor::ProcessThread() {
     points[t_c1_t0] = points[t_c1_t1].clone();
     points[d_c0_t0] = points[d_c0_t1].clone();
     points[d_c1_t0] = points[d_c1_t1].clone();
+
+    t_log = std::chrono::system_clock::now();
+    spdlog::info("ip dts, data: {}, lk1: {}, det: {}, log {}", (t_data - t_start).count() / 1E6, (t_lk1 - t_data).count() / 1E6, (t_det - t_lk1).count() / 1E6, (t_log - t_det).count() / 1E6);
+
+
+    // Apply the rate limiting
+    std::this_thread::sleep_until(time_end + invFpsLimit);
 
     spdlog::info("fps: {}", 1.0 / static_cast<std::chrono::duration<double> >
       ((std::chrono::system_clock::now() - time_end)).count());

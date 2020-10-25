@@ -121,6 +121,9 @@ class ImageProcessor {
   std::unique_ptr<SensorInterface> sensor_interface_;
   bool draw_points_to_frame_;
 
+  // Rate limit factor
+  float rate_limit_fps_;
+
   // config params for LK optical flow
   int window_size_;
   int max_pyramid_level_;

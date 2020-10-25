@@ -22,6 +22,7 @@ class MavlinkReader {
   bool GetAttitudeMsg(mavlink_imu_t* attitude, bool block = false);
   bool WaitForStartCmd();
   bool WaitForShutdownCmd();
+  void ResetShutdownCmds();
   void SendCounterReset();
   void SendVioMsg(const vio_t &vio);
  private:

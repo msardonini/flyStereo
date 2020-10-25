@@ -37,12 +37,13 @@ fly_stereo:
           0.0, 0.0, 0.001]
 
   image_processor:
+    rate_limit_fps: 12
     draw_points_to_frame: true
     max_error_counter: 10
 
     thresholds:
       stereo_threshold: 45
-      ransac_threshold: 1000
+      ransac_threshold: 10
 
     goodFeaturesToTrack:
       max_corners: 300
@@ -121,7 +122,6 @@ fly_stereo:
 
   stereo_calibration:
     R_imu_cam0: [0.0, 3.1415926535, 0.0]
-    # R_imu_cam0: [3.1415926535, 0.0, 0.0]
     K0: !!opencv-matrix
        rows: 3
        cols: 3

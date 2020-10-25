@@ -1,50 +1,43 @@
 fly_stereo:
+  # Global Commands
   wait_for_start_command: false
 
   replay_mode:
     enable: true
-    replay_dir: /root/fly_stereo/replay_data/flight/8_22_20/run051
+    replay_dir: /home/msardonini/log/run075
     replay_speed_multiplier: 1
     enable_serial_replay: true
 
   record_mode:
     enable: true  # Enables logging
-    log_root_dir: /root/fly_stereo/build_docker/replay
+    log_root_dir: /home/msardonini/replay_log
     outputs:
       SQL_database: false
       trajectory: true
 
-
-
   mavlink_reader:
-    device: /home/msardonini/log/run014/imu.dat
+    device: /dev/ttyTHS1
 
   vio:
     vio_calibration: [-0.0018, 0.0001, -0.0019]
-    image_width: 1280
-    image_height: 720
-    # bins_width: 40
-    # bins_height: 30
-    bins_width: 20
-    bins_height: 15
-    max_pts_in_bin: 2
     kalman_filter:
-        dt: 0.2
-        sigma_a: 0.1
-        f: [0.0, 1.0, 0.0, 0.0, 0.0, 0.0,
-            0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
-            0.0, 0.0, 0.0, 1.0, 0.0, 0.0,
-            0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
-            0.0, 0.0, 0.0, 0.0, 0.0, 1.0,
-            0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-        h:  [1.0, 0.0, 0.0, 0.0, 0.0, 0.0,
-            0.0, 0.0, 1.0, 0.0, 0.0, 0.0,
-            0.0, 0.0, 0.0, 0.0, 1.0, 0.0]
-        r:  [0.001, 0.0, 0.0, 
-            0.0, 0.001, 0.0, 
-            0.0, 0.0, 0.001]
+      dt: 0.2
+      sigma_a: 0.1
+      f: [0.0, 1.0, 0.0, 0.0, 0.0, 0.0,
+          0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+          0.0, 0.0, 0.0, 1.0, 0.0, 0.0,
+          0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+          0.0, 0.0, 0.0, 0.0, 0.0, 1.0,
+          0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+      h:  [1.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+          0.0, 0.0, 1.0, 0.0, 0.0, 0.0,
+          0.0, 0.0, 0.0, 0.0, 1.0, 0.0]
+      r:  [0.001, 0.0, 0.0,
+          0.0, 0.001, 0.0,
+          0.0, 0.0, 0.001]
 
   image_processor:
+    rate_limit_fps: 12
     draw_points_to_frame: true
     max_error_counter: 10
 
@@ -63,11 +56,11 @@ fly_stereo:
       max_iters: 30
 
     binning:
-      bins_width: 10
-      bins_height: 7
-      max_pts_in_bin: 2
+      bins_width: 20
+      bins_height: 15
+      max_pts_in_bin: 1
 
-  image_processor:
+  sensor_interface:
     # Minumum time before two triggers are allowed
     min_camera_dt_ms: 40
 
@@ -80,6 +73,7 @@ fly_stereo:
     Camera0:
       auto_exposure:
         enable: false
+        auto_exposure_update_percentage: 0.1
         pixel_range_limits: [58, 98]
         exposure_limits: [51, 2500]
         num_frames_to_calc: 1
@@ -103,6 +97,7 @@ fly_stereo:
     Camera1:
       auto_exposure:
         enable: false
+        auto_exposure_update_percentage: 0.1
         pixel_range_limits: [108, 148]
         exposure_limits: [51, 2500]
         num_frames_to_calc: 1
