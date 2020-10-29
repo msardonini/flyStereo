@@ -62,7 +62,8 @@ void tracked_features_thread(ImageProcessor *image_processor, Vio *vio, MavlinkR
       t_mav = std::chrono::system_clock::now();
 
 
-    spdlog::info("dts ms: ip: {}, vio: {}, mav: {} ", (t_ip - t_start).count() / 1E6, (t_vio - t_ip).count() / 1E6, (t_mav - t_vio).count() / 1E6);
+    spdlog::trace("dts ms: ip: {}, vio: {}, mav: {} ", (t_ip - t_start).count() / 1E6,
+      (t_vio - t_ip).count() / 1E6, (t_mav - t_vio).count() / 1E6);
 
     }
   }
@@ -99,12 +100,14 @@ int InitializeSpdLog(const std::string &log_dir) {
   // Only use the console sink if we are in debug mode
 
   sinks.push_back(std::make_shared<spdlog::sinks::stdout_color_sink_mt>());
+  sinks.back()->set_level(spdlog::level::info);
   sinks.push_back(std::make_shared<spdlog::sinks::rotating_file_sink_mt> (
     log_dir + "/console_log.txt", max_bytes, max_files));
+  sinks.back()->set_level(spdlog::level::trace);
   auto flyMS_log = std::make_shared<spdlog::logger>("flyStereo_log", std::begin(sinks),
     std::end(sinks));
 
-  //register it if you need to access it globally
+  // Register the logger to the global level
   flyMS_log->set_level(spdlog::level::trace);
   spdlog::register_logger(flyMS_log);
   spdlog::set_default_logger(flyMS_log);
@@ -166,12 +169,10 @@ int main(int argc, char* argv[]) {
     InitializeSpdLog(fly_stereo_params["record_mode"]["log_dir"].as<std::string>());
   }
 
-
   ImageProcessor image_processor(fly_stereo_params, fly_stereo_params["stereo_calibration"]);
   image_processor.Init();
 
   std::thread imu_thread_obj(imu_thread, &mavlink_reader, &image_processor);
-
 
   Vio vio(fly_stereo_params, fly_stereo_params["stereo_calibration"]);
   std::thread features_thread_obj(tracked_features_thread, &image_processor, &vio,

@@ -193,6 +193,9 @@ int Camera::GetFrame(cv::cuda::GpuMat &frame) {
     return ret;
   }
 
+  // Save a local copy in case a CPU version is wanted later
+  frame_ = host_frame;
+
   if (enable_videoflip_) {
     cv::cuda::GpuMat temp;
     temp.upload(host_frame);

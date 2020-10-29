@@ -127,9 +127,8 @@ int SensorInterface::GetSynchronizedData(cv::cuda::GpuMat &d_frame_cam0,
 
   t_assoc = std::chrono::system_clock::now();
   if (record_mode_ && sql_logger_) {
-    cv::Mat frame0, frame1;
-    d_frame_cam0.download(frame0);
-    d_frame_cam1.download(frame1);
+    cv::Mat frame0 = cam0_->GetFrameCopy();
+    cv::Mat frame1 = cam1_->GetFrameCopy();
     spdlog::info("number of imu messages! {}", imu_data.size());
 
     LogParams params;
@@ -150,7 +149,10 @@ int SensorInterface::GetSynchronizedData(cv::cuda::GpuMat &d_frame_cam0,
   }
   t_log2 = std::chrono::system_clock::now();
 
-    spdlog::info("SI dts, trig: {}, frame: {}, assoc: {}, log1 {}, log2 {}", (t_trig - t_start).count() / 1E6, (t_frame - t_trig).count() / 1E6, (t_assoc - t_frame).count() / 1E6, (t_log1 - t_assoc).count() / 1E6, (t_log2 - t_log1).count() / 1E6);
+  spdlog::trace("SI dts, trig: {}, frame: {}, assoc: {}, log1 {}, log2 {}",
+    (t_trig - t_start).count() / 1E6, (t_frame - t_trig).count() / 1E6,
+    (t_assoc - t_frame).count() / 1E6, (t_log1 - t_assoc).count() / 1E6,
+    (t_log2 - t_log1).count() / 1E6);
 
   return ret;
 }

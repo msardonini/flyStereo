@@ -11,7 +11,7 @@
 
 // #define GPIOHANDLE_REQUEST_OUTPUT (1UL << 1)
 constexpr unsigned long output_pin = 1UL << 1;
-constexpr int num_frames_in_bufer = 3;
+constexpr int num_frames_in_bufer = 2;
 
 CameraTrigger::CameraTrigger(YAML::Node input_params) {
   is_running_.store(false);

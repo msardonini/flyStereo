@@ -4,8 +4,8 @@ fly_stereo:
 
   replay_mode:
     enable: true
-    replay_dir: /root/fly_stereo/replay_data/flight/8_24_20/run075
-    replay_speed_multiplier: 2
+    replay_dir: /root/fly_stereo/replay_data/flight/8_25_20/run019
+    replay_speed_multiplier: 5
     enable_serial_replay: false
 
   record_mode:
@@ -22,7 +22,7 @@ fly_stereo:
     vio_calibration: [-0.0018, 0.0001, -0.0019]
     kalman_filter:
       dt: 0.2
-      sigma_a: 0.1
+      sigma_a: 1.0
       f: [0.0, 1.0, 0.0, 0.0, 0.0, 0.0,
           0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
           0.0, 0.0, 0.0, 1.0, 0.0, 0.0,

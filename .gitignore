@@ -4,3 +4,5 @@ scripts/*.yaml
 matlab/*m~
 **.img
 .gnupg
+.vscode**
+.devcontainer**

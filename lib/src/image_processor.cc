@@ -247,7 +247,7 @@ int ImageProcessor::ProcessThread() {
     // Read the frames and check for errors
     int ret_val = sensor_interface_->GetSynchronizedData(d_frame_cam0_t1, d_frame_cam1_t1,
       imu_msgs, current_time);
-    if (ret_val < 0) {
+    if (ret_val == -1) {
       if (++error_counter >= max_error_counter_) {
         spdlog::error("Error! Failed to read more than {} consecutive frames",
           max_error_counter_);
@@ -260,6 +260,7 @@ int ImageProcessor::ProcessThread() {
       // This will happen if we don't have IMU data, for now continue on as is
       continue;
     } else if (ret_val == -2) {
+      spdlog::info("Sensor error or end of replay, shutting down");
       // This will happen if we have a critical error or the replay has finished. Shut down
       is_running_.store(false);
       continue;
@@ -516,13 +517,15 @@ int ImageProcessor::ProcessThread() {
     points[d_c1_t0] = points[d_c1_t1].clone();
 
     t_log = std::chrono::system_clock::now();
-    spdlog::info("ip dts, data: {}, lk1: {}, det: {}, log {}", (t_data - t_start).count() / 1E6, (t_lk1 - t_data).count() / 1E6, (t_det - t_lk1).count() / 1E6, (t_log - t_det).count() / 1E6);
+    spdlog::trace("ip dts, data: {}, lk1: {}, det: {}, log {}", (t_data - t_start).count() / 1E6,
+      (t_lk1 - t_data).count() / 1E6, (t_det - t_lk1).count() / 1E6,
+      (t_log - t_det).count() / 1E6);
 
 
     // Apply the rate limiting
     std::this_thread::sleep_until(time_end + invFpsLimit);
 
-    spdlog::info("fps: {}", 1.0 / static_cast<std::chrono::duration<double> >
+    spdlog::trace("fps: {}", 1.0 / static_cast<std::chrono::duration<double> >
       ((std::chrono::system_clock::now() - time_end)).count());
     time_end = std::chrono::system_clock::now();
   }

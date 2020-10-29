@@ -36,7 +36,6 @@ class Camera {
 
   int Init();
 
-  int GetFrame(cv::Mat &frame);
   int SendFrame(cv::Mat &frame);
   int SendFrame(cv::cuda::GpuMat &d_frame);
   int GetFrame(cv::cuda::GpuMat &frame);
@@ -49,6 +48,11 @@ class Camera {
     return timestamp_ns_;
   }
 
+
+  // Gets the latest cv frame already acquired from the hardware. Does NOT get a frame from the
+  // Camera
+  cv::Mat GetFrameCopy() {return frame_;}
+
  private:
   // Initialize the image sink object
   int InitSink(bool is_color);
@@ -57,6 +61,10 @@ class Camera {
   int InitGstPipeline();
   int GetFrameGst(cv::Mat &frame);
   int RunAutoExposure(const cv::Scalar &mean_pixel_val);
+  int GetFrame(cv::Mat &frame);
+
+  // Save a local copy of the latest cv::Mat for reference if needed
+  cv::Mat frame_;
 
   bool enable_videoflip_;
   int flip_method_;
