@@ -106,28 +106,32 @@ int Vio::ProcessPoints(const ImagePoints &pts, vio_t &vio) {
     first_iteration_ = false;
 
 
-    Eigen::Vector3d imu_rot; imu_rot << pts.imu_pts[0].roll, pts.imu_pts[0].pitch, 0.0;
-    Eigen::Vector3d initial_rotation_vec = R_imu_cam0_eigen_ * imu_rot;
-
     Eigen::Matrix3d initial_rotation =
-      Eigen::AngleAxisd(initial_rotation_vec(0), Eigen::Vector3d::UnitX()) *
-      Eigen::AngleAxisd(initial_rotation_vec(1),  Eigen::Vector3d::UnitY()) *
-      Eigen::AngleAxisd(initial_rotation_vec(2), Eigen::Vector3d::UnitZ())
-      .toRotationMatrix().transpose();
+      Eigen::AngleAxisd(-pts.imu_pts[0].roll, Eigen::Vector3d::UnitX()) *
+      Eigen::AngleAxisd(-pts.imu_pts[0].pitch,  Eigen::Vector3d::UnitY()) *
+      Eigen::AngleAxisd(0, Eigen::Vector3d::UnitZ())
+      .toRotationMatrix();
 
-    pose_cam0_.block<3, 3>(0, 0) = initial_rotation;
+    // Eigen::Vector3d imu_rot; imu_rot << pts.imu_pts[0].roll, pts.imu_pts[0].pitch, 0.0;
+    // Eigen::Vector3d initial_rotation_vec = R_imu_cam0_eigen_ * imu_rot;
+
+    // Eigen::Matrix3d initial_rotation =
+    //   Eigen::AngleAxisd(initial_rotation_vec(0), Eigen::Vector3d::UnitX()) *
+    //   Eigen::AngleAxisd(initial_rotation_vec(1),  Eigen::Vector3d::UnitY()) *
+    //   Eigen::AngleAxisd(initial_rotation_vec(2), Eigen::Vector3d::UnitZ())
+    //   .toRotationMatrix().transpose();
+
+    // TODO figure out if we need to transpose the initial rotation
+    pose_cam0_.block<3, 3>(0, 0) = R_imu_cam0_eigen_.transpose() * initial_rotation.transpose()
+      * R_imu_cam0_eigen_;
     spdlog::info("first imu point: {}, {}, {}", pts.imu_pts[0].roll, pts.imu_pts[0].pitch,
       pts.imu_pts[0].yaw);
     spdlog::info("Mat1: {}", initial_rotation);
     spdlog::info("Mat2: {}", R_imu_cam0_eigen_);
   }
 
-  Eigen::Matrix3d R_t0_t1_imu = R_imu_cam0_eigen_ * pts.R_t0_t1_cam0 *
-    R_imu_cam0_eigen_.transpose();
-
-  Eigen::Matrix4d pose_update;
-  if (CalculatePoseUpdate(pts, R_t0_t1_imu,
-    pose_update)) {
+  Eigen::Matrix4d pose_update_cam0;
+  if (CalculatePoseUpdate(pts, pts.R_t0_t1_cam0, pose_update_cam0)) {
     spdlog::warn("Error in CalculatePoseUpdate");
     return -1;
   }
@@ -136,7 +140,7 @@ int Vio::ProcessPoints(const ImagePoints &pts, vio_t &vio) {
   Eigen::Matrix<double, 6, 1> kf_state;
 
   // Update our Pose
-  pose_cam0_ = pose_cam0_ * pose_update;
+  pose_cam0_ = pose_cam0_ * pose_update_cam0;
 
   // Convert the pose to the body frame
   Eigen::Matrix4d T_cam0_imu = Eigen::Matrix4d::Identity();
@@ -148,6 +152,8 @@ int Vio::ProcessPoints(const ImagePoints &pts, vio_t &vio) {
 
   ProcessVio(pose_body, pts.timestamp_us, kf_state);
 
+  Eigen::Matrix3d R_t0_t1_imu = R_imu_cam0_eigen_ * pts.R_t0_t1_cam0 *
+    R_imu_cam0_eigen_.transpose();
   Debug_SaveOutput(pose_body, R_t0_t1_imu);
   // Debug_SaveOutput(pose_body, pts.R_t0_t1_cam0 * R_imu_cam0_eigen_.transpose());
 
@@ -184,11 +190,11 @@ int Vio::ProcessPoints(const ImagePoints &pts, vio_t &vio) {
 //   return 0;
 // }
 
-int Vio::ProcessVio(const Eigen::Matrix4d &pose_update, uint64_t image_timestamp,
+int Vio::ProcessVio(const Eigen::Matrix4d &pose_body, uint64_t image_timestamp,
   Eigen::Matrix<double, 6, 1> &output_state) {
 
   Eigen::Matrix<double, 3, 1> z;
-  z = pose_update.block<3, 1>(0, 3);
+  z = pose_body.block<3, 1>(0, 3);
 
   if (last_timestamp_ == 0) {
     kf_.Predict();
