@@ -68,8 +68,11 @@ int SensorInterface::GetSynchronizedData(cv::cuda::GpuMat &d_frame_cam0,
     uint64_t timestamp_flyMS, timestamp_flyStereo;
     int ret = sql_logger_->QueryEntry(timestamp_flyMS, timestamp_flyStereo, frame0, frame1,
       imu_data);
+
+    cv::Mat intermetiate;
+    cv::flip(frame1, intermetiate, -1);
     d_frame_cam0.upload(frame0);
-    d_frame_cam1.upload(frame1);
+    d_frame_cam1.upload(intermetiate);
 
     // Add a delay equivalent to what was experienced during the recording
     if (last_replay_time_ != 0) {

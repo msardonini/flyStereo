@@ -1,5 +1,6 @@
 fly_stereo:
-  wait_for_start_command: true
+  # Global Commands
+  wait_for_start_command: false
 
   replay_mode:
     enable: false
@@ -32,11 +33,13 @@ fly_stereo:
             0.0, 0.001, 0.0,
             0.0, 0.0, 0.001]
 
+
+
   mavlink_reader:
     device: /dev/ttyTHS1
 
   image_processor:
-    rate_limit_fps: 13
+    rate_limit_fps: 11
     draw_points_to_frame: false
     max_error_counter: 10
 
@@ -59,8 +62,8 @@ fly_stereo:
       bins_height: 15
       max_pts_in_bin: 1
 
-    # Minumum time before two triggers are allowed
   sensor_interface:
+    # Minumum time before two triggers are allowed
     min_camera_dt_ms: 40
 
     CameraTrigger:

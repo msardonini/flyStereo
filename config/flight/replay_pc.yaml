@@ -4,7 +4,7 @@ fly_stereo:
 
   replay_mode:
     enable: true
-    replay_dir: /root/fly_stereo/replay_data/flight/8_25_20/run019
+    replay_dir: /root/fly_stereo/replay_data/flight/8_30_20/run020
     replay_speed_multiplier: 5
     enable_serial_replay: false
 
@@ -19,7 +19,7 @@ fly_stereo:
     # device: /root/fly_stereo/replay_data/flight/8_15_20/run005/imu.dat
 
   vio:
-    vio_calibration: [-0.0018, 0.0001, -0.0019]
+    vio_calibration: [-0.0021, 0.0004, -0.0012]
     kalman_filter:
       dt: 0.2
       sigma_a: 1.0
@@ -37,7 +37,7 @@ fly_stereo:
           0.0, 0.0, 0.001]
 
   image_processor:
-    rate_limit_fps: 12
+    rate_limit_fps: 11
     draw_points_to_frame: true
     max_error_counter: 10
 
@@ -93,21 +93,21 @@ fly_stereo:
       width: 1280
       height: 720
       hardware_trigger_mode: true
-      gain: 3
-      exposure_time: 1500
+      gain: 1
+      exposure_time: 500
     Camera1:
       auto_exposure:
         enable: false
         auto_exposure_update_percentage: 0.1
-        pixel_range_limits: [108, 148]
-        exposure_limits: [51, 2500]
+        pixel_range_limits: [70, 110]
+        exposure_limits: [10, 2500]
         num_frames_to_calc: 1
 
       gstreamer_pipeline:
         enable: false
 
       src_pipeline: "filesrc location=/root/fly_stereo/replay_data/flight/8_15_20/run005/cam1.mp4 ! decodebin ! videoconvert ! video/x-raw, format=(string)GRAY8 ! appsink sync=true "
-      # src_pipeline: "filesrc location=/root/fly_stereo/replay_data/test_replay/cam1.mp4 ! decodebin ! videoconvert ! appsink max-buffers=1"
+      sink_pipeline: "appsrc ! videoconvert ! queue ! xvimagesink sync=false "
       # sink_pipeline: "appsrc ! videoconvert ! tee name=t ! queue ! autovideosink t. ! queue ! jpegenc ! avimux ! filesink location=<log_dir>/cam1_annotated.avi"
 
       device_num: 1
@@ -117,8 +117,8 @@ fly_stereo:
       width: 1280
       height: 720
       hardware_trigger_mode: true
-      gain: 3
-      exposure_time: 1500
+      gain: 1
+      exposure_time: 500
 
   stereo_calibration:
     R_imu_cam0: [0.0, 3.1415926535, 0.0]

@@ -44,6 +44,8 @@ class Vio {
   // calculation to lower the drift
   Eigen::Matrix<double, 3, 1> vio_calibration_;
 
+  bool first_iteration_save_ = true;
+
   // Object to hold all of the binned features
   unsigned int image_width_;
   unsigned int image_height_;

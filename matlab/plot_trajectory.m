@@ -1,7 +1,9 @@
 clear all; clc; close all
 clear all; clc;
 
-data = dlmread('../build_docker/replay/run116/trajectory.txt');
+data = dlmread('../build_docker/replay/run161/trajectory.txt');
+
+% data = dlmread('../replay_data/flight/8_30_20/run021/trajectory.txt');
 
 % data = dlmread('/home/msardonini/mntNano/fly_stereo/build/file.txt');
 % data = dlmread('/home/msardonini/git/fly_stereo/replay_data/flight/8_22_20/run051/trajectory.txt');
@@ -30,7 +32,7 @@ for i = 1:size(data,1)
    
    euler(:,i) = R2Euler(running_xform);
    imu_euler(:,i) = R2Euler(R_imu(:,:,i));
-   bearing(:, i) = running_xform(1:3, 1:3) * [0; 0; 1];
+   bearing(:, i) = running_xform(1:3, 1:3) * [1; 0; 0];
    points(:, i) = running_xform * [0; 0; 0; 1];
    if (i ~= 1)
        velocity(:,i) = points(:, i) - points(:, i - 1); 

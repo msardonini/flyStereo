@@ -136,6 +136,16 @@ int Vio::ProcessPoints(const ImagePoints &pts, vio_t &vio) {
     return -1;
   }
 
+  // Prepare some data for logging only
+  Eigen::Matrix3d R_t0_t1_imu;
+  if (first_iteration_save_) {
+    R_t0_t1_imu = R_imu_cam0_eigen_ * pose_cam0_.block<3, 3>(0, 0) * pts.R_t0_t1_cam0 *
+      R_imu_cam0_eigen_.transpose();
+    first_iteration_save_ = false;
+  } else {
+    R_t0_t1_imu = R_imu_cam0_eigen_ * pts.R_t0_t1_cam0 *  R_imu_cam0_eigen_.transpose();
+  }
+
   // ProcessImu(pts.imu_pts);
   Eigen::Matrix<double, 6, 1> kf_state;
 
@@ -152,8 +162,7 @@ int Vio::ProcessPoints(const ImagePoints &pts, vio_t &vio) {
 
   ProcessVio(pose_body, pts.timestamp_us, kf_state);
 
-  Eigen::Matrix3d R_t0_t1_imu = R_imu_cam0_eigen_ * pts.R_t0_t1_cam0 *
-    R_imu_cam0_eigen_.transpose();
+
   Debug_SaveOutput(pose_body, R_t0_t1_imu);
   // Debug_SaveOutput(pose_body, pts.R_t0_t1_cam0 * R_imu_cam0_eigen_.transpose());
 
