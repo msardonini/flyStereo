@@ -1,6 +1,6 @@
 fly_stereo:
   # Global Commands
-  wait_for_start_command: false
+  wait_for_start_command: true
 
   replay_mode:
     enable: false

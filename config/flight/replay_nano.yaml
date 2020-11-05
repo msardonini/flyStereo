@@ -4,8 +4,8 @@ fly_stereo:
 
   replay_mode:
     enable: true
-    replay_dir: /home/msardonini/log/run075
-    replay_speed_multiplier: 1
+    replay_dir: /home/msardonini/log/run020
+    replay_speed_multiplier: 0.75
     enable_serial_replay: true
 
   record_mode:
