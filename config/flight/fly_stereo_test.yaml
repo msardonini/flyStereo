@@ -1,4 +1,5 @@
 fly_stereo:
+  # Global Commands
   wait_for_start_command: false
 
   replay_mode:
@@ -8,14 +9,27 @@ fly_stereo:
     enable_serial_replay: false
 
   record_mode:
-    enable: false  # Enables logging
-    log_root_dir: /root/fly_stereo/build_docker/replay
+    enable: true  # Enables logging
+    log_root_dir: /home/msardonini/replay_log
     outputs:
       SQL_database: false
       trajectory: true
 
   vio:
-    vio_calibration: [-0.0021, 0.0004, -0.0012]
+    # vio_calibration: [-0.0021, 0.0004, -0.0012]
+    vio_calibration: [0.000025025359766, -0.000611904822559, -0.002355218185952]
+    # vio_calibration: [
+    #    0.999999976636869,   0.000036327061831,   0.000213088259592,   0.001438034954596,
+    #   -0.000036278595891,   0.999999973476354,  -0.000227444835836,  -0.001604601807353,
+    #   -0.000213096516343,   0.000227437099979,   0.999999951431119,  -0.000409344653685,
+    #                    0,                   0,                   0,   1.000000000000000]
+
+    # vio_calibration: [
+    #   1.0, 0.0, 0.0, -0.0021,
+    #   0.0, 1.0, 0.0, 0.0004,
+    #   0.0, 0.0, 1.0, -0.0012,
+    #   0.0, 0.0, 0.0, 1.0]
+
     kalman_filter:
         dt: 0.2
         sigma_a: 1.0
@@ -28,8 +42,8 @@ fly_stereo:
         h:  [1.0, 0.0, 0.0, 0.0, 0.0, 0.0,
             0.0, 0.0, 1.0, 0.0, 0.0, 0.0,
             0.0, 0.0, 0.0, 0.0, 1.0, 0.0]
-        r:  [0.001, 0.0, 0.0, 
-            0.0, 0.001, 0.0, 
+        r:  [0.001, 0.0, 0.0,
+            0.0, 0.001, 0.0,
             0.0, 0.0, 0.001]
 
   mavlink_reader:
@@ -42,13 +56,13 @@ fly_stereo:
     max_error_counter: 10
 
     thresholds:
-      stereo_threshold: 35
-      ransac_threshold: 5
+      stereo_threshold: 45
+      ransac_threshold: 10
 
     goodFeaturesToTrack:
-      max_corners: 100
-      quality_level: 0.3
-      min_dist: 10.0
+      max_corners: 300
+      quality_level: 0.15
+      min_dist: 15.0
 
     calcOpticalFlowPyrLK:
       window_size: 21
@@ -108,7 +122,7 @@ fly_stereo:
 
       device_num: 1
       src_pipeline: "v4l2src device=/dev/video1 ! video/x-raw,width=1280,height=720 ! nvvidconv ! video/x-raw, format=(string)GRAY8 ! appsink max-buffers=10 drop=false"
-      # sink_pipeline: "appsrc ! videoconvert ! nvvidconv ! nvv4l2h264enc insert-sps-pps=true ! h264parse ! rtph264pay pt=96 ! udpsink host=192.168.104.2 port=8001 sync=false "
+      sink_pipeline: "appsrc ! videoconvert ! nvvidconv ! nvv4l2h264enc insert-sps-pps=true ! h264parse ! rtph264pay pt=96 ! udpsink host=192.168.104.2 port=8001 sync=false "
       framerate: 20
       width: 1280
       height: 720

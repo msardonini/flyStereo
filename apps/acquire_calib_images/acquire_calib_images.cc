@@ -75,7 +75,7 @@ int main(int argc, char *argv[]) {
   YAML::Node params = YAML::LoadFile(config_file)["fly_stereo"];
 
   std::unique_ptr<SensorInterface> sensor_interface = std::make_unique<SensorInterface>();
-  sensor_interface->Init(params["image_processor"]);
+  sensor_interface->Init(params);
 
   cv::cuda::GpuMat d_frame_cam0, d_frame_cam1;
   std::experimental::filesystem::path save_dir_fp(save_dir);
