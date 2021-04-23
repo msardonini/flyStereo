@@ -1,6 +1,6 @@
-FROM nvidia/cuda:10.2-devel-ubuntu18.04
+FROM nvidia/cuda:11.2.1-cudnn8-devel-ubuntu20.04
 
-RUN apt-get update && apt-get install -y cmake vim xz-utils git libgstreamer1.0-dev gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly gstreamer1.0-plugins-base gstreamer1.0-tools gstreamer1.0-libav libgstreamer-plugins-base1.0-dev python3-dev python3-pip gdb liblas-dev liblas-c-dev
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y cmake vim xz-utils git libgstreamer1.0-dev gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly gstreamer1.0-plugins-base gstreamer1.0-tools gstreamer1.0-libav libgstreamer-plugins-base1.0-dev python3-dev python3-pip gdb libsqlite3-dev
 RUN pip3 install numpy
 
 
@@ -24,14 +24,26 @@ RUN cd /opt && \
   cmake .. && \
   make install
 
+# Build and install VTK
+RUN apt-get install -y libxt-dev
+RUN cd /opt && \
+  git clone https://github.com/Kitware/VTK.git && \
+  cd VTK && \
+  git checkout v8.2.0 && \
+  mkdir build && \
+  cd build && \
+  cmake .. && \
+  make -j$('nproc') && \
+  make install
+
 # Build and install OpenCV
 RUN cd /opt && \
   git clone https://github.com/opencv/opencv.git && \
   git clone https://github.com/opencv/opencv_contrib.git && \
   cd opencv_contrib && \
-  git checkout 4.3.0 && \
+  git checkout 4.4.0 && \
   cd ../opencv && \
-  git checkout 4.3.0 && \
+  git checkout 4.4.0 && \
   mkdir build && \
   cd build && \
   cmake -D CMAKE_BUILD_TYPE=RELEASE \
@@ -44,6 +56,7 @@ RUN cd /opt && \
         -D WITH_CUBLAS=ON \
         -D WITH_LIBV4L=ON \
         -D WITH_V4L=ON \
+        -D WITH_VTK=ON \
         -D WITH_GSTREAMER=ON \
         -D WITH_GSTREAMER_0_10=OFF \
         -D WITH_OPENGL=ON \

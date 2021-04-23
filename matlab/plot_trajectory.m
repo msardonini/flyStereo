@@ -1,9 +1,9 @@
 clear all; clc; close all
 clear all; clc;
 
-data = dlmread('../build_docker/replay/run161/trajectory.txt');
+% data = dlmread('../build_docker/replay/run004/trajectory.txt');
 
-% data = dlmread('../replay_data/flight/8_30_20/run021/trajectory.txt');
+data = dlmread('../replay_data/flight/11_21_20/run013/trajectory.txt');
 
 % data = dlmread('/home/msardonini/mntNano/fly_stereo/build/file.txt');
 % data = dlmread('/home/msardonini/git/fly_stereo/replay_data/flight/8_22_20/run051/trajectory.txt');
@@ -16,7 +16,7 @@ R_imu = zeros(3, 3, size(data,1));
 Xform = repmat(eye(4), [1, 1, size(data,1)]);
 points = zeros(4, size(data,1));
 velocity = zeros(4, size(data,1));
-bearing = zeros(3, size(data,1)); bearing(:,1) = [0 0 1];
+bearing = zeros(3, size(data,1)); bearing(:,1) = [0 0 -1];
 euler = zeros(3, size(data,1));
 imu_euler = zeros(3, size(data,1));
 
@@ -32,7 +32,7 @@ for i = 1:size(data,1)
    
    euler(:,i) = R2Euler(running_xform);
    imu_euler(:,i) = R2Euler(R_imu(:,:,i));
-   bearing(:, i) = running_xform(1:3, 1:3) * [1; 0; 0];
+   bearing(:, i) = running_xform(1:3, 1:3) * [0; 0; -1];
    points(:, i) = running_xform * [0; 0; 0; 1];
    if (i ~= 1)
        velocity(:,i) = points(:, i) - points(:, i - 1); 
@@ -71,7 +71,7 @@ plot(unwrap(euler'))
 hold on
 plot(unwrap(imu_euler'))
 title('Euler Angles')
-legend('x', 'y', 'z', 'X', 'Y', 'Z') 
+legend('x vio', 'y vio', 'z vio', 'X imu', 'Y imu', 'Z imu') 
 
 
 % Figure to show the weird linear relationship between distance travelled

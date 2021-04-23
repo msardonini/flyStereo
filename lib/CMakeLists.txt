@@ -8,7 +8,7 @@ find_package(opengv REQUIRED)
 find_package(yaml-cpp REQUIRED)
 find_package(Eigen3 3.3.7 REQUIRED NO_MODULE)
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
-find_package(libLAS)
+# find_package(libLAS)
 
 find_package(PkgConfig)
 pkg_check_modules(GST gstreamer-1.0>=1.4
@@ -32,6 +32,7 @@ add_library(fly_stereo_lib
   src/sensor_io/mavlink_reader.cc
   src/sensor_io/camera_trigger.cc
   src/sensor_io/camera.cc
+  src/visualization/visualization.cc
 )
 
 target_include_directories(fly_stereo_lib

@@ -25,7 +25,8 @@ constexpr unsigned int history_size = 10;
 constexpr unsigned int min_num_matches = 25;
 // Constructor with config params
 Vio::Vio(const YAML::Node &input_params, const YAML::Node &stereo_calibration) :
-  kf_(input_params["vio"]["kalman_filter"]) {
+  kf_(input_params["vio"]["kalman_filter"]),
+  visualization_(stereo_calibration) {
 
   // If we have recording enabled, initialize the logging files
   if (input_params["record_mode"] &&
@@ -85,11 +86,11 @@ Vio::Vio(const YAML::Node &input_params, const YAML::Node &stereo_calibration) :
   point_history_.resize(history_size);
   pose_history_.resize(history_size);
 
-  ofs_ = std::make_unique<std::ofstream> ("points.las", std::ios::out | std::ios::binary);
-  header_ = std::make_unique<liblas::Header>();
-  header_->SetDataFormatId(liblas::ePointFormat1); // Time only
-  header_->SetScale(0.0001, 0.0001, 0.0001);
-  writer_ = std::make_unique<liblas::Writer> (*ofs_.get(), *header_.get());
+  // ofs_ = std::make_unique<std::ofstream> ("points.las", std::ios::out | std::ios::binary);
+  // header_ = std::make_unique<liblas::Header>();
+  // header_->SetDataFormatId(liblas::ePointFormat1); // Time only
+  // header_->SetScale(0.0001, 0.0001, 0.0001);
+  // writer_ = std::make_unique<liblas::Writer> (*ofs_.get(), *header_.get());
 }
 
 // Destructor
@@ -131,7 +132,8 @@ int Vio::ProcessPoints(const ImagePoints &pts, vio_t &vio) {
   }
 
   Eigen::Matrix4d pose_update_cam0;
-  if (CalculatePoseUpdate(pts, pts.R_t0_t1_cam0, pose_update_cam0)) {
+  std::vector<cv::Point3d> inliers;
+  if (CalculatePoseUpdate(pts, pts.R_t0_t1_cam0, pose_update_cam0, &inliers)) {
     spdlog::warn("Error in CalculatePoseUpdate");
     return -1;
   }
@@ -162,6 +164,8 @@ int Vio::ProcessPoints(const ImagePoints &pts, vio_t &vio) {
 
   ProcessVio(pose_body, pts.timestamp_us, kf_state);
 
+
+  visualization_.ReceiveData(pose_body, inliers);
 
   Debug_SaveOutput(pose_body, R_t0_t1_imu);
   // Debug_SaveOutput(pose_body, pts.R_t0_t1_cam0 * R_imu_cam0_eigen_.transpose());
@@ -226,7 +230,7 @@ inline unsigned int Vio::Modulo(int value, unsigned m) {
 }
 
 int Vio::CalculatePoseUpdate(const ImagePoints &pts, const Eigen::Matrix3d &imu_rotation,
-  Eigen::Matrix4d &pose_update) {
+  Eigen::Matrix4d &pose_update, std::vector<cv::Point3d> *inlier_pts) {
   // Calculate the number of points in the grid
   const unsigned int num_pts = pts.pts.size();
 
@@ -381,8 +385,17 @@ int Vio::CalculatePoseUpdate(const ImagePoints &pts, const Eigen::Matrix3d &imu_
       opengv::sac_problems::absolute_pose::AbsolutePoseSacProblem::GP3P));
   ransac.sac_model_ = absposeproblem_ptr;
   ransac.threshold_ = 1.0 - cos(atan(sqrt(2.0)*0.5/500.0));
-  ransac.max_iterations_ = 200;
+  ransac.max_iterations_ = 1000;
   ransac.computeModel();
+
+  // If requested, copy the inlier points
+  if (inlier_pts != nullptr) {
+      inlier_pts->clear();
+    for(size_t i = 0; i < ransac.inliers_.size(); i++) {
+      Eigen::Vector3d &pt = points[ransac.inliers_[i]];
+      inlier_pts->push_back(cv::Point3d(pt(0), pt(1), pt(2)));
+    }
+  }
 
   // //print the results
   // std::cout << "the ransac results is: " << std::endl;
@@ -392,7 +405,6 @@ int Vio::CalculatePoseUpdate(const ImagePoints &pts, const Eigen::Matrix3d &imu_
   // std::cout << "the number of inliers is: " << ransac.inliers_.size();
   // std::cout << std::endl << std::endl;
   // std::cout << "the found inliers are: " << std::endl;
-  // for(size_t i = 0; i < ransac.inliers_.size(); i++)
   //   std::cout << points[ransac.inliers_[i]].transpose() << "\n";
   // std::cout << std::endl << std::endl;
 

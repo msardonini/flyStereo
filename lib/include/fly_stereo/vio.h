@@ -5,10 +5,11 @@
 #include "Eigen/Dense"
 #include "opencv2/core.hpp"
 #include "yaml-cpp/yaml.h"
-#include "liblas/liblas.hpp"
+// #include "liblas/liblas.hpp"
 #include "opengv/types.hpp"
 #include "fly_stereo/interface.h"
 #include "fly_stereo/kalman_filter.h"
+#include "fly_stereo/visualization/visualization.h"
 
 struct vio_t {
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
@@ -33,7 +34,7 @@ class Vio {
   int SaveInliers(std::vector<int> inliers, std::vector<int> pt_ids, opengv::points_t pts);
 
   int CalculatePoseUpdate(const ImagePoints &pts, const Eigen::Matrix3d &imu_rotation,
-  Eigen::Matrix4d &pose_update);
+    Eigen::Matrix4d &pose_update, std::vector<cv::Point3d> *inlier_pts = nullptr);
 
   int ProcessImu(const std::vector<mavlink_imu_t> &imu_pts);
   int ProcessVio(const Eigen::Matrix4d &pose_update, uint64_t image_timestamp,
@@ -77,8 +78,8 @@ class Vio {
   // Output file stream for debugging output
   std::unique_ptr<std::ofstream> ofs_;
   std::unique_ptr<std::ofstream> trajecotry_file_;
-  std::unique_ptr<liblas::Writer> writer_;
-  std::unique_ptr<liblas::Header> header_;
+  // std::unique_ptr<liblas::Writer> writer_;
+  // std::unique_ptr<liblas::Header> header_;
 
 
   std::vector<std::map<unsigned int, opengv::point_t> > point_history_;
@@ -88,6 +89,8 @@ class Vio {
   // Kalman Filter object to fuse imu and visual odom measurmenets
   KalmanFilter kf_;
   uint64_t last_timestamp_ = 0;
+
+  Visualization visualization_;
 };
 
 
