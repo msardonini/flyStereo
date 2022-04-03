@@ -12,7 +12,7 @@ ARGS="--env DISPLAY \
   --network=host \
   --cap-add=SYS_PTRACE \
   --ipc=host\
-  --runtime=nvidia \
+  --gpus=all \
   --security-opt seccomp=unconfined \
   -v /home/msardonini/git/fly_stereo:/root/fly_stereo "
 

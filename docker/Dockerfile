@@ -18,7 +18,7 @@ RUN cd /opt && \
 RUN cd /opt && \
   git clone https://gitlab.com/libeigen/eigen.git && \
   cd eigen && \
-  git checkout 3.3.7 && \
+  git checkout 3.4-rc1 && \
   mkdir build && \
   cd build && \
   cmake .. && \

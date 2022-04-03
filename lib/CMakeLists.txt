@@ -22,7 +22,7 @@ endif()
 
 
 
-add_definitions(-march=native)
+#add_definitions(-march=native)
 add_library(fly_stereo_lib
   src/image_processor.cc
   src/vio.cc
@@ -61,10 +61,10 @@ target_compile_options(fly_stereo_lib
     -Wall
 )
 
-target_compile_definitions(fly_stereo_lib
-  PUBLIC
-    -DEIGEN_DISABLE_UNALIGNED_ARRAY_ASSERT
-    -DEIGEN_DONT_VECTORIZE
-)
+#target_compile_definitions(fly_stereo_lib
+#  PUBLIC
+#    -DEIGEN_DISABLE_UNALIGNED_ARRAY_ASSERT
+#    -DEIGEN_DONT_VECTORIZE
+#)
 
-set_property(TARGET fly_stereo_lib PROPERTY CXX_STANDARD 17)
+set_property(TARGET fly_stereo_lib PROPERTY CXX_STANDARD 20)

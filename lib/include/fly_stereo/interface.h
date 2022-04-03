@@ -19,7 +19,7 @@ struct ImagePoint {
     cam1_t0(_cam1_t0),
     cam1_t1(_cam1_t1) {}
 
-  unsigned int id;  
+  unsigned int id;
   std::array<double, 2> cam0_t0;
   std::array<double, 2> cam0_t1;
   std::array<double, 2> cam1_t0;
@@ -27,14 +27,15 @@ struct ImagePoint {
 };
 
 struct ImagePoints {
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
   // Default Constructor
   ImagePoints() {};
-  
+
   // Constructor with values
   ImagePoints(uint64_t _timestamp_us, std::vector<ImagePoint> _pts) :
     timestamp_us(_timestamp_us),
     pts(_pts) {}
-  
+
   // Copy Constructor
   ImagePoints(const ImagePoints &src) :
     timestamp_us(src.timestamp_us),
