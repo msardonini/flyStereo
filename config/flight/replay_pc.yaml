@@ -4,7 +4,7 @@ fly_stereo:
 
   replay_mode:
     enable: true
-    replay_dir: /root/fly_stereo/replay_data/flight/11_21_20/run012
+    replay_dir: /root/fly_stereo/replay_data/flight/11_21_20/run013
     replay_speed_multiplier: 1
     enable_serial_replay: false
 
@@ -108,9 +108,9 @@ fly_stereo:
         enable: false
 
       src_pipeline: "filesrc location=/root/fly_stereo/replay_data/flight/8_15_20/run005/cam1.mp4 ! decodebin ! videoconvert ! video/x-raw, format=(string)GRAY8 ! appsink sync=true "
-      # sink_pipeline: "appsrc ! videoconvert ! queue ! xvimagesink sync=false "
+      sink_pipeline: "appsrc ! videoconvert ! queue ! xvimagesink sync=false "
       # sink_pipeline: "appsrc ! videoconvert ! tee name=t ! queue ! autovideosink t. ! queue ! videoconvert ! x264enc tune=zerolatency ! qtmux ! filesink location=/root/fly_stereo/build_docker/replay/run023/cam1_annotated.mp4"
-      sink_pipeline: "appsrc ! videoconvert ! queue ! videoconvert ! x264enc tune=zerolatency ! qtmux ! filesink location=/root/fly_stereo/build_docker/replay/run023/cam1_annotated.mp4"
+      # sink_pipeline: "appsrc ! videoconvert ! queue ! videoconvert ! x264enc tune=zerolatency ! qtmux ! filesink location=/root/fly_stereo/build_docker/replay/run023/cam1_annotated.mp4"
 
 
       device_num: 1

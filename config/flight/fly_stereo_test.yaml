@@ -3,13 +3,13 @@ fly_stereo:
   wait_for_start_command: false
 
   replay_mode:
-    enable: false
-    replay_dir: /root/fly_stereo/replay_data/flight/8_22_20/run051
+    enable: true
+    replay_dir: /root/fly_stereo/replay_data/flight/11_21_20/run014
     replay_speed_multiplier: 2
     enable_serial_replay: false
 
   record_mode:
-    enable: true  # Enables logging
+    enable: false  # Enables logging
     log_root_dir: /home/msardonini/replay_log
     outputs:
       SQL_database: false

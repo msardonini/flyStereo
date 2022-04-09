@@ -229,6 +229,10 @@ inline unsigned int Vio::Modulo(int value, unsigned m) {
   return mod;
 }
 
+  inline double get_inlier_pct( const std::vector<int> &inliers) {
+    return std::accumulate(inliers.begin(), inliers.end(), 0., [](auto a, auto new_val) {return a + ((new_val) ? 1. : 0.); }) / inliers.size();
+  }
+
 int Vio::CalculatePoseUpdate(const ImagePoints &pts, const Eigen::Matrix3d &imu_rotation,
   Eigen::Matrix4d &pose_update, std::vector<cv::Point3d> *inlier_pts) {
   // Calculate the number of points in the grid
@@ -288,12 +292,41 @@ int Vio::CalculatePoseUpdate(const ImagePoints &pts, const Eigen::Matrix3d &imu_
   // Perform Triangulation to get 3D points for time step T0
   cv::Mat pts_cam0_t0_mat(pts_cam0_t0_ud); pts_cam0_t0_mat.convertTo(pts_cam0_t0_mat, CV_64F);
   cv::Mat pts_cam1_t0_mat(pts_cam1_t0_ud); pts_cam1_t0_mat.convertTo(pts_cam1_t0_mat, CV_64F);
+  cv::Mat pts_cam0_t1_mat(pts_cam0_t1_ud); pts_cam0_t1_mat.convertTo(pts_cam0_t1_mat, CV_64F);
+  cv::Mat pts_cam1_t1_mat(pts_cam1_t1_ud); pts_cam1_t1_mat.convertTo(pts_cam1_t1_mat, CV_64F);
+
+
+
   cv::Mat triangulation_output_pts_homo;
   cv::triangulatePoints(P0_, P1_, pts_cam0_t0_mat, pts_cam1_t0_mat, triangulation_output_pts_homo);
 
   // Convert points from homogeneous to 3D coords
   std::vector<cv::Vec3d> triangulation_output_pts;
   cv::convertPointsFromHomogeneous(triangulation_output_pts_homo.t(), triangulation_output_pts);
+
+// cv::solvePnP	(	InputArray 	objectPoints,
+// InputArray 	imagePoints,
+// InputArray 	cameraMatrix,
+// InputArray 	distCoeffs,
+// OutputArray 	rvec,
+// OutputArray 	tvec,
+// bool 	useExtrinsicGuess = false,
+// int 	flags = SOLVEPNP_ITERATIVE
+// )
+
+  std::vector<int> inliers;
+  cv::Mat_<double> rvec, tvec, rot, rot_inv, affine;
+  cv::solvePnPRansac(triangulation_output_pts, pts_cam0_t1, K_cam0_, D_cam0_, rvec, tvec, false, 1000, 3, .999, inliers);
+
+
+
+
+  std::cout <<" Inlier percentage openCV " << get_inlier_pct(inliers) << std::endl;
+
+  cv::Rodrigues(rvec, rot);
+  cv::transpose(rot, rot_inv);
+  cv::hconcat(rot_inv, -tvec, affine);
+
 
   // put the points into the opengv object
   opengv::points_t points(2 * num_pts);
@@ -413,8 +446,26 @@ int Vio::CalculatePoseUpdate(const ImagePoints &pts, const Eigen::Matrix3d &imu_
   // std::cout << "output transformation: \n" << pose_cam0_ << std::endl;
 
 
+  std::cout <<" Inlier percentage openCV " << get_inlier_pct(ransac.inliers_) << std::endl;
+  std::cout << "\n opencv output \n" << affine << std::endl << std::endl;
+  std::cout << "\n opengv output \n" << ransac.model_coefficients_ << std::endl << std::endl;
+
+
   // Put the ransc output pose update into a 4x4 Matrix
-  pose_update.block<3,4>(0, 0) = ransac.model_coefficients_;
+  bool USE_OPENGV = false;
+  if (USE_OPENGV) {
+    pose_update.block<3,4>(0, 0) = ransac.model_coefficients_;
+  } else {
+    for (auto row = 0; row < 3; row++) {
+      for (auto col = 0; col < 4; col++) {
+        pose_update(row, col) = affine(row, col);
+      }
+        // pose_update(row, 3) = tvec[row];
+    }
+
+  }
+
+
 
   // Apply the user calibration
   pose_update.block<3,1>(0, 3) -= vio_calibration_;
