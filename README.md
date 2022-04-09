@@ -30,4 +30,3 @@ sudo usermod -aG dialout <user>
 ```
 
 Always reboot after adding your user to groups
-

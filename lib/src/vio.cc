@@ -2,47 +2,41 @@
 #include "fly_stereo/vio.h"
 
 // System includes
-#include <iostream>
 #include <fstream>
+#include <iostream>
 
 // Package includes
-#include "spdlog/spdlog.h"
-#include "spdlog/fmt/ostr.h"  // To print out Eigen objects
 #include "Eigen/Geometry"
 #include "opencv2/calib3d.hpp"
 #include "opencv2/core/eigen.hpp"
-#include "opengv/relative_pose/CentralRelativeAdapter.hpp"
-#include "opengv/triangulation/methods.hpp"
-#include "opengv/absolute_pose/methods.hpp"
 #include "opengv/absolute_pose/NoncentralAbsoluteAdapter.hpp"
+#include "opengv/absolute_pose/methods.hpp"
+#include "opengv/point_cloud/PointCloudAdapter.hpp"
+#include "opengv/point_cloud/methods.hpp"
+#include "opengv/relative_pose/CentralRelativeAdapter.hpp"
 #include "opengv/sac/Ransac.hpp"
 #include "opengv/sac_problems/absolute_pose/AbsolutePoseSacProblem.hpp"
-#include "opengv/point_cloud/methods.hpp"
-#include "opengv/point_cloud/PointCloudAdapter.hpp"
 #include "opengv/sac_problems/point_cloud/PointCloudSacProblem.hpp"
+#include "opengv/triangulation/methods.hpp"
+#include "spdlog/fmt/ostr.h"  // To print out Eigen objects
+#include "spdlog/spdlog.h"
 
 constexpr unsigned int history_size = 10;
 constexpr unsigned int min_num_matches = 25;
 // Constructor with config params
-Vio::Vio(const YAML::Node &input_params, const YAML::Node &stereo_calibration) :
-  kf_(input_params["vio"]["kalman_filter"]),
-  visualization_(stereo_calibration) {
-
+Vio::Vio(const YAML::Node &input_params, const YAML::Node &stereo_calibration)
+    : kf_(input_params["vio"]["kalman_filter"]), visualization_(stereo_calibration) {
   // If we have recording enabled, initialize the logging files
-  if (input_params["record_mode"] &&
-      input_params["record_mode"]["enable"].as<bool>() &&
+  if (input_params["record_mode"] && input_params["record_mode"]["enable"].as<bool>() &&
       input_params["record_mode"]["outputs"]["trajectory"].as<bool>()) {
     std::string run_file = input_params["record_mode"]["log_dir"].as<std::string>();
-    trajecotry_file_ = std::make_unique<std::ofstream> (run_file + "/trajectory.txt",
-      std::ios::out);
+    trajecotry_file_ = std::make_unique<std::ofstream>(run_file + "/trajectory.txt", std::ios::out);
   }
 
   YAML::Node vio_params = input_params["vio"];
   // Parse params for the VIO node
-  std::vector<double> vio_calibration_vec = vio_params["vio_calibration"].as<
-    std::vector<double>>();
+  std::vector<double> vio_calibration_vec = vio_params["vio_calibration"].as<std::vector<double>>();
   vio_calibration_ = Eigen::Matrix<double, 3, 1>(vio_calibration_vec.data());
-
 
   std::vector<double> interface_vec = stereo_calibration["K0"]["data"].as<std::vector<double>>();
   K_cam0_ = cv::Matx33d(interface_vec.data());
@@ -55,9 +49,9 @@ Vio::Vio(const YAML::Node &input_params, const YAML::Node &stereo_calibration) :
   D_cam1_ = stereo_calibration["D1"]["data"].as<std::vector<double>>();
 
   interface_vec = stereo_calibration["R_imu_cam0"].as<std::vector<double>>();
-  R_imu_cam0_eigen_ =  Eigen::AngleAxisd(interface_vec[0], Eigen::Vector3d::UnitX()) *
-    Eigen::AngleAxisd(interface_vec[1],  Eigen::Vector3d::UnitY()) *
-    Eigen::AngleAxisd(interface_vec[2], Eigen::Vector3d::UnitZ()).toRotationMatrix();
+  R_imu_cam0_eigen_ = Eigen::AngleAxisd(interface_vec[0], Eigen::Vector3d::UnitX()) *
+                      Eigen::AngleAxisd(interface_vec[1], Eigen::Vector3d::UnitY()) *
+                      Eigen::AngleAxisd(interface_vec[2], Eigen::Vector3d::UnitZ()).toRotationMatrix();
 
   spdlog::info(" rotation: {}", R_imu_cam0_eigen_);
 
@@ -106,12 +100,9 @@ int Vio::ProcessPoints(const ImagePoints &pts, vio_t &vio) {
     }
     first_iteration_ = false;
 
-
-    Eigen::Matrix3d initial_rotation =
-      Eigen::AngleAxisd(-pts.imu_pts[0].roll, Eigen::Vector3d::UnitX()) *
-      Eigen::AngleAxisd(-pts.imu_pts[0].pitch,  Eigen::Vector3d::UnitY()) *
-      Eigen::AngleAxisd(0, Eigen::Vector3d::UnitZ())
-      .toRotationMatrix();
+    Eigen::Matrix3d initial_rotation = Eigen::AngleAxisd(-pts.imu_pts[0].roll, Eigen::Vector3d::UnitX()) *
+                                       Eigen::AngleAxisd(-pts.imu_pts[0].pitch, Eigen::Vector3d::UnitY()) *
+                                       Eigen::AngleAxisd(0, Eigen::Vector3d::UnitZ()).toRotationMatrix();
 
     // Eigen::Vector3d imu_rot; imu_rot << pts.imu_pts[0].roll, pts.imu_pts[0].pitch, 0.0;
     // Eigen::Vector3d initial_rotation_vec = R_imu_cam0_eigen_ * imu_rot;
@@ -123,10 +114,8 @@ int Vio::ProcessPoints(const ImagePoints &pts, vio_t &vio) {
     //   .toRotationMatrix().transpose();
 
     // TODO figure out if we need to transpose the initial rotation
-    pose_cam0_.block<3, 3>(0, 0) = R_imu_cam0_eigen_.transpose() * initial_rotation.transpose()
-      * R_imu_cam0_eigen_;
-    spdlog::info("first imu point: {}, {}, {}", pts.imu_pts[0].roll, pts.imu_pts[0].pitch,
-      pts.imu_pts[0].yaw);
+    pose_cam0_.block<3, 3>(0, 0) = R_imu_cam0_eigen_.transpose() * initial_rotation.transpose() * R_imu_cam0_eigen_;
+    spdlog::info("first imu point: {}, {}, {}", pts.imu_pts[0].roll, pts.imu_pts[0].pitch, pts.imu_pts[0].yaw);
     spdlog::info("Mat1: {}", initial_rotation);
     spdlog::info("Mat2: {}", R_imu_cam0_eigen_);
   }
@@ -141,11 +130,10 @@ int Vio::ProcessPoints(const ImagePoints &pts, vio_t &vio) {
   // Prepare some data for logging only
   Eigen::Matrix3d R_t0_t1_imu;
   if (first_iteration_save_) {
-    R_t0_t1_imu = R_imu_cam0_eigen_ * pose_cam0_.block<3, 3>(0, 0) * pts.R_t0_t1_cam0 *
-      R_imu_cam0_eigen_.transpose();
+    R_t0_t1_imu = R_imu_cam0_eigen_ * pose_cam0_.block<3, 3>(0, 0) * pts.R_t0_t1_cam0 * R_imu_cam0_eigen_.transpose();
     first_iteration_save_ = false;
   } else {
-    R_t0_t1_imu = R_imu_cam0_eigen_ * pts.R_t0_t1_cam0 *  R_imu_cam0_eigen_.transpose();
+    R_t0_t1_imu = R_imu_cam0_eigen_ * pts.R_t0_t1_cam0 * R_imu_cam0_eigen_.transpose();
   }
 
   // ProcessImu(pts.imu_pts);
@@ -163,7 +151,6 @@ int Vio::ProcessPoints(const ImagePoints &pts, vio_t &vio) {
   // Eigen::Matrix4d pose_body = pose_cam0_;
 
   ProcessVio(pose_body, pts.timestamp_us, kf_state);
-
 
   visualization_.ReceiveData(pose_body, inliers);
 
@@ -204,8 +191,7 @@ int Vio::ProcessPoints(const ImagePoints &pts, vio_t &vio) {
 // }
 
 int Vio::ProcessVio(const Eigen::Matrix4d &pose_body, uint64_t image_timestamp,
-  Eigen::Matrix<double, 6, 1> &output_state) {
-
+                    Eigen::Matrix<double, 6, 1> &output_state) {
   Eigen::Matrix<double, 3, 1> z;
   z = pose_body.block<3, 1>(0, 3);
 
@@ -229,12 +215,14 @@ inline unsigned int Vio::Modulo(int value, unsigned m) {
   return mod;
 }
 
-  inline double get_inlier_pct( const std::vector<int> &inliers) {
-    return std::accumulate(inliers.begin(), inliers.end(), 0., [](auto a, auto new_val) {return a + ((new_val) ? 1. : 0.); }) / inliers.size();
-  }
+inline double get_inlier_pct(const std::vector<int> &inliers) {
+  return std::accumulate(inliers.begin(), inliers.end(), 0.,
+                         [](auto a, auto new_val) { return a + ((new_val) ? 1. : 0.); }) /
+         inliers.size();
+}
 
-int Vio::CalculatePoseUpdate(const ImagePoints &pts, const Eigen::Matrix3d &imu_rotation,
-  Eigen::Matrix4d &pose_update, std::vector<cv::Point3d> *inlier_pts) {
+int Vio::CalculatePoseUpdate(const ImagePoints &pts, const Eigen::Matrix3d &imu_rotation, Eigen::Matrix4d &pose_update,
+                             std::vector<cv::Point3d> *inlier_pts) {
   // Calculate the number of points in the grid
   const unsigned int num_pts = pts.pts.size();
 
@@ -257,8 +245,7 @@ int Vio::CalculatePoseUpdate(const ImagePoints &pts, const Eigen::Matrix3d &imu_
   // Check to make sure all of our vectors have the same number of points, otherwise, something
   // went wrong
   unsigned int num_pts_cam0_t0 = pts_cam0_t0.size();
-  if (num_pts_cam0_t0 != pts_cam0_t1.size() ||
-      num_pts_cam0_t0 != pts_cam1_t0.size() ||
+  if (num_pts_cam0_t0 != pts_cam0_t1.size() || num_pts_cam0_t0 != pts_cam1_t0.size() ||
       num_pts_cam0_t0 != pts_cam1_t1.size()) {
     spdlog::error("Error! [ProcessPoints] points are not the same size!");
     return -1;
@@ -290,12 +277,14 @@ int Vio::CalculatePoseUpdate(const ImagePoints &pts, const Eigen::Matrix3d &imu_
   cv::undistortPoints(pts_cam1_t1, pts_cam1_t1_ud, K_cam1_, D_cam1_);
 
   // Perform Triangulation to get 3D points for time step T0
-  cv::Mat pts_cam0_t0_mat(pts_cam0_t0_ud); pts_cam0_t0_mat.convertTo(pts_cam0_t0_mat, CV_64F);
-  cv::Mat pts_cam1_t0_mat(pts_cam1_t0_ud); pts_cam1_t0_mat.convertTo(pts_cam1_t0_mat, CV_64F);
-  cv::Mat pts_cam0_t1_mat(pts_cam0_t1_ud); pts_cam0_t1_mat.convertTo(pts_cam0_t1_mat, CV_64F);
-  cv::Mat pts_cam1_t1_mat(pts_cam1_t1_ud); pts_cam1_t1_mat.convertTo(pts_cam1_t1_mat, CV_64F);
-
-
+  cv::Mat pts_cam0_t0_mat(pts_cam0_t0_ud);
+  pts_cam0_t0_mat.convertTo(pts_cam0_t0_mat, CV_64F);
+  cv::Mat pts_cam1_t0_mat(pts_cam1_t0_ud);
+  pts_cam1_t0_mat.convertTo(pts_cam1_t0_mat, CV_64F);
+  cv::Mat pts_cam0_t1_mat(pts_cam0_t1_ud);
+  pts_cam0_t1_mat.convertTo(pts_cam0_t1_mat, CV_64F);
+  cv::Mat pts_cam1_t1_mat(pts_cam1_t1_ud);
+  pts_cam1_t1_mat.convertTo(pts_cam1_t1_mat, CV_64F);
 
   cv::Mat triangulation_output_pts_homo;
   cv::triangulatePoints(P0_, P1_, pts_cam0_t0_mat, pts_cam1_t0_mat, triangulation_output_pts_homo);
@@ -304,33 +293,30 @@ int Vio::CalculatePoseUpdate(const ImagePoints &pts, const Eigen::Matrix3d &imu_
   std::vector<cv::Vec3d> triangulation_output_pts;
   cv::convertPointsFromHomogeneous(triangulation_output_pts_homo.t(), triangulation_output_pts);
 
-// cv::solvePnP	(	InputArray 	objectPoints,
-// InputArray 	imagePoints,
-// InputArray 	cameraMatrix,
-// InputArray 	distCoeffs,
-// OutputArray 	rvec,
-// OutputArray 	tvec,
-// bool 	useExtrinsicGuess = false,
-// int 	flags = SOLVEPNP_ITERATIVE
-// )
+  // cv::solvePnP	(	InputArray 	objectPoints,
+  // InputArray 	imagePoints,
+  // InputArray 	cameraMatrix,
+  // InputArray 	distCoeffs,
+  // OutputArray 	rvec,
+  // OutputArray 	tvec,
+  // bool 	useExtrinsicGuess = false,
+  // int 	flags = SOLVEPNP_ITERATIVE
+  // )
 
   std::vector<int> inliers;
   cv::Mat_<double> rvec, tvec, rot, rot_inv, affine;
-  cv::solvePnPRansac(triangulation_output_pts, pts_cam0_t1, K_cam0_, D_cam0_, rvec, tvec, false, 1000, 3, .999, inliers);
+  cv::solvePnPRansac(triangulation_output_pts, pts_cam0_t1, K_cam0_, D_cam0_, rvec, tvec, false, 1000, 3, .999,
+                     inliers);
 
-
-
-
-  std::cout <<" Inlier percentage openCV " << get_inlier_pct(inliers) << std::endl;
+  std::cout << " Inlier percentage openCV " << get_inlier_pct(inliers) << std::endl;
 
   cv::Rodrigues(rvec, rot);
   cv::transpose(rot, rot_inv);
   cv::hconcat(rot_inv, -tvec, affine);
 
-
   // put the points into the opengv object
   opengv::points_t points(2 * num_pts);
-  for(size_t i = 0; i < num_pts; i++) {
+  for (size_t i = 0; i < num_pts; i++) {
     cv::cv2eigen(triangulation_output_pts[i], points[i]);
     cv::cv2eigen(triangulation_output_pts[i], points[i + num_pts]);
   }
@@ -383,48 +369,45 @@ int Vio::CalculatePoseUpdate(const ImagePoints &pts, const Eigen::Matrix3d &imu_
   // Construct a vector of bearing vectors in timetemp T1 that points at 'points' in T0
   opengv::bearingVectors_t bearing_vectors_t1;
   bearing_vectors_t1.insert(std::end(bearing_vectors_t1), std::begin(bearing_vectors_cam0_t1),
-    std::end(bearing_vectors_cam0_t1));
+                            std::end(bearing_vectors_cam0_t1));
   bearing_vectors_t1.insert(std::end(bearing_vectors_t1), std::begin(bearing_vectors_cam1_t1),
-    std::end(bearing_vectors_cam1_t1));
+                            std::end(bearing_vectors_cam1_t1));
   std::vector<int> correspondences_t1;
   correspondences_t1.insert(std::end(correspondences_t1), std::begin(cam_correspondences_cam0_t1),
-    std::end(cam_correspondences_cam0_t1));
+                            std::end(cam_correspondences_cam0_t1));
   correspondences_t1.insert(std::end(correspondences_t1), std::begin(cam_correspondences_cam1_t1),
-    std::end(cam_correspondences_cam1_t1));
+                            std::end(cam_correspondences_cam1_t1));
 
   // Add the params from our camera system
   opengv::translations_t camOffsets;
   opengv::rotations_t camRotations;
   camOffsets.push_back(Eigen::Vector3d::Zero());
   camRotations.push_back(Eigen::Matrix3d::Identity());
-  Eigen::Matrix3d R; cv::cv2eigen(R_cam0_cam1_.t(), R);
-  Eigen::MatrixXd T; cv::cv2eigen(-T_cam0_cam1_, T);
+  Eigen::Matrix3d R;
+  cv::cv2eigen(R_cam0_cam1_.t(), R);
+  Eigen::MatrixXd T;
+  cv::cv2eigen(-T_cam0_cam1_, T);
   camRotations.push_back(R);
   camOffsets.push_back(T);
 
   // Create a non-central absolute adapter
-  opengv::absolute_pose::NoncentralAbsoluteAdapter adapter(
-    bearing_vectors_t1,
-    correspondences_t1,
-    points,
-    camOffsets,
-    camRotations,
-    imu_rotation);
+  opengv::absolute_pose::NoncentralAbsoluteAdapter adapter(bearing_vectors_t1, correspondences_t1, points, camOffsets,
+                                                           camRotations, imu_rotation);
 
   // Create the ransac model and compute
   opengv::sac::Ransac<opengv::sac_problems::absolute_pose::AbsolutePoseSacProblem> ransac;
   std::shared_ptr<opengv::sac_problems::absolute_pose::AbsolutePoseSacProblem> absposeproblem_ptr(
-    new opengv::sac_problems::absolute_pose::AbsolutePoseSacProblem(adapter,
-      opengv::sac_problems::absolute_pose::AbsolutePoseSacProblem::GP3P));
+      new opengv::sac_problems::absolute_pose::AbsolutePoseSacProblem(
+          adapter, opengv::sac_problems::absolute_pose::AbsolutePoseSacProblem::GP3P));
   ransac.sac_model_ = absposeproblem_ptr;
-  ransac.threshold_ = 1.0 - cos(atan(sqrt(2.0)*0.5/500.0));
+  ransac.threshold_ = 1.0 - cos(atan(sqrt(2.0) * 0.5 / 500.0));
   ransac.max_iterations_ = 1000;
   ransac.computeModel();
 
   // If requested, copy the inlier points
   if (inlier_pts != nullptr) {
-      inlier_pts->clear();
-    for(size_t i = 0; i < ransac.inliers_.size(); i++) {
+    inlier_pts->clear();
+    for (size_t i = 0; i < ransac.inliers_.size(); i++) {
       Eigen::Vector3d &pt = points[ransac.inliers_[i]];
       inlier_pts->push_back(cv::Point3d(pt(0), pt(1), pt(2)));
     }
@@ -445,37 +428,30 @@ int Vio::CalculatePoseUpdate(const ImagePoints &pts, const Eigen::Matrix3d &imu_
   // pose_cam0_ = pose_cam0_ * delta_xform ;
   // std::cout << "output transformation: \n" << pose_cam0_ << std::endl;
 
-
-  std::cout <<" Inlier percentage openCV " << get_inlier_pct(ransac.inliers_) << std::endl;
+  std::cout << " Inlier percentage openCV " << get_inlier_pct(ransac.inliers_) << std::endl;
   std::cout << "\n opencv output \n" << affine << std::endl << std::endl;
   std::cout << "\n opengv output \n" << ransac.model_coefficients_ << std::endl << std::endl;
-
 
   // Put the ransc output pose update into a 4x4 Matrix
   bool USE_OPENGV = false;
   if (USE_OPENGV) {
-    pose_update.block<3,4>(0, 0) = ransac.model_coefficients_;
+    pose_update.block<3, 4>(0, 0) = ransac.model_coefficients_;
   } else {
     for (auto row = 0; row < 3; row++) {
       for (auto col = 0; col < 4; col++) {
         pose_update(row, col) = affine(row, col);
       }
-        // pose_update(row, 3) = tvec[row];
+      // pose_update(row, 3) = tvec[row];
     }
-
   }
 
-
-
   // Apply the user calibration
-  pose_update.block<3,1>(0, 3) -= vio_calibration_;
-
+  pose_update.block<3, 1>(0, 3) -= vio_calibration_;
 
   if (pose_update.block<3, 1>(0, 3).norm() > 1) {
     pose_update = Eigen::Matrix4d::Identity();
     spdlog::error("Error! Single frame distance over threshold. Discarding update");
   }
-
 
   // std::cout << "delta update: \n" << pose_update << std::endl;
   // std::cout << "output transformation: \n" << pose_cam0_ << std::endl;
@@ -487,7 +463,8 @@ int Vio::CalculatePoseUpdate(const ImagePoints &pts, const Eigen::Matrix3d &imu_
 }
 
 int Vio::Debug_SaveOutput(const Eigen::Matrix4d &pose_update, const Eigen::Matrix3d &R_imu) {
-  // if (ransac.model_coefficients_(0,3) > 5 || ransac.model_coefficients_(1,3) > 5 || ransac.model_coefficients_(2,3) > 5) {
+  // if (ransac.model_coefficients_(0,3) > 5 || ransac.model_coefficients_(1,3) > 5 || ransac.model_coefficients_(2,3) >
+  // 5) {
   if (1) {
     // unsigned int index_temp = Modulo(point_history_index_ - 2, history_size);
     // Eigen::Matrix4d pose_inv = Eigen::Matrix4d::Identity();
@@ -512,7 +489,8 @@ int Vio::Debug_SaveOutput(const Eigen::Matrix4d &pose_update, const Eigen::Matri
 
       // Eigen::Matrix3d R_imu_temp = R_imu;
       // Eigen::Map<Eigen::RowVectorXd> imu(R_imu_temp.data(), R_imu_temp.size());
-      *trajecotry_file_ << pose_update.format(csv_format) << "," << kf_.GetState().format(csv_format) << "," << R_imu.format(csv_format) << std::endl;
+      *trajecotry_file_ << pose_update.format(csv_format) << "," << kf_.GetState().format(csv_format) << ","
+                        << R_imu.format(csv_format) << std::endl;
     }
 
     // for (int i = 0; i < points.size(); i++) {
@@ -523,7 +501,6 @@ int Vio::Debug_SaveOutput(const Eigen::Matrix4d &pose_update, const Eigen::Matri
   }
   return 0;
 }
-
 
 int Vio::SaveInliers(std::vector<int> inliers, std::vector<int> pt_ids, opengv::points_t pts) {
   // Remove the duplicate points
@@ -549,13 +526,14 @@ int Vio::SaveInliers(std::vector<int> inliers, std::vector<int> pt_ids, opengv::
   }
 
   // Find how many of the points from the current iteration match previous iterations
-  std::array<unsigned int, history_size> num_matches; num_matches[0] = 0;
+  std::array<unsigned int, history_size> num_matches;
+  num_matches[0] = 0;
   for (unsigned int i = 1; i < history_size; i++) {
     const auto &temp_map = point_history_[Modulo((static_cast<int>(point_history_index_) - i), history_size)];
 
     unsigned int num_matches_local = 0;
     for (unsigned int j = 0; j < ids_inliers.size(); j++) {
-      if(temp_map.count(ids_inliers[j])) {
+      if (temp_map.count(ids_inliers[j])) {
         num_matches_local++;
       }
     }
@@ -566,8 +544,9 @@ int Vio::SaveInliers(std::vector<int> inliers, std::vector<int> pt_ids, opengv::
   // Find the point furthest back in the history that has the minimum number of matches points
   for (int i = num_matches.size() - 1; i >= 0; i--) {
     if (num_matches[i] >= min_num_matches) {
-      // std::cout << "i: " << i << " point history index: " << point_history_index_ << " output: " << Modulo((static_cast<int>(point_history_index_) - i), history_size) << std::endl;
-      // int temp_ind_val = Modulo((static_cast<int>(point_history_index_) - i), history_size);
+      // std::cout << "i: " << i << " point history index: " << point_history_index_ << " output: " <<
+      // Modulo((static_cast<int>(point_history_index_) - i), history_size) << std::endl; int temp_ind_val =
+      // Modulo((static_cast<int>(point_history_index_) - i), history_size);
       return Modulo((static_cast<int>(point_history_index_) - i), history_size);
     }
   }

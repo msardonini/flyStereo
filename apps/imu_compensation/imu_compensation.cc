@@ -1,17 +1,17 @@
 
 #include <getopt.h>
-#include <unistd.h>
-#include <iostream>
-#include <atomic>
 #include <signal.h>
+#include <unistd.h>
 
-#include "yaml-cpp/yaml.h"
-#include "fly_stereo/sensor_io/sensor_interface.h"
+#include <atomic>
+#include <iostream>
+
 #include "fly_stereo/sensor_io/mavlink/fly_stereo/mavlink.h"
+#include "fly_stereo/sensor_io/sensor_interface.h"
 #include "opencv2/calib3d.hpp"
 #include "opencv2/core/cuda.hpp"
 #include "opencv2/imgproc.hpp"
-
+#include "yaml-cpp/yaml.h"
 
 std::atomic<bool> is_running(true);
 
@@ -21,8 +21,8 @@ void SignalHandler(int signal_num) {
 }
 
 int UpdatePointsViaImu(const std::vector<cv::Point3d> &current_pts, const cv::Matx33d &rotation,
-  const cv::Matx33d &camera_matrix, std::vector<cv::Point3d> &updated_pts,
-  bool project_forward = true) {
+                       const cv::Matx33d &camera_matrix, std::vector<cv::Point3d> &updated_pts,
+                       bool project_forward = true) {
   if (current_pts.size() == 0) {
     return -1;
   }
@@ -41,16 +41,15 @@ int UpdatePointsViaImu(const std::vector<cv::Point3d> &current_pts, const cv::Ma
   return 0;
 }
 
-
 // Thread to collect the imu data and disperse it to all objects that need it
 void imu_thread(YAML::Node imu_reader_params, SensorInterface *sensor_interface) {
   MavlinkReader mavlink_reader;
   mavlink_reader.Init(imu_reader_params);
 
-  while(is_running.load()) {
+  while (is_running.load()) {
     mavlink_imu_t attitude;
     // Get the next attitude message, block until we have one
-    if(mavlink_reader.GetAttitudeMsg(&attitude, true)) {
+    if (mavlink_reader.GetAttitudeMsg(&attitude, true)) {
       // Send the imu message to the image processor
       sensor_interface->ReceiveImu(attitude);
     }
@@ -65,8 +64,8 @@ int main(int argc, char *argv[]) {
   std::string config_file;
 
   int opt;
-  while((opt = getopt(argc, argv, "c:")) != -1) {
-    switch(opt) {
+  while ((opt = getopt(argc, argv, "c:")) != -1) {
+    switch (opt) {
       case 'c':
         config_file = std::string(optarg);
         break;
@@ -132,11 +131,11 @@ int main(int argc, char *argv[]) {
   uint64_t current_frame_time;
   while (is_running.load()) {
     imu_msgs.clear();
-    if(sensor_interface.GetSynchronizedData(d_frame_cam0, d_frame_cam1, imu_msgs, current_frame_time) != 0) {
+    if (sensor_interface.GetSynchronizedData(d_frame_cam0, d_frame_cam1, imu_msgs, current_frame_time) != 0) {
       continue;
     }
-    if(sensor_interface.GenerateImuXform(imu_msgs, R_imu_cam0, R_imu_cam1, R_t0_t1_cam0,
-      current_frame_time, R_t0_t1_cam1) != 0) {
+    if (sensor_interface.GenerateImuXform(imu_msgs, R_imu_cam0, R_imu_cam1, R_t0_t1_cam0, current_frame_time,
+                                          R_t0_t1_cam1) != 0) {
       continue;
     }
 
@@ -145,7 +144,8 @@ int main(int argc, char *argv[]) {
     UpdatePointsViaImu(debug_pts_cam1, R_t0_t1_cam1, cv::Matx33d::eye(), debug_pts_cam1, false);
 
     if (imu_msgs.size() > 0) {
-      std::cout << "imu message: " << imu_msgs[0].gyroXYZ[0] << " " << imu_msgs[0].gyroXYZ[1] << " " << imu_msgs[0].gyroXYZ[2] << " " << std::endl;
+      std::cout << "imu message: " << imu_msgs[0].gyroXYZ[0] << " " << imu_msgs[0].gyroXYZ[1] << " "
+                << imu_msgs[0].gyroXYZ[2] << " " << std::endl;
       // std::cout << "imu message size: " << imu_msgs.size() << std::endl;
       // std::cout << "xform " << R_t0_t1_cam0 << std::endl;
       // std::cout << "debug_pts_cam0 " << debug_pts_cam0[0] << std::endl;

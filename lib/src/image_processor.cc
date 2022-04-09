@@ -1,16 +1,16 @@
 #include "fly_stereo/image_processor.h"
 
-#include <random>
 #include <fstream>  // std::ofstream
+#include <random>
 
-#include "opencv2/video/tracking.hpp"
-#include "opencv2/imgproc.hpp"
+#include "Eigen/Dense"
+#include "fly_stereo/utility.h"
 #include "opencv2/calib3d.hpp"
 #include "opencv2/core/cuda.hpp"
 #include "opencv2/core/eigen.hpp"
-#include "Eigen/Dense"
+#include "opencv2/imgproc.hpp"
+#include "opencv2/video/tracking.hpp"
 #include "opengv/types.hpp"
-#include "fly_stereo/utility.h"
 #include "spdlog/spdlog.h"
 
 // Debug includes
@@ -19,8 +19,7 @@
 bool write_to_debug = false;
 debug_video_recorder debug_record;
 
-ImageProcessor::ImageProcessor(const YAML::Node &input_params,
-  const YAML::Node &stereo_calibration) {
+ImageProcessor::ImageProcessor(const YAML::Node &input_params, const YAML::Node &stereo_calibration) {
   YAML::Node image_processor_params = input_params["image_processor"];
 
   rate_limit_fps_ = input_params["image_processor"]["rate_limit_fps"].as<float>();
@@ -30,7 +29,6 @@ ImageProcessor::ImageProcessor(const YAML::Node &input_params,
   max_corners_ = features_params["max_corners"].as<int>();
   quality_level_ = features_params["quality_level"].as<float>();
   min_dist_ = features_params["min_dist"].as<float>();
-
 
   YAML::Node binning = image_processor_params["binning"];
   bins_width_ = binning["bins_width"].as<unsigned int>();
@@ -52,8 +50,7 @@ ImageProcessor::ImageProcessor(const YAML::Node &input_params,
   ransac_threshold_ = thresholds["ransac_threshold"].as<double>();
 
   // Load the stereo camera calibration
-  std::vector<double> interface_vec = stereo_calibration["K0"]["data"].as<
-    std::vector<double>>();
+  std::vector<double> interface_vec = stereo_calibration["K0"]["data"].as<std::vector<double>>();
   K_cam0_ = cv::Matx33d(interface_vec.data());
 
   interface_vec = stereo_calibration["K1"]["data"].as<std::vector<double>>();
@@ -70,10 +67,8 @@ ImageProcessor::ImageProcessor(const YAML::Node &input_params,
   T_cam0_cam1_ = cv::Vec3d(interface_vec.data());
 
   // Calculate the essential matrix and fundamental matrix
-  const cv::Matx33d T_cross_mat(
-    0.0, -T_cam0_cam1_[2], T_cam0_cam1_[1],
-    T_cam0_cam1_[2], 0.0, -T_cam0_cam1_[0],
-    -T_cam0_cam1_[1], T_cam0_cam1_[0], 0.0);
+  const cv::Matx33d T_cross_mat(0.0, -T_cam0_cam1_[2], T_cam0_cam1_[1], T_cam0_cam1_[2], 0.0, -T_cam0_cam1_[0],
+                                -T_cam0_cam1_[1], T_cam0_cam1_[0], 0.0);
 
   E_ = T_cross_mat * R_cam0_cam1_;
   F_ = K_cam0_.inv().t() * E_ * K_cam1_.inv();
@@ -109,11 +104,8 @@ int ImageProcessor::Init() {
   return 0;
 }
 
-
-int ImageProcessor::UpdatePointsViaImu(const std::vector<cv::Point2f> &current_pts,
-  const cv::Matx33d &rotation,
-  const cv::Matx33d &camera_matrix,
-  std::vector<cv::Point2f> &updated_pts) {
+int ImageProcessor::UpdatePointsViaImu(const std::vector<cv::Point2f> &current_pts, const cv::Matx33d &rotation,
+                                       const cv::Matx33d &camera_matrix, std::vector<cv::Point2f> &updated_pts) {
   if (current_pts.size() == 0) {
     return -1;
   }
@@ -130,10 +122,8 @@ int ImageProcessor::UpdatePointsViaImu(const std::vector<cv::Point2f> &current_p
   return 0;
 }
 
-int ImageProcessor::UpdatePointsViaImu(const cv::cuda::GpuMat &d_current_pts,
-  const cv::Matx33d &rotation,
-  const cv::Matx33d &camera_matrix,
-  cv::cuda::GpuMat &d_updated_pts) {
+int ImageProcessor::UpdatePointsViaImu(const cv::cuda::GpuMat &d_current_pts, const cv::Matx33d &rotation,
+                                       const cv::Matx33d &camera_matrix, cv::cuda::GpuMat &d_updated_pts) {
   if (d_current_pts.cols == 0) {
     return -1;
   }
@@ -147,32 +137,30 @@ int ImageProcessor::UpdatePointsViaImu(const cv::cuda::GpuMat &d_current_pts,
   return ret;
 }
 
-int ImageProcessor::OuputTrackedPoints(OpticalFlowPoints &points,
-  const std::vector<unsigned int> &ids,
-  const std::vector<mavlink_imu_t> &imu_msgs,
-  const cv::Matx33f &rotation_t0_t1_cam0) {
+int ImageProcessor::OuputTrackedPoints(OpticalFlowPoints &points, const std::vector<unsigned int> &ids,
+                                       const std::vector<mavlink_imu_t> &imu_msgs,
+                                       const cv::Matx33f &rotation_t0_t1_cam0) {
   // Check to make sure that our input data is sized correctly
   unsigned int num_pts = points.GetCpu(t_c0_t0).size();
-  if (num_pts != points.GetCpu(t_c0_t1).size() ||
-      num_pts != points.GetCpu(t_c1_t0).size() ||
-      num_pts != points.GetCpu(t_c1_t1).size() ||
-      num_pts != ids.size()) {
+  if (num_pts != points.GetCpu(t_c0_t1).size() || num_pts != points.GetCpu(t_c1_t0).size() ||
+      num_pts != points.GetCpu(t_c1_t1).size() || num_pts != ids.size()) {
     spdlog::error("Error! Vectors do not match in OutputTrackedPoints");
     return -1;
   }
 
   // Acquire access to shared data, then write to it
   std::lock_guard<std::mutex> lock(output_mutex_);
-  output_points_.timestamp_us = std::chrono::duration_cast<std::chrono::microseconds>(
-    std::chrono::steady_clock::now().time_since_epoch()).count();
+  output_points_.timestamp_us =
+      std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now().time_since_epoch())
+          .count();
   output_points_.pts.clear();
   output_points_.pts.reserve(num_pts);
 
   for (size_t i = 0; i < num_pts; i++) {
     ImagePoint pt(ids[i], {points.GetCpu(t_c0_t0)[i].x, points.GetCpu(t_c0_t0)[i].y},
-      {points.GetCpu(t_c0_t1)[i].x, points.GetCpu(t_c0_t1)[i].y},
-      {points.GetCpu(t_c1_t0)[i].x, points.GetCpu(t_c1_t0)[i].y},
-      {points.GetCpu(t_c1_t1)[i].x, points.GetCpu(t_c1_t1)[i].y});
+                  {points.GetCpu(t_c0_t1)[i].x, points.GetCpu(t_c0_t1)[i].y},
+                  {points.GetCpu(t_c1_t0)[i].x, points.GetCpu(t_c1_t0)[i].y},
+                  {points.GetCpu(t_c1_t1)[i].x, points.GetCpu(t_c1_t1)[i].y});
     output_points_.pts.push_back(pt);
   }
 
@@ -213,26 +201,22 @@ int ImageProcessor::ProcessThread() {
   int counter = 0;
   int error_counter = 0;
   // int debug_num_pts[6];
-  std::chrono::time_point<std::chrono::system_clock> time_end = std::chrono::
-    system_clock::now();
+  std::chrono::time_point<std::chrono::system_clock> time_end = std::chrono::system_clock::now();
 
-  cv::Ptr<cv::cuda::CornersDetector> detector_ptr = cv::cuda::createGoodFeaturesToTrackDetector(
-    CV_8U, max_corners_, quality_level_, min_dist_);
+  cv::Ptr<cv::cuda::CornersDetector> detector_ptr =
+      cv::cuda::createGoodFeaturesToTrackDetector(CV_8U, max_corners_, quality_level_, min_dist_);
 
   // cv::Ptr<cv::cuda::FastFeatureDetector> detector_ptr = cv::cuda::FastFeatureDetector::create();
 
-  cv::Ptr<cv::cuda::SparsePyrLKOpticalFlow> d_opt_flow_cam0 = cv::cuda::
-    SparsePyrLKOpticalFlow::create(cv::Size(window_size_, window_size_), max_pyramid_level_,
-      max_iters_, true);
-  cv::Ptr<cv::cuda::SparsePyrLKOpticalFlow> d_opt_flow_stereo_t0 = cv::cuda::
-    SparsePyrLKOpticalFlow::create(cv::Size(window_size_, window_size_), max_pyramid_level_,
-      max_iters_, true);
-  cv::Ptr<cv::cuda::SparsePyrLKOpticalFlow> d_opt_flow_stereo_t1 = cv::cuda::
-    SparsePyrLKOpticalFlow::create(cv::Size(window_size_, window_size_), max_pyramid_level_,
-      max_iters_, true);
+  cv::Ptr<cv::cuda::SparsePyrLKOpticalFlow> d_opt_flow_cam0 = cv::cuda::SparsePyrLKOpticalFlow::create(
+      cv::Size(window_size_, window_size_), max_pyramid_level_, max_iters_, true);
+  cv::Ptr<cv::cuda::SparsePyrLKOpticalFlow> d_opt_flow_stereo_t0 = cv::cuda::SparsePyrLKOpticalFlow::create(
+      cv::Size(window_size_, window_size_), max_pyramid_level_, max_iters_, true);
+  cv::Ptr<cv::cuda::SparsePyrLKOpticalFlow> d_opt_flow_stereo_t1 = cv::cuda::SparsePyrLKOpticalFlow::create(
+      cv::Size(window_size_, window_size_), max_pyramid_level_, max_iters_, true);
 
-  auto invFpsLimit = std::chrono::round<std::chrono::system_clock::duration>(std::chrono::
-    duration<double>(1. / rate_limit_fps_));
+  auto invFpsLimit =
+      std::chrono::round<std::chrono::system_clock::duration>(std::chrono::duration<double>(1. / rate_limit_fps_));
 
   // Time checks for performance monitoring
   std::chrono::time_point<std::chrono::system_clock> t_start = std::chrono::system_clock::now();
@@ -245,12 +229,10 @@ int ImageProcessor::ProcessThread() {
     t_start = std::chrono::system_clock::now();
     uint64_t current_time;
     // Read the frames and check for errors
-    int ret_val = sensor_interface_->GetSynchronizedData(d_frame_cam0_t1, d_frame_cam1_t1,
-      imu_msgs, current_time);
+    int ret_val = sensor_interface_->GetSynchronizedData(d_frame_cam0_t1, d_frame_cam1_t1, imu_msgs, current_time);
     if (ret_val == -1) {
       if (++error_counter >= max_error_counter_) {
-        spdlog::error("Error! Failed to read more than {} consecutive frames",
-          max_error_counter_);
+        spdlog::error("Error! Failed to read more than {} consecutive frames", max_error_counter_);
         is_running_.store(false);
         return -1;
       } else {
@@ -271,24 +253,22 @@ int ImageProcessor::ProcessThread() {
 
     cv::Matx33f rotation_t0_t1_cam0;
     cv::Matx33f rotation_t0_t1_cam1;
-    int retval = sensor_interface_->GenerateImuXform(imu_msgs, R_imu_cam0_, R_imu_cam1_,
-      rotation_t0_t1_cam0, current_time, rotation_t0_t1_cam1);
+    int retval = sensor_interface_->GenerateImuXform(imu_msgs, R_imu_cam0_, R_imu_cam1_, rotation_t0_t1_cam0,
+                                                     current_time, rotation_t0_t1_cam1);
 
     // Append the kepypoints from the previous iteration to the tracked points of the current
     // iteration. Points that pass through all the outlier checks will remain as tracked points
     points.AppendGpuMatColwise(d_c0_t0, t_c0_t0);
     points.AppendGpuMatColwise(d_c1_t0, t_c1_t0);
     points.ids[ids_t0].insert(std::end(points.ids[ids_t0]), std::begin(points.ids[ids_t1]),
-      std::end(points.ids[ids_t1]));
-
+                              std::end(points.ids[ids_t1]));
 
     if (points[t_c0_t0].cols > 2) {
       // Vector to indicate whether a point should be deleted or kept after binning
       std::vector<unsigned char> bin_status;
-      points.BinAndMarkPoints(t_c0_t0, ids_t0, d_frame_cam0_t1.size(), bins_width_, bins_height_,
-        max_pts_in_bin_, bin_status);
+      points.BinAndMarkPoints(t_c0_t0, ids_t0, d_frame_cam0_t1.size(), bins_width_, bins_height_, max_pts_in_bin_,
+                              bin_status);
       if (!points.RemoveOutliers(bin_status, {t_c0_t0, t_c1_t0}, {ids_t0})) {
-
         spdlog::info("status size {}", bin_status.size());
         spdlog::info("t_c0_t0 size {}", points.GetCpu(t_c0_t0).size());
         spdlog::info("RemoveOutliers failed after Binning");
@@ -298,10 +278,8 @@ int ImageProcessor::ProcessThread() {
 
     // Make a prediction of where the points will be in the current image given the IMU data
     if (retval == 0) {
-      UpdatePointsViaImu(points[t_c0_t0], rotation_t0_t1_cam0, K_cam0_,
-        points[t_c0_t1]);
-      UpdatePointsViaImu(points[t_c1_t0], rotation_t0_t1_cam1, K_cam1_,
-        points[t_c1_t1]);
+      UpdatePointsViaImu(points[t_c0_t0], rotation_t0_t1_cam0, K_cam0_, points[t_c0_t1]);
+      UpdatePointsViaImu(points[t_c1_t0], rotation_t0_t1_cam1, K_cam1_, points[t_c1_t1]);
     } else {
       spdlog::error("Error receiving IMU transform");
       continue;
@@ -309,8 +287,8 @@ int ImageProcessor::ProcessThread() {
 
     // debug_num_pts[0] = points[t_c0_t0].cols;
     /*********************************************************************
-    * Apply the optical flow from the previous frame to the current frame
-    *********************************************************************/
+     * Apply the optical flow from the previous frame to the current frame
+     *********************************************************************/
     if (counter++ != 0 && !points[t_c0_t0].empty()) {
       // // DEBUG CODE
       // std::vector<cv::Point2f> pts_t0;
@@ -327,10 +305,8 @@ int ImageProcessor::ProcessThread() {
       // points[t_c0_t1].download(pts_t1_debug);
       // // END DEBUG CODE
 
-
       cv::cuda::GpuMat d_status;
-      d_opt_flow_cam0->calc(d_frame_cam0_t0, d_frame_cam0_t1, points[t_c0_t0],
-        points[t_c0_t1], d_status);
+      d_opt_flow_cam0->calc(d_frame_cam0_t0, d_frame_cam0_t1, points[t_c0_t0], points[t_c0_t1], d_status);
 
       // Check if we have zero tracked points, this is a corner case and these variables need
       // to be reset to prevent errors in sizing, calc() does not return all zero length vectors
@@ -368,8 +344,8 @@ int ImageProcessor::ProcessThread() {
       // // END DEBUG CODE
 
       // Match the points from camera 0 to camera 1
-      int ret_val = StereoMatch(d_opt_flow_stereo_t0, d_frame_cam0_t1, d_frame_cam1_t1,
-        points, {t_c0_t1, t_c1_t1}, d_status);
+      int ret_val =
+          StereoMatch(d_opt_flow_stereo_t0, d_frame_cam0_t1, d_frame_cam1_t1, points, {t_c0_t1, t_c1_t1}, d_status);
       // Remove the outliers from the StereoMatch algorithm
       if (ret_val == 0) {
         if (!points.RemoveOutliers(d_status, {t_c0_t0, t_c0_t1, t_c1_t0, t_c1_t1}, {ids_t0})) {
@@ -382,8 +358,7 @@ int ImageProcessor::ProcessThread() {
       // Perform a check to make sure that all of our tracked vectors are the same length,
       // otherwise something is wrong
       int tracked_pts = points[t_c0_t0].cols;
-      if (tracked_pts != points[t_c0_t1].cols ||
-          tracked_pts != points[t_c1_t0].cols ||
+      if (tracked_pts != points[t_c0_t1].cols || tracked_pts != points[t_c1_t0].cols ||
           tracked_pts != points[t_c1_t1].cols) {
         spdlog::error("ERROR! There are differences in the numbers of tracked points ");
         return -1;
@@ -393,8 +368,8 @@ int ImageProcessor::ProcessThread() {
     t_lk1 = std::chrono::system_clock::now();
 
     /*********************************************************************
-    * Run the Two Point RANSAC algorithm to find more outliers
-    *********************************************************************/
+     * Run the Two Point RANSAC algorithm to find more outliers
+     *********************************************************************/
     if (points[t_c0_t0].cols > 1 && points[t_c1_t0].cols > 1 && 0) {
       // Copy local versions for the CPU run ransac algorithm
       std::vector<cv::Point2f> vec_t_c0_t0 = points.GetCpu(t_c0_t0);
@@ -402,21 +377,20 @@ int ImageProcessor::ProcessThread() {
       std::vector<cv::Point2f> vec_t_c1_t0 = points.GetCpu(t_c1_t0);
       std::vector<cv::Point2f> vec_t_c1_t1 = points.GetCpu(t_c1_t1);
 
-
       std::vector<unsigned char> cam0_ransac_inliers(0);
-      int ret1 = twoPointRansac(vec_t_c0_t0, vec_t_c0_t1, rotation_t0_t1_cam0.t(), K_cam0_,
-        D_cam0_, ransac_threshold_, 0.99, cam0_ransac_inliers);
+      int ret1 = twoPointRansac(vec_t_c0_t0, vec_t_c0_t1, rotation_t0_t1_cam0.t(), K_cam0_, D_cam0_, ransac_threshold_,
+                                0.99, cam0_ransac_inliers);
 
       std::vector<unsigned char> cam1_ransac_inliers(0);
-      int ret2 = twoPointRansac(vec_t_c1_t0, vec_t_c1_t1, rotation_t0_t1_cam1.t(), K_cam1_,
-        D_cam1_, ransac_threshold_, 0.99, cam1_ransac_inliers);
+      int ret2 = twoPointRansac(vec_t_c1_t0, vec_t_c1_t1, rotation_t0_t1_cam1.t(), K_cam1_, D_cam1_, ransac_threshold_,
+                                0.99, cam1_ransac_inliers);
 
       if (ret1 == 0 && ret2 == 0) {
         // spdlog::info(" before RANSAC " << tracked_pts_cam0_t1.size());
         std::vector<unsigned char> status;
         status.reserve(cam0_ransac_inliers.size());
 
-        for (size_t i = 0; i < cam0_ransac_inliers.size(); i++ ) {
+        for (size_t i = 0; i < cam0_ransac_inliers.size(); i++) {
           status.push_back(cam0_ransac_inliers[i] && cam1_ransac_inliers[i]);
         }
 
@@ -424,24 +398,21 @@ int ImageProcessor::ProcessThread() {
           spdlog::info("RemoveOutliers failed after Ransac");
           spdlog::info("RemoveOutliers failed after Detection");
         }
-          // spdlog::info("vec after {}", points.GetCpu(t_c0_t0).size());
+        // spdlog::info("vec after {}", points.GetCpu(t_c0_t0).size());
         // spdlog::info(" after RANSAC {}", tracked_pts_cam0_t1.size());
       }
     }
     // debug_num_pts[3] = points.GetCpu(t_c0_t1).size();
 
-
     /*********************************************************************
-    * Detect new features for the next iteration
-    *********************************************************************/
-    DetectNewFeatures(detector_ptr, d_frame_cam0_t1, points[t_c0_t1],
-      points[d_c0_t1]);
+     * Detect new features for the next iteration
+     *********************************************************************/
+    DetectNewFeatures(detector_ptr, d_frame_cam0_t1, points[t_c0_t1], points[d_c0_t1]);
     // debug_num_pts[4] = points[d_c0_t1].cols;
     // Match the detected features in the second camera
     points[d_c1_t1].release();
     cv::cuda::GpuMat d_status;
-    StereoMatch(d_opt_flow_stereo_t1, d_frame_cam0_t1, d_frame_cam1_t1, points, {d_c0_t1, d_c1_t1},
-      d_status);
+    StereoMatch(d_opt_flow_stereo_t1, d_frame_cam0_t1, d_frame_cam1_t1, points, {d_c0_t1, d_c1_t1}, d_status);
 
     if (points[d_c0_t1].cols != 0) {
       if (!points.MarkPointsOutOfFrame(d_frame_cam0_t1.size(), d_c1_t1, d_status)) {
@@ -452,7 +423,7 @@ int ImageProcessor::ProcessThread() {
       }
 
       if (!points.RemoveOutliers(d_status, {d_c0_t1, d_c1_t1})) {
-          spdlog::info("d status: {}", d_status.cols);
+        spdlog::info("d status: {}", d_status.cols);
         spdlog::info("vec: {}", points[d_c0_t1].cols);
         spdlog::info("vec: {}", points[d_c1_t1].cols);
         spdlog::info("RemoveOutliers failed after Detection");
@@ -482,8 +453,8 @@ int ImageProcessor::ProcessThread() {
     }
 
     /*********************************************************************
-    * Output Images to the sink, if requested
-    *********************************************************************/
+     * Output Images to the sink, if requested
+     *********************************************************************/
     if (sensor_interface_->cam0_->OutputEnabled()) {
       cv::Mat show_frame, show_frame_color;
       d_frame_cam0_t1.download(show_frame);
@@ -518,27 +489,22 @@ int ImageProcessor::ProcessThread() {
 
     t_log = std::chrono::system_clock::now();
     spdlog::trace("ip dts, data: {}, lk1: {}, det: {}, log {}", (t_data - t_start).count() / 1E6,
-      (t_lk1 - t_data).count() / 1E6, (t_det - t_lk1).count() / 1E6,
-      (t_log - t_det).count() / 1E6);
-
+                  (t_lk1 - t_data).count() / 1E6, (t_det - t_lk1).count() / 1E6, (t_log - t_det).count() / 1E6);
 
     // Apply the rate limiting
     std::this_thread::sleep_until(time_end + invFpsLimit);
 
-    spdlog::trace("fps: {}", 1.0 / static_cast<std::chrono::duration<double> >
-      ((std::chrono::system_clock::now() - time_end)).count());
+    spdlog::trace(
+        "fps: {}",
+        1.0 / static_cast<std::chrono::duration<double>>((std::chrono::system_clock::now() - time_end)).count());
     time_end = std::chrono::system_clock::now();
   }
   return 0;
 }
 
-int ImageProcessor::StereoMatch(cv::Ptr<cv::cuda::SparsePyrLKOpticalFlow> opt,
-  cv::cuda::GpuMat &d_frame_cam0,
-  cv::cuda::GpuMat &d_frame_cam1,
-  OpticalFlowPoints &points,
-  std::pair<unsigned int, unsigned int> indices,
-  cv::cuda::GpuMat &d_status) {
-
+int ImageProcessor::StereoMatch(cv::Ptr<cv::cuda::SparsePyrLKOpticalFlow> opt, cv::cuda::GpuMat &d_frame_cam0,
+                                cv::cuda::GpuMat &d_frame_cam1, OpticalFlowPoints &points,
+                                std::pair<unsigned int, unsigned int> indices, cv::cuda::GpuMat &d_status) {
   if (points[indices.first].empty()) {
     points[indices.second].release();
     d_status.release();
@@ -551,8 +517,7 @@ int ImageProcessor::StereoMatch(cv::Ptr<cv::cuda::SparsePyrLKOpticalFlow> opt,
   std::vector<cv::Point3f> homogenous_pts;
   cv::convertPointsToHomogeneous(calib_pts, homogenous_pts);
   std::vector<cv::Point2f> projected_pts;
-  cv::projectPoints(homogenous_pts, cv::Vec3d(0, 0, 0), cv::Vec3d(0, 0, 0), K_cam1_, D_cam1_,
-    projected_pts);
+  cv::projectPoints(homogenous_pts, cv::Vec3d(0, 0, 0), cv::Vec3d(0, 0, 0), K_cam1_, D_cam1_, projected_pts);
 
   // Load the local variables back into the points object
   points.LoadCpu(projected_pts, indices.second);
@@ -576,11 +541,8 @@ int ImageProcessor::StereoMatch(cv::Ptr<cv::cuda::SparsePyrLKOpticalFlow> opt,
 
   std::vector<cv::Point2f> tracked_pts_cam0_t1_undistorted(0);
   std::vector<cv::Point2f> tracked_pts_cam1_t1_undistorted(0);
-  cv::undistortPoints(points.GetCpu(indices.first), tracked_pts_cam0_t1_undistorted, K_cam0_,
-    D_cam0_);
-  cv::undistortPoints(points.GetCpu(indices.second), tracked_pts_cam1_t1_undistorted, K_cam1_,
-    D_cam1_);
-
+  cv::undistortPoints(points.GetCpu(indices.first), tracked_pts_cam0_t1_undistorted, K_cam0_, D_cam0_);
+  cv::undistortPoints(points.GetCpu(indices.second), tracked_pts_cam1_t1_undistorted, K_cam1_, D_cam1_);
 
   std::vector<cv::Vec3f> pts_cam0_und(tracked_pts_cam0_t1_undistorted.size());
   std::vector<cv::Vec3f> pts_cam1_und(tracked_pts_cam1_t1_undistorted.size());
@@ -605,36 +567,33 @@ int ImageProcessor::StereoMatch(cv::Ptr<cv::cuda::SparsePyrLKOpticalFlow> opt,
     // cv::Vec3f pt0(tracked_pts_cam0_t1_undistorted[i].x,
     //   tracked_pts_cam0_t1_undistorted[i].y, 1.0);
 
-    cv::Vec3f pt1(tracked_pts_cam1_t1_undistorted[i].x,
-      tracked_pts_cam1_t1_undistorted[i].y, 1.0);
+    cv::Vec3f pt1(tracked_pts_cam1_t1_undistorted[i].x, tracked_pts_cam1_t1_undistorted[i].y, 1.0);
 
     // Calculates the distance from the point to the epipolar line (in pixels)
     double error = fabs(pt1.dot(epilines[i]));
 
-    if (error > stereo_threshold_)
-      status[i] = 0;
+    if (error > stereo_threshold_) status[i] = 0;
   }
   d_status.upload(status);
   return 0;
 }
 
-
-int ImageProcessor::GetInputMaskFromPoints(const cv::cuda::GpuMat &d_input_corners,
-  const cv::Size frame_size, cv::Mat &mask) {
+int ImageProcessor::GetInputMaskFromPoints(const cv::cuda::GpuMat &d_input_corners, const cv::Size frame_size,
+                                           cv::Mat &mask) {
   double mask_box_size = 15.0;
   cv::Mat local_mask(frame_size, CV_8U, cv::Scalar(1));
 
   if (d_input_corners.cols > 0) {
     std::vector<cv::Point2f> corners;
     d_input_corners.download(corners);
-    for (const auto& point : corners) {
+    for (const auto &point : corners) {
       const int x = static_cast<int>(point.x);
       const int y = static_cast<int>(point.y);
 
-      int up_lim = y - floor(mask_box_size/2);
-      int bottom_lim = y + ceil(mask_box_size/2);
-      int left_lim = x - floor(mask_box_size/2);
-      int right_lim = x + ceil(mask_box_size/2);
+      int up_lim = y - floor(mask_box_size / 2);
+      int bottom_lim = y + ceil(mask_box_size / 2);
+      int left_lim = x - floor(mask_box_size / 2);
+      int right_lim = x + ceil(mask_box_size / 2);
       if (up_lim < 0) up_lim = 0;
       if (bottom_lim > frame_size.height) bottom_lim = frame_size.height;
       if (left_lim < 0) left_lim = 0;
@@ -650,9 +609,8 @@ int ImageProcessor::GetInputMaskFromPoints(const cv::cuda::GpuMat &d_input_corne
 }
 
 int ImageProcessor::DetectNewFeatures(const cv::Ptr<cv::cuda::FastFeatureDetector> &detector_ptr,
-  const cv::cuda::GpuMat &d_frame,
-  const cv::cuda::GpuMat &d_input_corners,
-  cv::cuda::GpuMat &d_output) {
+                                      const cv::cuda::GpuMat &d_frame, const cv::cuda::GpuMat &d_input_corners,
+                                      cv::cuda::GpuMat &d_output) {
   // Create a mask to avoid redetecting existing features.
 
   cv::Mat mask;
@@ -670,11 +628,9 @@ int ImageProcessor::DetectNewFeatures(const cv::Ptr<cv::cuda::FastFeatureDetecto
   return 0;
 }
 
-
 int ImageProcessor::DetectNewFeatures(const cv::Ptr<cv::cuda::CornersDetector> &detector_ptr,
-  const cv::cuda::GpuMat &d_frame,
-  const cv::cuda::GpuMat &d_input_corners,
-  cv::cuda::GpuMat &d_output) {
+                                      const cv::cuda::GpuMat &d_frame, const cv::cuda::GpuMat &d_input_corners,
+                                      cv::cuda::GpuMat &d_output) {
   // Create a mask to avoid redetecting existing features.
 
   cv::Mat mask;
@@ -687,8 +643,8 @@ int ImageProcessor::DetectNewFeatures(const cv::Ptr<cv::cuda::CornersDetector> &
   return 0;
 }
 
-void ImageProcessor::rescalePoints( std::vector<cv::Point2f>& pts1, std::vector<cv::Point2f>& pts2,
-  float& scaling_factor) {
+void ImageProcessor::rescalePoints(std::vector<cv::Point2f> &pts1, std::vector<cv::Point2f> &pts2,
+                                   float &scaling_factor) {
   scaling_factor = 0.0f;
 
   for (size_t i = 0; i < pts1.size(); ++i) {
@@ -696,8 +652,7 @@ void ImageProcessor::rescalePoints( std::vector<cv::Point2f>& pts1, std::vector<
     scaling_factor += sqrt(pts2[i].dot(pts2[i]));
   }
 
-  scaling_factor = (pts1.size()+pts2.size()) /
-    scaling_factor * sqrt(2.0f);
+  scaling_factor = (pts1.size() + pts2.size()) / scaling_factor * sqrt(2.0f);
 
   for (size_t i = 0; i < pts1.size(); ++i) {
     pts1[i] *= scaling_factor;
@@ -705,23 +660,18 @@ void ImageProcessor::rescalePoints( std::vector<cv::Point2f>& pts1, std::vector<
   }
 }
 
-int ImageProcessor::twoPointRansac(
-    const std::vector<cv::Point2f>& pts1, const std::vector<cv::Point2f>& pts2,
-    const cv::Matx33f& R_p_c, const cv::Matx33d& intrinsics,
-    const std::vector<double>& distortion_coeffs,
-    const double& inlier_error,
-    const double& success_probability,
-    std::vector<uchar>& inlier_markers) {
-
+int ImageProcessor::twoPointRansac(const std::vector<cv::Point2f> &pts1, const std::vector<cv::Point2f> &pts2,
+                                   const cv::Matx33f &R_p_c, const cv::Matx33d &intrinsics,
+                                   const std::vector<double> &distortion_coeffs, const double &inlier_error,
+                                   const double &success_probability, std::vector<uchar> &inlier_markers) {
   // Check the size of input point size.
   if (pts1.size() != pts2.size()) {
     spdlog::error("Sets of different size ({}) and ({}) are used...", pts1.size(), pts2.size());
     return -1;
   }
 
-  double norm_pixel_unit = 2.0 / (intrinsics(0, 0)+intrinsics(1, 1));
-  int iter_num = static_cast<int>(
-      ceil(log(1-success_probability) / log(1-0.7*0.7)));
+  double norm_pixel_unit = 2.0 / (intrinsics(0, 0) + intrinsics(1, 1));
+  int iter_num = static_cast<int>(ceil(log(1 - success_probability) / log(1 - 0.7 * 0.7)));
 
   // Initially, mark all points as inliers.
   inlier_markers.clear();
@@ -736,9 +686,9 @@ int ImageProcessor::twoPointRansac(
 
   // Compenstate the points in the previous image with
   // the relative rotation.
-  for (auto& pt : pts1_undistorted) {
+  for (auto &pt : pts1_undistorted) {
     cv::Vec3f pt_h(pt.x, pt.y, 1.0f);
-    //Vec3f pt_hc = dR * pt_h;
+    // Vec3f pt_hc = dR * pt_h;
     cv::Vec3f pt_hc = R_p_c * pt_h;
     pt.x = pt_hc[0];
     pt.y = pt_hc[1];
@@ -752,8 +702,7 @@ int ImageProcessor::twoPointRansac(
   // Compute the difference between previous and current points,
   // which will be used frequently later.
   std::vector<cv::Point2d> pts_diff(pts1_undistorted.size());
-  for (size_t i = 0; i < pts1_undistorted.size(); ++i)
-    pts_diff[i] = pts1_undistorted[i] - pts2_undistorted[i];
+  for (size_t i = 0; i < pts1_undistorted.size(); ++i) pts_diff[i] = pts1_undistorted[i] - pts2_undistorted[i];
 
   // Mark the point pairs with large difference directly.
   // BTW, the mean distance of the rest of the point pairs
@@ -765,7 +714,7 @@ int ImageProcessor::twoPointRansac(
     // 25 pixel distance is a pretty large tolerance for normal motion.
     // However, to be used with aggressive motion, this tolerance should
     // be increased significantly to match the usage.
-    if (distance > 50.0*norm_pixel_unit) {
+    if (distance > 50.0 * norm_pixel_unit) {
       inlier_markers[i] = 0;
     } else {
       mean_pt_distance += distance;
@@ -778,7 +727,7 @@ int ImageProcessor::twoPointRansac(
   // all input as outliers. This case can happen with fast
   // rotation where very few features are tracked.
   if (raw_inlier_cntr < 3) {
-    for (auto& marker : inlier_markers) marker = 0;
+    for (auto &marker : inlier_markers) marker = 0;
     return 0;
   }
 
@@ -787,14 +736,12 @@ int ImageProcessor::twoPointRansac(
   // the frames, in which case, the model of the RANSAC does not
   // work. If so, the distance between the matched points will
   // be almost 0.
-  //if (mean_pt_distance < inlier_error*norm_pixel_unit) {
+  // if (mean_pt_distance < inlier_error*norm_pixel_unit) {
   if (mean_pt_distance < norm_pixel_unit) {
-    //ROS_WARN_THROTTLE(1.0, "Degenerated motion...");
+    // ROS_WARN_THROTTLE(1.0, "Degenerated motion...");
     for (size_t i = 0; i < pts_diff.size(); ++i) {
       if (inlier_markers[i] == 0) continue;
-      if (sqrt(pts_diff[i].dot(pts_diff[i])) >
-          inlier_error*norm_pixel_unit)
-        inlier_markers[i] = 0;
+      if (sqrt(pts_diff[i].dot(pts_diff[i])) > inlier_error * norm_pixel_unit) inlier_markers[i] = 0;
     }
     return 0;
   }
@@ -805,23 +752,20 @@ int ImageProcessor::twoPointRansac(
   for (size_t i = 0; i < pts_diff.size(); ++i) {
     coeff_t(i, 0) = pts_diff[i].y;
     coeff_t(i, 1) = -pts_diff[i].x;
-    coeff_t(i, 2) = pts1_undistorted[i].x*pts2_undistorted[i].y -
-      pts1_undistorted[i].y*pts2_undistorted[i].x;
+    coeff_t(i, 2) = pts1_undistorted[i].x * pts2_undistorted[i].y - pts1_undistorted[i].y * pts2_undistorted[i].x;
   }
 
   std::vector<int> raw_inlier_idx;
   for (size_t i = 0; i < inlier_markers.size(); ++i) {
-    if (inlier_markers[i] != 0)
-      raw_inlier_idx.push_back(i);
+    if (inlier_markers[i] != 0) raw_inlier_idx.push_back(i);
   }
 
   std::vector<int> best_inlier_set;
   // double best_error = 1e10;
 
   std::default_random_engine generator;
-  std::uniform_int_distribution<int> distribution0(0, raw_inlier_idx.size()-1);
-  std::uniform_int_distribution<int> distribution1(1, raw_inlier_idx.size()-1);
-
+  std::uniform_int_distribution<int> distribution0(0, raw_inlier_idx.size() - 1);
+  std::uniform_int_distribution<int> distribution1(1, raw_inlier_idx.size() - 1);
 
   for (int iter_idx = 0; iter_idx < iter_num; ++iter_idx) {
     // Randomly select two point pairs.
@@ -829,9 +773,9 @@ int ImageProcessor::twoPointRansac(
     // is able to efficiently avoid selecting repetitive pairs.
     int select_idx1 = distribution0(generator);
     int select_idx_diff = distribution1(generator);
-    int select_idx2 = static_cast<size_t>(select_idx1+select_idx_diff)<raw_inlier_idx.size() ?
-      select_idx1+select_idx_diff :
-      select_idx1+select_idx_diff-raw_inlier_idx.size();
+    int select_idx2 = static_cast<size_t>(select_idx1 + select_idx_diff) < raw_inlier_idx.size()
+                          ? select_idx1 + select_idx_diff
+                          : select_idx1 + select_idx_diff - raw_inlier_idx.size();
 
     int pair_idx1 = raw_inlier_idx[select_idx1];
     int pair_idx2 = raw_inlier_idx[select_idx2];
@@ -844,8 +788,7 @@ int ImageProcessor::twoPointRansac(
     coeff_l1_norm[0] = coeff_tx.lpNorm<1>();
     coeff_l1_norm[1] = coeff_ty.lpNorm<1>();
     coeff_l1_norm[2] = coeff_tz.lpNorm<1>();
-    int base_indicator = min_element(coeff_l1_norm.begin(),
-        coeff_l1_norm.end())-coeff_l1_norm.begin();
+    int base_indicator = min_element(coeff_l1_norm.begin(), coeff_l1_norm.end()) - coeff_l1_norm.begin();
 
     Eigen::Vector3d model(0.0, 0.0, 0.0);
     if (base_indicator == 0) {
@@ -855,7 +798,7 @@ int ImageProcessor::twoPointRansac(
       model(0) = 1.0;
       model(1) = solution(0);
       model(2) = solution(1);
-    } else if (base_indicator ==1) {
+    } else if (base_indicator == 1) {
       Eigen::Matrix2d A;
       A << coeff_tx, coeff_tz;
       Eigen::Vector2d solution = A.inverse() * (-coeff_ty);
@@ -877,14 +820,12 @@ int ImageProcessor::twoPointRansac(
     std::vector<int> inlier_set;
     for (int i = 0; i < error.rows(); ++i) {
       if (inlier_markers[i] == 0) continue;
-      if (std::abs(error(i)) < inlier_error*norm_pixel_unit)
-        inlier_set.push_back(i);
+      if (std::abs(error(i)) < inlier_error * norm_pixel_unit) inlier_set.push_back(i);
     }
 
     // If the number of inliers is small, the current
     // model is probably wrong.
-    if (inlier_set.size() < 0.2*pts1_undistorted.size())
-      continue;
+    if (inlier_set.size() < 0.2 * pts1_undistorted.size()) continue;
 
     // Refit the model using all of the possible inliers.
     Eigen::VectorXd coeff_tx_better(inlier_set.size());
@@ -900,24 +841,21 @@ int ImageProcessor::twoPointRansac(
     if (base_indicator == 0) {
       Eigen::MatrixXd A(inlier_set.size(), 2);
       A << coeff_ty_better, coeff_tz_better;
-      Eigen::Vector2d solution =
-          (A.transpose() * A).inverse() * A.transpose() * (-coeff_tx_better);
+      Eigen::Vector2d solution = (A.transpose() * A).inverse() * A.transpose() * (-coeff_tx_better);
       model_better(0) = 1.0;
       model_better(1) = solution(0);
       model_better(2) = solution(1);
-    } else if (base_indicator ==1) {
+    } else if (base_indicator == 1) {
       Eigen::MatrixXd A(inlier_set.size(), 2);
       A << coeff_tx_better, coeff_tz_better;
-      Eigen::Vector2d solution =
-          (A.transpose() * A).inverse() * A.transpose() * (-coeff_ty_better);
+      Eigen::Vector2d solution = (A.transpose() * A).inverse() * A.transpose() * (-coeff_ty_better);
       model_better(0) = solution(0);
       model_better(1) = 1.0;
       model_better(2) = solution(1);
     } else {
       Eigen::MatrixXd A(inlier_set.size(), 2);
       A << coeff_tx_better, coeff_ty_better;
-      Eigen::Vector2d solution =
-          (A.transpose() * A).inverse() * A.transpose() * (-coeff_tz_better);
+      Eigen::Vector2d solution = (A.transpose() * A).inverse() * A.transpose() * (-coeff_tz_better);
       model_better(0) = solution(0);
       model_better(1) = solution(1);
       model_better(2) = 1.0;
@@ -927,8 +865,7 @@ int ImageProcessor::twoPointRansac(
     Eigen::VectorXd new_error = coeff_t * model_better;
 
     double this_error = 0.0;
-    for (const auto& inlier_idx : inlier_set)
-      this_error += std::abs(new_error(inlier_idx));
+    for (const auto &inlier_idx : inlier_set) this_error += std::abs(new_error(inlier_idx));
     this_error /= inlier_set.size();
 
     if (inlier_set.size() > best_inlier_set.size()) {
@@ -940,15 +877,12 @@ int ImageProcessor::twoPointRansac(
   // Fill in the markers.
   inlier_markers.clear();
   inlier_markers.resize(pts1.size(), 0);
-  for (const auto& inlier_idx : best_inlier_set)
-    inlier_markers[inlier_idx] = 1;
+  for (const auto &inlier_idx : best_inlier_set) inlier_markers[inlier_idx] = 1;
 
-  //printf("inlier ratio: %lu/%lu\n",
+  // printf("inlier ratio: %lu/%lu\n",
   //    best_inlier_set.size(), inlier_markers.size());
 
   return 0;
 }
 
-void ImageProcessor::ReceiveImu(const mavlink_imu_t &msg) {
-  sensor_interface_->ReceiveImu(msg);
-}
+void ImageProcessor::ReceiveImu(const mavlink_imu_t &msg) { sensor_interface_->ReceiveImu(msg); }

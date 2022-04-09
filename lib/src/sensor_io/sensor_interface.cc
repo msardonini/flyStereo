@@ -4,10 +4,10 @@
 
 #include <iostream>
 
-#include "spdlog/spdlog.h"
+#include "fly_stereo/utility.h"
 #include "opencv2/calib3d.hpp"
 #include "opencv2/imgproc.hpp"
-#include "fly_stereo/utility.h"
+#include "spdlog/spdlog.h"
 
 SensorInterface::SensorInterface() {}
 
@@ -23,7 +23,7 @@ int SensorInterface::Init(YAML::Node input_params) {
     replay_mode_ = true;
   }
   if (input_params["record_mode"] && input_params["record_mode"]["enable"].as<bool>() &&
-    input_params["record_mode"]["outputs"]["SQL_database"].as<bool>()) {
+      input_params["record_mode"]["outputs"]["SQL_database"].as<bool>()) {
     record_mode_ = true;
   }
   if (record_mode_ || replay_mode_) {
@@ -32,15 +32,15 @@ int SensorInterface::Init(YAML::Node input_params) {
 
   YAML::Node sensor_params = input_params["sensor_interface"];
 
-  cam0_ = std::make_unique<Camera> (sensor_params["Camera0"], replay_mode_);
-  if(cam0_->Init()) {
+  cam0_ = std::make_unique<Camera>(sensor_params["Camera0"], replay_mode_);
+  if (cam0_->Init()) {
     return -1;
   }
-  cam1_ = std::make_unique<Camera> (sensor_params["Camera1"], replay_mode_);
+  cam1_ = std::make_unique<Camera>(sensor_params["Camera1"], replay_mode_);
   if (cam1_->Init()) {
     return -1;
   }
-  camera_trigger_ = std::make_unique<CameraTrigger> (sensor_params["CameraTrigger"]);
+  camera_trigger_ = std::make_unique<CameraTrigger>(sensor_params["CameraTrigger"]);
 
   if (camera_trigger_->Init()) {
     return -1;
@@ -50,10 +50,8 @@ int SensorInterface::Init(YAML::Node input_params) {
   return 0;
 }
 
-int SensorInterface::GetSynchronizedData(cv::cuda::GpuMat &d_frame_cam0,
-    cv::cuda::GpuMat &d_frame_cam1, std::vector<mavlink_imu_t> &imu_data,
-    uint64_t &current_frame_time) {
-
+int SensorInterface::GetSynchronizedData(cv::cuda::GpuMat &d_frame_cam0, cv::cuda::GpuMat &d_frame_cam1,
+                                         std::vector<mavlink_imu_t> &imu_data, uint64_t &current_frame_time) {
   // Time checks for performance monitoring
   std::chrono::time_point<std::chrono::system_clock> t_start = std::chrono::system_clock::now();
   std::chrono::time_point<std::chrono::system_clock> t_trig;
@@ -62,12 +60,10 @@ int SensorInterface::GetSynchronizedData(cv::cuda::GpuMat &d_frame_cam0,
   std::chrono::time_point<std::chrono::system_clock> t_log1;
   std::chrono::time_point<std::chrono::system_clock> t_log2;
 
-
   if (replay_mode_ && sql_logger_) {
     cv::Mat frame0, frame1;
     uint64_t timestamp_flyMS, timestamp_flyStereo;
-    int ret = sql_logger_->QueryEntry(timestamp_flyMS, timestamp_flyStereo, frame0, frame1,
-      imu_data);
+    int ret = sql_logger_->QueryEntry(timestamp_flyMS, timestamp_flyStereo, frame0, frame1, imu_data);
 
     cv::Mat intermetiate;
     cv::flip(frame1, intermetiate, -1);
@@ -77,8 +73,10 @@ int SensorInterface::GetSynchronizedData(cv::cuda::GpuMat &d_frame_cam0,
     // Add a delay equivalent to what was experienced during the recording
     if (last_replay_time_ != 0) {
       uint64_t delta_t_recording = timestamp_flyMS - last_replay_time_recorded_;
-      uint64_t delta_t_processing = std::chrono::duration_cast<std::chrono::microseconds>(
-        std::chrono::steady_clock::now().time_since_epoch()).count() - last_replay_time_;
+      uint64_t delta_t_processing =
+          std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now().time_since_epoch())
+              .count() -
+          last_replay_time_;
 
       int64_t sleep_time = (delta_t_recording - delta_t_processing) / replay_speed_multiplier_;
       if (sleep_time > 0) {
@@ -92,18 +90,19 @@ int SensorInterface::GetSynchronizedData(cv::cuda::GpuMat &d_frame_cam0,
     }
 
     last_replay_time_recorded_ = timestamp_flyMS;
-    last_replay_time_ = std::chrono::duration_cast<std::chrono::microseconds>(
-      std::chrono::steady_clock::now().time_since_epoch()).count();
+    last_replay_time_ =
+        std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now().time_since_epoch())
+            .count();
     return ret;
   }
 
   // Check we aren't going to trigger the camera too soon. This can cause the program to hang
-  uint64_t time_now_us = std::chrono::duration_cast<std::chrono::milliseconds>(
-    std::chrono::steady_clock::now().time_since_epoch()).count();
+  uint64_t time_now_us =
+      std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch())
+          .count();
   // sleep for the remaining time if we are here too soon
   if (triggers_.first.second - time_now_us < min_camera_dt_ms_) {
-    std::this_thread::sleep_for(std::chrono::milliseconds(min_camera_dt_ms_ - (triggers_.first.
-      second - time_now_us)));
+    std::this_thread::sleep_for(std::chrono::milliseconds(min_camera_dt_ms_ - (triggers_.first.second - time_now_us)));
   }
 
   // Trigger the camera and set the time we did this
@@ -136,11 +135,10 @@ int SensorInterface::GetSynchronizedData(cv::cuda::GpuMat &d_frame_cam0,
 
     LogParams params;
     if (imu_data.size() > 0) {
-      params.timestamp_flyms = imu_data.front().timestamp_us - imu_data.front().
-        time_since_trigger_us ;
-      } else {
-        params.timestamp_flyms = 0;
-      }
+      params.timestamp_flyms = imu_data.front().timestamp_us - imu_data.front().time_since_trigger_us;
+    } else {
+      params.timestamp_flyms = 0;
+    }
 
     params.timestamp_flystereo = triggers_.first.second;
     params.frame0 = frame0;
@@ -152,16 +150,14 @@ int SensorInterface::GetSynchronizedData(cv::cuda::GpuMat &d_frame_cam0,
   }
   t_log2 = std::chrono::system_clock::now();
 
-  spdlog::trace("SI dts, trig: {}, frame: {}, assoc: {}, log1 {}, log2 {}",
-    (t_trig - t_start).count() / 1E6, (t_frame - t_trig).count() / 1E6,
-    (t_assoc - t_frame).count() / 1E6, (t_log1 - t_assoc).count() / 1E6,
-    (t_log2 - t_log1).count() / 1E6);
+  spdlog::trace("SI dts, trig: {}, frame: {}, assoc: {}, log1 {}, log2 {}", (t_trig - t_start).count() / 1E6,
+                (t_frame - t_trig).count() / 1E6, (t_assoc - t_frame).count() / 1E6, (t_log1 - t_assoc).count() / 1E6,
+                (t_log2 - t_log1).count() / 1E6);
 
   return ret;
 }
 
-void SensorInterface::DrawPoints(const std::vector<cv::Point2f> &mypoints,
-    cv::Mat &myimage) {
+void SensorInterface::DrawPoints(const std::vector<cv::Point2f> &mypoints, cv::Mat &myimage) {
   int myradius = 5;
   for (size_t i = 0; i < mypoints.size(); i++) {
     cv::Scalar color;
@@ -174,14 +170,12 @@ void SensorInterface::DrawPoints(const std::vector<cv::Point2f> &mypoints,
   }
 }
 
-
 void SensorInterface::ReceiveImu(mavlink_imu_t imu_msg) {
   std::lock_guard<std::mutex> lock(imu_queue_mutex_);
   imu_queue_.push(imu_msg);
 }
 
-int SensorInterface::AssociateImuData(std::vector<mavlink_imu_t> &imu_msgs,
-  uint64_t &current_frame_time) {
+int SensorInterface::AssociateImuData(std::vector<mavlink_imu_t> &imu_msgs, uint64_t &current_frame_time) {
   // Guard against the imu queue
   std::lock_guard<std::mutex> lock(imu_queue_mutex_);
 
@@ -211,8 +205,7 @@ int SensorInterface::AssociateImuData(std::vector<mavlink_imu_t> &imu_msgs,
   //  roughly (IMU acquisition rate / image acquisition rate )
   imu_msgs.reserve(20);
 
-  while (!imu_queue_.empty() && static_cast<int>(imu_queue_.front().trigger_count) <=
-    image_of_interest) {
+  while (!imu_queue_.empty() && static_cast<int>(imu_queue_.front().trigger_count) <= image_of_interest) {
     if (static_cast<int>(imu_queue_.front().trigger_count) == image_of_interest) {
       imu_msgs.push_back(imu_queue_.front());
     }
@@ -221,16 +214,16 @@ int SensorInterface::AssociateImuData(std::vector<mavlink_imu_t> &imu_msgs,
 
   if (imu_queue_.empty()) {
     current_frame_time = 0;
-  } else{
+  } else {
     mavlink_imu_t &msg = imu_queue_.front();
     current_frame_time = msg.timestamp_us - msg.time_since_trigger_us;
   }
   return 0;
 }
 
-int SensorInterface::GenerateImuXform(const std::vector<mavlink_imu_t> &imu_msgs,
-  const cv::Matx33f R_imu_cam0, const cv::Matx33f R_imu_cam1, cv::Matx33f &rotation_t0_t1_cam0,
-  const uint64_t current_frame_time, cv::Matx33f &rotation_t0_t1_cam1) {
+int SensorInterface::GenerateImuXform(const std::vector<mavlink_imu_t> &imu_msgs, const cv::Matx33f R_imu_cam0,
+                                      const cv::Matx33f R_imu_cam1, cv::Matx33f &rotation_t0_t1_cam0,
+                                      const uint64_t current_frame_time, cv::Matx33f &rotation_t0_t1_cam1) {
   // The first image will not have relvant imu data
   if (imu_msgs.size() == 0) {
     rotation_t0_t1_cam0 = cv::Matx33f::eye();
@@ -245,11 +238,10 @@ int SensorInterface::GenerateImuXform(const std::vector<mavlink_imu_t> &imu_msgs
     if (current_frame_time == 0) {
       delta_t = imu_msgs[0].time_since_trigger_us;
     } else {
-      delta_t = current_frame_time - (imu_msgs[0].timestamp_us - imu_msgs[0].
-        time_since_trigger_us);
+      delta_t = current_frame_time - (imu_msgs[0].timestamp_us - imu_msgs[0].time_since_trigger_us);
     }
-    delta_rpy_imu += cv::Vec3f(imu_msgs[0].gyroXYZ[0], imu_msgs[0].gyroXYZ[1],
-      imu_msgs[0].gyroXYZ[2]) * static_cast<float>(delta_t) / 1.0E6f;
+    delta_rpy_imu += cv::Vec3f(imu_msgs[0].gyroXYZ[0], imu_msgs[0].gyroXYZ[1], imu_msgs[0].gyroXYZ[2]) *
+                     static_cast<float>(delta_t) / 1.0E6f;
   } else {
     for (size_t i = 0; i < imu_msgs.size(); i++) {
       uint64_t delta_t;
@@ -265,8 +257,8 @@ int SensorInterface::GenerateImuXform(const std::vector<mavlink_imu_t> &imu_msgs
         delta_t = imu_msgs[i].timestamp_us - imu_msgs[i - 1].timestamp_us;
       }
 
-      delta_rpy_imu += cv::Vec3f(imu_msgs[i].gyroXYZ[0], imu_msgs[i].gyroXYZ[1], imu_msgs[i].
-        gyroXYZ[2]) * (static_cast<float>(delta_t) / 1.0E6f);
+      delta_rpy_imu += cv::Vec3f(imu_msgs[i].gyroXYZ[0], imu_msgs[i].gyroXYZ[1], imu_msgs[i].gyroXYZ[2]) *
+                       (static_cast<float>(delta_t) / 1.0E6f);
     }
   }
   rotation_t0_t1_cam0 = utility::eulerAnglesToRotationMatrix<float>(R_imu_cam0 * delta_rpy_imu);

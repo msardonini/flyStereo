@@ -28,7 +28,7 @@
 #define MAVLINK_COMMAND_24BIT 1
 #endif
 
-#include "version.h"
 #include "fly_stereo.h"
+#include "version.h"
 
-#endif // MAVLINK_H
+#endif  // MAVLINK_H

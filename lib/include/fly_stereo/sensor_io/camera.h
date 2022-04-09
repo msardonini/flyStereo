@@ -1,16 +1,15 @@
-#ifndef FLY_STEREO_INCLUDE_CAMERA_H_
-#define FLY_STEREO_INCLUDE_CAMERA_H_
+#pragma once
 
 #include <memory>
 #include <string>
 
-#include "yaml-cpp/yaml.h"
-#include "opencv2/core.hpp"
-#include "opencv2/videoio.hpp"
-#include "opencv2/core/cuda.hpp"
-#include "gst/gst.h"
 #include "gst/app/gstappsink.h"
+#include "gst/gst.h"
 #include "gst/video/video.h"
+#include "opencv2/core.hpp"
+#include "opencv2/core/cuda.hpp"
+#include "opencv2/videoio.hpp"
+#include "yaml-cpp/yaml.h"
 
 struct GstParams {
   GMainLoop *loop;
@@ -40,18 +39,13 @@ class Camera {
   int SendFrame(cv::cuda::GpuMat &d_frame);
   int GetFrame(cv::cuda::GpuMat &frame);
 
-  bool OutputEnabled() {
-    return static_cast<bool>(!sink_pipeline_.empty());
-  }
+  bool OutputEnabled() { return static_cast<bool>(!sink_pipeline_.empty()); }
 
-  uint64_t GetTimestampNs() const {
-    return timestamp_ns_;
-  }
-
+  uint64_t GetTimestampNs() const { return timestamp_ns_; }
 
   // Gets the latest cv frame already acquired from the hardware. Does NOT get a frame from the
   // Camera
-  cv::Mat GetFrameCopy() {return frame_;}
+  cv::Mat GetFrameCopy() { return frame_; }
 
  private:
   // Initialize the image sink object
@@ -94,5 +88,3 @@ class Camera {
   struct GstParams gst_params_;
   uint64_t timestamp_ns_ = 0;
 };
-
-#endif  // FLY_STEREO_INCLUDE_CAMERA_H_

@@ -1,11 +1,10 @@
 #include "fly_stereo/sql_logger.h"
 
-#include <string>
 #include <chrono>
+#include <string>
 
-#include "sqlite3.h"
 #include "spdlog/spdlog.h"
-
+#include "sqlite3.h"
 
 constexpr size_t MAX_QUEUE_SIZE = 1000;
 
@@ -18,8 +17,7 @@ SqlLogger::SqlLogger(const YAML::Node &input_params) {
   sql3_ = std::make_unique<Sqlite3_params>();
 
   // Check if we are configured to be in record mode or replay mode
-  if (input_params["record_mode"] &&
-      input_params["record_mode"]["enable"].as<bool>() &&
+  if (input_params["record_mode"] && input_params["record_mode"]["enable"].as<bool>() &&
       input_params["record_mode"]["outputs"]["SQL_database"].as<bool>()) {
     record_mode_ = true;
     std::string filename = input_params["record_mode"]["log_dir"].as<std::string>();
@@ -32,13 +30,14 @@ SqlLogger::SqlLogger(const YAML::Node &input_params) {
       spdlog::info("Opened database successfully for record");
     }
 
-    std::string sql_cmd = "CREATE TABLE FLY_STEREO_DATA ("
-      "`Timestamp_Flight_Controller` BIGINT,"
-      "`Timestamp_Perception` BIGINT,"
-      "`Image0` BLOB,"
-      "`Image1` BLOB,"
-      "`Imu_vector_len` INTEGER,"
-      "`Imu_messages` BLOB);";
+    std::string sql_cmd =
+        "CREATE TABLE FLY_STEREO_DATA ("
+        "`Timestamp_Flight_Controller` BIGINT,"
+        "`Timestamp_Perception` BIGINT,"
+        "`Image0` BLOB,"
+        "`Image1` BLOB,"
+        "`Imu_vector_len` INTEGER,"
+        "`Imu_messages` BLOB);";
     // output vars
     ret = sqlite3_exec(sql3_->data_base_, sql_cmd.c_str(), nullptr, nullptr, nullptr);
     if (ret != SQLITE_OK) {
@@ -47,12 +46,10 @@ SqlLogger::SqlLogger(const YAML::Node &input_params) {
 
     is_running_.store(true);
     queue_thread_ = std::thread(&SqlLogger::LogThread, this);
-  } else if (input_params["replay_mode"] &&
-      input_params["replay_mode"]["enable"].as<bool>()) {
+  } else if (input_params["replay_mode"] && input_params["replay_mode"]["enable"].as<bool>()) {
     // We are in replay mode
     replay_mode_ = true;
-    std::string filename = input_params["replay_mode"]["replay_dir"].as<std::string>()
-      + "/database.dat";
+    std::string filename = input_params["replay_mode"]["replay_dir"].as<std::string>() + "/database.dat";
 
     // Open the database
     int ret = sqlite3_open(filename.c_str(), &sql3_->data_base_);
@@ -63,8 +60,7 @@ SqlLogger::SqlLogger(const YAML::Node &input_params) {
     }
 
     std::string sql_cmd = "SELECT * FROM FLY_STEREO_DATA";
-    ret = sqlite3_prepare(sql3_->data_base_, sql_cmd.c_str(), sql_cmd.length(), &sql3_->sq_stmt,
-      nullptr);
+    ret = sqlite3_prepare(sql3_->data_base_, sql_cmd.c_str(), sql_cmd.length(), &sql3_->sq_stmt, nullptr);
     if (ret != SQLITE_OK) {
       spdlog::error("error in prepare, code: {}", ret);
     }
@@ -95,7 +91,6 @@ SqlLogger::~SqlLogger() {
   lock.unlock();
 
   is_running_.store(false);
-
 
   if (queue_thread_.joinable()) {
     queue_thread_.join();
@@ -149,13 +144,11 @@ int SqlLogger::QueueEntry(const LogParams &params) {
 }
 
 int SqlLogger::LogEntry(const LogParams &params) {
-  return LogEntry(params.timestamp_flyms, params.timestamp_flystereo, params.frame0, params.frame1,
-    params.imu_msgs);
+  return LogEntry(params.timestamp_flyms, params.timestamp_flystereo, params.frame0, params.frame1, params.imu_msgs);
 }
 
-int SqlLogger::LogEntry(const uint64_t timestamp_flyms, const uint64_t timestamp_flystereo,
-  const cv::Mat &frame0, const cv::Mat &frame1, const std::vector<mavlink_imu_t> &imu_msgs) {
-
+int SqlLogger::LogEntry(const uint64_t timestamp_flyms, const uint64_t timestamp_flystereo, const cv::Mat &frame0,
+                        const cv::Mat &frame1, const std::vector<mavlink_imu_t> &imu_msgs) {
   std::string sql_cmd = std::string("INSERT INTO FLY_STEREO_DATA VALUES (?,?,?,?,?,?)");
 
   int ret = sqlite3_prepare(sql3_->data_base_, sql_cmd.c_str(), -1, &sql3_->sq_stmt, nullptr);
@@ -165,24 +158,22 @@ int SqlLogger::LogEntry(const uint64_t timestamp_flyms, const uint64_t timestamp
   }
 
   ret = sqlite3_bind_int64(sql3_->sq_stmt, 1, timestamp_flyms);
-  if(ret != SQLITE_OK) {
+  if (ret != SQLITE_OK) {
     spdlog::error("error in bind, code: {}", ret);
     return -1;
   }
   ret = sqlite3_bind_int64(sql3_->sq_stmt, 2, timestamp_flystereo);
-  if(ret != SQLITE_OK) {
+  if (ret != SQLITE_OK) {
     spdlog::error("error in bind, code: {}", ret);
     return -1;
   }
-  ret = sqlite3_bind_blob(sql3_->sq_stmt, 3, frame0.data, frame0.total() * frame0.elemSize(),
-    nullptr);
-  if(ret != SQLITE_OK) {
+  ret = sqlite3_bind_blob(sql3_->sq_stmt, 3, frame0.data, frame0.total() * frame0.elemSize(), nullptr);
+  if (ret != SQLITE_OK) {
     spdlog::error("error in bind, code: {}", ret);
     return -1;
   }
-  ret = sqlite3_bind_blob(sql3_->sq_stmt, 4, frame1.data, frame1.total() * frame1.elemSize(),
-    nullptr);
-  if(ret != SQLITE_OK) {
+  ret = sqlite3_bind_blob(sql3_->sq_stmt, 4, frame1.data, frame1.total() * frame1.elemSize(), nullptr);
+  if (ret != SQLITE_OK) {
     spdlog::error("error in bind, code: {}", ret);
     return -1;
   }
@@ -204,7 +195,7 @@ int SqlLogger::LogEntry(const uint64_t timestamp_flyms, const uint64_t timestamp
   }
 
   ret = sqlite3_bind_int(sql3_->sq_stmt, 5, msg_count);
-  if(ret != SQLITE_OK) {
+  if (ret != SQLITE_OK) {
     spdlog::error("error in bind, code: {}", ret);
     return -1;
   }
@@ -224,8 +215,8 @@ int SqlLogger::LogEntry(const uint64_t timestamp_flyms, const uint64_t timestamp
   return 0;
 }
 
-int SqlLogger::QueryEntry(uint64_t &timestamp_flyms, uint64_t &timestamp_flystereo,
-  cv::Mat &frame0, cv::Mat &frame1, std::vector<mavlink_imu_t> &imu_msgs) {
+int SqlLogger::QueryEntry(uint64_t &timestamp_flyms, uint64_t &timestamp_flystereo, cv::Mat &frame0, cv::Mat &frame1,
+                          std::vector<mavlink_imu_t> &imu_msgs) {
   if (!replay_mode_) {
     spdlog::error("QueryEntry called when not in replay mode");
     return -1;
@@ -244,22 +235,19 @@ int SqlLogger::QueryEntry(uint64_t &timestamp_flyms, uint64_t &timestamp_flyster
 
   timestamp_flyms = sqlite3_column_int64(sql3_->sq_stmt, 0);
   timestamp_flystereo = sqlite3_column_int64(sql3_->sq_stmt, 1);
-  frame0 = cv::Mat(720, 1280, CV_8UC1, const_cast<void*>(sqlite3_column_blob(sql3_->sq_stmt, 2))).
-    clone();
-  frame1 = cv::Mat(720, 1280, CV_8UC1, const_cast<void*>(sqlite3_column_blob(sql3_->sq_stmt, 3))).
-    clone();
+  frame0 = cv::Mat(720, 1280, CV_8UC1, const_cast<void *>(sqlite3_column_blob(sql3_->sq_stmt, 2))).clone();
+  frame1 = cv::Mat(720, 1280, CV_8UC1, const_cast<void *>(sqlite3_column_blob(sql3_->sq_stmt, 3))).clone();
 
   size_t imu_msg_count = sqlite3_column_int(sql3_->sq_stmt, 4);
-  const uint8_t* imu_blob = reinterpret_cast<const uint8_t*>(sqlite3_column_blob(
-    sql3_->sq_stmt, 5));
+  const uint8_t *imu_blob = reinterpret_cast<const uint8_t *>(sqlite3_column_blob(sql3_->sq_stmt, 5));
   size_t imu_blob_size = sqlite3_column_bytes(sql3_->sq_stmt, 5);
 
-  imu_msgs.clear(); imu_msgs.reserve(imu_msg_count);
+  imu_msgs.clear();
+  imu_msgs.reserve(imu_msg_count);
   for (size_t i = 0; i < imu_blob_size; i++) {
     mavlink_status_t mav_status;
     mavlink_message_t mav_message;
-    uint8_t msg_received = mavlink_parse_char(MAVLINK_COMM_1, imu_blob[i], &mav_message,
-      &mav_status);
+    uint8_t msg_received = mavlink_parse_char(MAVLINK_COMM_1, imu_blob[i], &mav_message, &mav_status);
 
     if (msg_received) {
       if (mav_message.msgid == MAVLINK_MSG_ID_IMU) {

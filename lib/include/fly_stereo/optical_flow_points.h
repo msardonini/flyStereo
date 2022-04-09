@@ -1,31 +1,29 @@
-#ifndef LIB_INCLUDE_FLY_STEREO_OPTICAL_FLOW_POINTS_H_
-#define LIB_INCLUDE_FLY_STEREO_OPTICAL_FLOW_POINTS_H_
+#pragma once
+
+#include <map>
 
 #include "opencv2/core.hpp"
-#include "opencv2/features2d.hpp"
 #include "opencv2/cudafeatures2d.hpp"
 #include "opencv2/cudaimgproc.hpp"
 #include "opencv2/cudaoptflow.hpp"
-
-
+#include "opencv2/features2d.hpp"
 
 // Define constant indexes for the use with this object
 // t = tracked points vs. d = detected points
 // c0 = cam0 vs. c1 = cam1
 // t0 = time0 (previous timestep) vs t1 = time1 (current timestep)
-constexpr unsigned int t_c0_t0 = 0; 
-constexpr unsigned int t_c0_t1 = 1; 
-constexpr unsigned int t_c1_t0 = 2; 
-constexpr unsigned int t_c1_t1 = 3; 
-constexpr unsigned int d_c0_t0 = 4; 
-constexpr unsigned int d_c0_t1 = 5; 
-constexpr unsigned int d_c1_t0 = 6; 
+constexpr unsigned int t_c0_t0 = 0;
+constexpr unsigned int t_c0_t1 = 1;
+constexpr unsigned int t_c1_t0 = 2;
+constexpr unsigned int t_c1_t1 = 3;
+constexpr unsigned int d_c0_t0 = 4;
+constexpr unsigned int d_c0_t1 = 5;
+constexpr unsigned int d_c1_t0 = 6;
 constexpr unsigned int d_c1_t1 = 7;
 
 // Define constant indexes for the ids vectors
 constexpr unsigned int ids_t0 = 0;
 constexpr unsigned int ids_t1 = 1;
-
 
 struct OpticalFlowPoints {
   OpticalFlowPoints() {}
@@ -46,13 +44,13 @@ struct OpticalFlowPoints {
     return true;
   }
 
-  bool RemoveOutliers(const std::vector<uchar> &status, const std::vector<unsigned int>
-    &vecs_to_use, const std::vector<unsigned int> &id_vec_to_use = {}) {
+  bool RemoveOutliers(const std::vector<uchar> &status, const std::vector<unsigned int> &vecs_to_use,
+                      const std::vector<unsigned int> &id_vec_to_use = {}) {
     // We need a CPU vector for this operation, download it and run the remove function, and
     // re-upload it again
     for (size_t i = 0; i < vecs_to_use.size(); i++) {
       std::vector<cv::Point2f> points = GetCpu(vecs_to_use[i]);
-      if(!RemovePoints<cv::Point2f>(status, points)) {
+      if (!RemovePoints<cv::Point2f>(status, points)) {
         return false;
       }
       LoadCpu(points, vecs_to_use[i]);
@@ -68,15 +66,14 @@ struct OpticalFlowPoints {
     return true;
   }
 
-  bool RemoveOutliers(const cv::cuda::GpuMat &d_status, const std::vector<unsigned int>
-    &vecs_to_use, const std::vector<unsigned int> &id_vec_to_use = {}) {
+  bool RemoveOutliers(const cv::cuda::GpuMat &d_status, const std::vector<unsigned int> &vecs_to_use,
+                      const std::vector<unsigned int> &id_vec_to_use = {}) {
     std::vector<uchar> status;
     d_status.download(status);
     return RemoveOutliers(status, vecs_to_use, id_vec_to_use);
   }
 
-  bool MarkPointsOutOfFrame(const cv::Size &framesize, const unsigned int index,
-    std::vector<unsigned char> &status) {
+  bool MarkPointsOutOfFrame(const cv::Size &framesize, const unsigned int index, std::vector<unsigned char> &status) {
     // We need a CPU vector for this operation
     std::vector<cv::Point2f> points = GetCpu(index);
 
@@ -91,16 +88,15 @@ struct OpticalFlowPoints {
       if (status[j] == 0) {
         continue;
       }
-      if (points[j].y < 0 || points[j].y > framesize.height - 1 ||
-          points[j].x < 0 || points[j].x > framesize.width - 1) {
+      if (points[j].y < 0 || points[j].y > framesize.height - 1 || points[j].x < 0 ||
+          points[j].x > framesize.width - 1) {
         status[j] = 0;
       }
     }
     return true;
   }
 
-  bool MarkPointsOutOfFrame(const cv::Size &framesize, const unsigned int index, cv::cuda::GpuMat
-    &d_status) {
+  bool MarkPointsOutOfFrame(const cv::Size &framesize, const unsigned int index, cv::cuda::GpuMat &d_status) {
     std::vector<unsigned char> status;
     if (!d_status.empty()) {
       d_status.download(status);
@@ -136,18 +132,18 @@ struct OpticalFlowPoints {
       return false;
     } else if (d_points[index_src].rows != d_points[index_dst].rows) {
       std::cerr << "Error! [AppendGpuMat] Mats do not have the same amount of"
-        " rows" << std::endl;
+                   " rows"
+                << std::endl;
       d_points[index_dst] = cv::cuda::GpuMat();
       return false;
     }
 
     cv::Range range_rows(0, d_points[index_src].rows);
     cv::Range range_cols1(0, d_points[index_src].cols);
-    cv::Range range_cols2(d_points[index_src].cols, d_points[index_src].cols +
-      d_points[index_dst].cols);
+    cv::Range range_cols2(d_points[index_src].cols, d_points[index_src].cols + d_points[index_dst].cols);
 
-    cv::cuda::GpuMat append_mat(d_points[index_src].rows, d_points[index_src].cols +
-      d_points[index_dst].cols, d_points[index_src].type());
+    cv::cuda::GpuMat append_mat(d_points[index_src].rows, d_points[index_src].cols + d_points[index_dst].cols,
+                                d_points[index_src].type());
 
     d_points[index_src].copyTo(append_mat(range_rows, range_cols1));
     d_points[index_dst].copyTo(append_mat(range_rows, range_cols2));
@@ -156,9 +152,9 @@ struct OpticalFlowPoints {
     return true;
   }
 
-  bool BinAndMarkPoints(const unsigned int index_vec, const unsigned int index_ids,
-    const cv::Size &framesize, const unsigned int bins_width, const unsigned int bins_height,
-    const unsigned int max_pts_in_bin, std::vector<unsigned char> &status) {
+  bool BinAndMarkPoints(const unsigned int index_vec, const unsigned int index_ids, const cv::Size &framesize,
+                        const unsigned int bins_width, const unsigned int bins_height,
+                        const unsigned int max_pts_in_bin, std::vector<unsigned char> &status) {
     // We need a CPU vector for this operation
     std::vector<cv::Point2f> points = GetCpu(index_vec);
 
@@ -182,11 +178,10 @@ struct OpticalFlowPoints {
     // Now that the grid is full, delete points that exceed the threshold of points per bin
     for (auto it = grid.begin(); it != grid.end(); it++) {
       if (it->second.size() >= max_pts_in_bin) {
-
         // Sort each vector in the grid by the age of the point (done by ID) lower IDs are older
         // points
-        std::sort(it->second.begin(), it->second.end(), [](auto const &a, auto const &b)
-          { return std::get<1>(a) > std::get<1>(b); });
+        std::sort(it->second.begin(), it->second.end(),
+                  [](auto const &a, auto const &b) { return std::get<1>(a) > std::get<1>(b); });
 
         // Mark the points that should be deleted
         for (size_t i = max_pts_in_bin; i < it->second.size(); i++) {
@@ -208,13 +203,9 @@ struct OpticalFlowPoints {
   }
 
   // Write
-  void LoadCpu(const std::vector<cv::Point2f> &vec, const unsigned int index) {
-    d_points[index].upload(vec);
-  }
+  void LoadCpu(const std::vector<cv::Point2f> &vec, const unsigned int index) { d_points[index].upload(vec); }
 
-  cv::cuda::GpuMat& operator[](unsigned int index) {
-    return d_points[index];
-  }
+  cv::cuda::GpuMat &operator[](unsigned int index) { return d_points[index]; }
 
   // Data structure for tracked points
   // index 0: tracked points, cam0 t0
@@ -231,5 +222,3 @@ struct OpticalFlowPoints {
   // index 1 ids, detected pts
   std::array<std::vector<unsigned int>, 2> ids;
 };
-
-#endif  // LIB_INCLUDE_FLY_STEREO_OPTICAL_FLOW_POINTS_H_

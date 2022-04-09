@@ -1,13 +1,12 @@
-#ifndef LIB_INCLUDE_FLY_STEREO_VISUALIZATION_VISUALIZATION_H_
-#define LIB_INCLUDE_FLY_STEREO_VISUALIZATION_VISUALIZATION_H_
+#pragma once
 
 #include <vector>
 
-#include "yaml-cpp/yaml.h"
-#include "opencv2/core.hpp"
-#include "opencv2/viz.hpp"
-#include "opencv2/videoio.hpp"
 #include "Eigen/Dense"
+#include "opencv2/core.hpp"
+#include "opencv2/videoio.hpp"
+#include "opencv2/viz.hpp"
+#include "yaml-cpp/yaml.h"
 
 class Visualization {
  public:
@@ -27,5 +26,3 @@ class Visualization {
 
   std::unique_ptr<cv::VideoWriter> writer_;
 };
-
-#endif  // LIB_INCLUDE_FLY_STEREO_VISUALIZATION_VISUALIZATION_H_

@@ -1,10 +1,9 @@
-#ifndef INCLUDE_FLY_STEREO_CAMERA_TRIGGER_H_
-#define INCLUDE_FLY_STEREO_CAMERA_TRIGGER_H_
+#pragma once
 
-#include <thread>
-#include <mutex>
 #include <atomic>
+#include <mutex>
 #include <queue>
+#include <thread>
 
 #include "yaml-cpp/yaml.h"
 
@@ -44,6 +43,3 @@ class CameraTrigger {
   std::pair<int, uint64_t> time_counter_;
   std::mutex trigger_count_mutex_;
 };
-
-
-#endif  // INCLUDE_FLY_STEREO_CAMERA_TRIGGER_H_

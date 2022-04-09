@@ -2,14 +2,13 @@
 
 #include <iostream>
 
-KalmanFilter::KalmanFilter(const YAML::Node &input_params,
-  const Eigen::MatrixXd &initial_state) :
-state_(initial_state),
-covariance_(num_states, num_states),
-f_(num_states, num_states),
-q_(num_states, num_states),
-h_(num_measurements, num_states),
-r_(num_measurements, num_measurements) {
+KalmanFilter::KalmanFilter(const YAML::Node &input_params, const Eigen::MatrixXd &initial_state)
+    : state_(initial_state),
+      covariance_(num_states, num_states),
+      f_(num_states, num_states),
+      q_(num_states, num_states),
+      h_(num_measurements, num_states),
+      r_(num_measurements, num_measurements) {
   if (initial_state.rows() != num_states) {
     throw std::invalid_argument("Bad initial state vector length!");
   }
@@ -20,7 +19,6 @@ void KalmanFilter::Init(const YAML::Node &input_params) {
   covariance_ << Eigen::Matrix<double, num_states, num_states>::Identity() * 100;
   // covariance_ << Eigen::Matrix<double, num_states, num_states>::Zero();
 
-
   std::vector<double> f_vec = input_params["f"].as<std::vector<double> >();
   f_ = Eigen::Matrix<double, num_states, num_states, Eigen::RowMajor>(f_vec.data());
 
@@ -30,13 +28,13 @@ void KalmanFilter::Init(const YAML::Node &input_params) {
   Eigen::Vector2d g;
   g << 0.5 * dt_ * dt_, dt_;
   q_ << Eigen::Matrix<double, num_states, num_states>::Zero();
-  q_.block<2, 2>(0, 0) = g*g.transpose()*(sigma_a*sigma_a);
-  q_.block<2, 2>(2, 2) = g*g.transpose()*(sigma_a*sigma_a);
-  q_.block<2, 2>(4, 4) = g*g.transpose()*(sigma_a*sigma_a);
+  q_.block<2, 2>(0, 0) = g * g.transpose() * (sigma_a * sigma_a);
+  q_.block<2, 2>(2, 2) = g * g.transpose() * (sigma_a * sigma_a);
+  q_.block<2, 2>(4, 4) = g * g.transpose() * (sigma_a * sigma_a);
 
   std::vector<double> h_vec = input_params["h"].as<std::vector<double> >();
   h_ = Eigen::Matrix<double, num_measurements, num_states, Eigen::RowMajor>(h_vec.data());
-  
+
   std::vector<double> r_vec = input_params["r"].as<std::vector<double> >();
   r_ = Eigen::Matrix<double, num_measurements, num_measurements, Eigen::RowMajor>(r_vec.data());
 }
@@ -47,9 +45,7 @@ void KalmanFilter::Predict(double dt) {
     dt = dt_;
   }
 
-
-  Eigen::Matrix<double, num_states, 1> u = Eigen::Matrix<double, num_states, 1>::Zero(
-    num_states);
+  Eigen::Matrix<double, num_states, 1> u = Eigen::Matrix<double, num_states, 1>::Zero(num_states);
   int i;
   for (i = 0; i < num_states / 2; i++) {
     u(2 * i) = state_(2 * i + 1);
@@ -61,8 +57,9 @@ void KalmanFilter::Predict(double dt) {
   // Apply the prediction
   // state_ = (f_ * dt + Eigen::Matrix<double, num_states, num_states>::Identity()) * state_;
   // state_ = state_ + (f_ * dt);
-  Eigen::Matrix<double, num_states, num_states> mod_f = Eigen::Matrix<double, num_states, num_states>::Identity() + (f_ * dt); 
-  covariance_ = mod_f * covariance_ * mod_f.transpose()  + q_;
+  Eigen::Matrix<double, num_states, num_states> mod_f =
+      Eigen::Matrix<double, num_states, num_states>::Identity() + (f_ * dt);
+  covariance_ = mod_f * covariance_ * mod_f.transpose() + q_;
 }
 
 int KalmanFilter::Measure(const Eigen::Matrix<double, num_measurements, 1> &z) {
@@ -88,6 +85,4 @@ int KalmanFilter::Measure(const Eigen::Matrix<double, num_measurements, 1> &z) {
   return 0;
 }
 
-Eigen::Matrix<double, 1, num_states> KalmanFilter::GetState() {
-  return state_;
-}
+Eigen::Matrix<double, 1, num_states> KalmanFilter::GetState() { return state_; }

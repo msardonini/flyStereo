@@ -29,15 +29,15 @@ for i = 1:size(data,1)
 
 %    running_xform = running_xform * Xform(:,:, i); %uncomment for running delta xforms
    running_xform = Xform(:,:, i); % uncomment for logged absolute xform
-   
+
    euler(:,i) = R2Euler(running_xform);
    imu_euler(:,i) = R2Euler(R_imu(:,:,i));
    bearing(:, i) = running_xform(1:3, 1:3) * [0; 0; -1];
    points(:, i) = running_xform * [0; 0; 0; 1];
    if (i ~= 1)
-       velocity(:,i) = points(:, i) - points(:, i - 1); 
+       velocity(:,i) = points(:, i) - points(:, i - 1);
    end
-   
+
 end
 
 figure
@@ -65,20 +65,20 @@ xlabel('X axis'); ylabel('Y axis'); zlabel('Z axis'); axis equal
 %     velocity(3,:))
 % xlabel('X axis'); ylabel('Y axis'); zlabel('Z axis'); axis equal
 
-%% 
+%%
 figure
 plot(unwrap(euler'))
 hold on
 plot(unwrap(imu_euler'))
 title('Euler Angles')
-legend('x vio', 'y vio', 'z vio', 'X imu', 'Y imu', 'Z imu') 
+legend('x vio', 'y vio', 'z vio', 'X imu', 'Y imu', 'Z imu')
 
 
 % Figure to show the weird linear relationship between distance travelled
 % and estimated rotation
 % figure
-% plot(kalman_output(:,1),unwrap(euler(1,:))) 
-% 
+% plot(kalman_output(:,1),unwrap(euler(1,:)))
+%
 
 
 figure
@@ -88,4 +88,3 @@ quiver3(kalman_output(:,1),kalman_output(:,3), kalman_output(:,5), ...
     10*kalman_output(:,2),10*kalman_output(:,4), 10*kalman_output(:,6))
 scatter3(points(1,:), points(2,:), points(3,:))
 xlabel('X axis'); ylabel('Y axis'); zlabel('Z axis'); axis equal
- 

@@ -18,6 +18,6 @@ ARGS="--env DISPLAY \
 
 xhost +local:root
 
-docker run $ARGS fly_stereo:0.0.1 
+docker run $ARGS fly_stereo:0.0.1
 
 xhost -local:root

@@ -92,3 +92,6 @@ RUN cd /opt && \
 # Install the python script that will show eigen matrices when running gdb
 COPY printers /opt/printers
 RUN mv /opt/printers/.gdbinit /root
+
+
+RUN pip3 install pre-commit && apt-get install -y clang-format

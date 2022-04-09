@@ -1,8 +1,7 @@
-
-#ifndef LIB_INCLUDE_FLY_STEREO_KALMAN_FILTER_H_
-#define LIB_INCLUDE_FLY_STEREO_KALMAN_FILTER_H_
+#pragma once
 
 #include <memory>
+
 #include "Eigen/Dense"
 #include "yaml-cpp/yaml.h"
 
@@ -21,7 +20,7 @@ class KalmanFilter {
    * @param[in]  delta_t        The delta T
    */
   KalmanFilter(const YAML::Node &input_params,
-  const Eigen::MatrixXd &initial_state = Eigen::Matrix<double, num_states, 1>::Zero());
+               const Eigen::MatrixXd &initial_state = Eigen::Matrix<double, num_states, 1>::Zero());
 
   /** Initializes the required matrices
    *
@@ -29,20 +28,20 @@ class KalmanFilter {
   void Init(const YAML::Node &input_params);
 
   /** Perform a prediction update with a defined time step for a position and
-    * velocity model
-    *
-    * @param[in]  dt    The delta T
-    *
-    * @return     Returns the state of the prediction step
-    */
+   * velocity model
+   *
+   * @param[in]  dt    The delta T
+   *
+   * @return     Returns the state of the prediction step
+   */
   void Predict(double dt = -1);
 
   /** Perform a measurement update with default time step
-    *
-    * @param[in]  Z     The measurement
-    *
-    * @return     Returns 0 on success, -1 on error
-    */
+   *
+   * @param[in]  Z     The measurement
+   *
+   * @return     Returns 0 on success, -1 on error
+   */
   int Measure(const Eigen::Matrix<double, num_measurements, 1> &z);
 
   // Accessors
@@ -70,5 +69,3 @@ class KalmanFilter {
   double noise_ = 0.1;
   double dt_;
 };
-
-#endif  // LIB_INCLUDE_FLY_STEREO_KALMAN_FILTER_H_

@@ -5,13 +5,12 @@
  * All rights reserved.
  */
 
-#ifndef MSCKF_VIO_IMU_STATE_H
-#define MSCKF_VIO_IMU_STATE_H
+#pragma once
 
-#include <map>
-#include <vector>
 #include <Eigen/Dense>
 #include <Eigen/Geometry>
+#include <map>
+#include <vector>
 
 #define GRAVITY_ACCELERATION 9.81
 
@@ -81,30 +80,31 @@ struct IMUState {
   // Normally, this transform should be identity.
   static Eigen::Isometry3d T_imu_body;
 
-  IMUState(): id(0), time(0),
-    orientation(Eigen::Vector4d(0, 0, 0, 1)),
-    position(Eigen::Vector3d::Zero()),
-    velocity(Eigen::Vector3d::Zero()),
-    gyro_bias(Eigen::Vector3d::Zero()),
-    acc_bias(Eigen::Vector3d::Zero()),
-    orientation_null(Eigen::Vector4d(0, 0, 0, 1)),
-    position_null(Eigen::Vector3d::Zero()),
-    velocity_null(Eigen::Vector3d::Zero()) {}
+  IMUState()
+      : id(0),
+        time(0),
+        orientation(Eigen::Vector4d(0, 0, 0, 1)),
+        position(Eigen::Vector3d::Zero()),
+        velocity(Eigen::Vector3d::Zero()),
+        gyro_bias(Eigen::Vector3d::Zero()),
+        acc_bias(Eigen::Vector3d::Zero()),
+        orientation_null(Eigen::Vector4d(0, 0, 0, 1)),
+        position_null(Eigen::Vector3d::Zero()),
+        velocity_null(Eigen::Vector3d::Zero()) {}
 
-  IMUState(const StateIDType& new_id): id(new_id), time(0),
-    orientation(Eigen::Vector4d(0, 0, 0, 1)),
-    position(Eigen::Vector3d::Zero()),
-    velocity(Eigen::Vector3d::Zero()),
-    gyro_bias(Eigen::Vector3d::Zero()),
-    acc_bias(Eigen::Vector3d::Zero()),
-    orientation_null(Eigen::Vector4d(0, 0, 0, 1)),
-    position_null(Eigen::Vector3d::Zero()),
-    velocity_null(Eigen::Vector3d::Zero()) {}
-
+  IMUState(const StateIDType& new_id)
+      : id(new_id),
+        time(0),
+        orientation(Eigen::Vector4d(0, 0, 0, 1)),
+        position(Eigen::Vector3d::Zero()),
+        velocity(Eigen::Vector3d::Zero()),
+        gyro_bias(Eigen::Vector3d::Zero()),
+        acc_bias(Eigen::Vector3d::Zero()),
+        orientation_null(Eigen::Vector4d(0, 0, 0, 1)),
+        position_null(Eigen::Vector3d::Zero()),
+        velocity_null(Eigen::Vector3d::Zero()) {}
 };
 
 typedef IMUState::StateIDType StateIDType;
 
-} // namespace msckf_vio
-
-#endif // MSCKF_VIO_IMU_STATE_H
+}  // namespace msckf_vio

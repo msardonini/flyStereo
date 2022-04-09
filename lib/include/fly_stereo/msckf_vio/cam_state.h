@@ -4,13 +4,11 @@
  * Copyright (C) 2017 The Trustees of the University of Pennsylvania
  * All rights reserved.
  */
+#pragma once
 
-#ifndef MSCKF_VIO_CAM_STATE_H
-#define MSCKF_VIO_CAM_STATE_H
-
+#include <Eigen/Dense>
 #include <map>
 #include <vector>
-#include <Eigen/Dense>
 
 #include "imu_state.h"
 
@@ -46,22 +44,24 @@ struct CAMState {
   // Takes a vector from the cam0 frame to the cam1 frame.
   static Eigen::Isometry3d T_cam0_cam1;
 
-  CAMState(): id(0), time(0),
-    orientation(Eigen::Vector4d(0, 0, 0, 1)),
-    position(Eigen::Vector3d::Zero()),
-    orientation_null(Eigen::Vector4d(0, 0, 0, 1)),
-    position_null(Eigen::Vector3d(0, 0, 0)) {}
+  CAMState()
+      : id(0),
+        time(0),
+        orientation(Eigen::Vector4d(0, 0, 0, 1)),
+        position(Eigen::Vector3d::Zero()),
+        orientation_null(Eigen::Vector4d(0, 0, 0, 1)),
+        position_null(Eigen::Vector3d(0, 0, 0)) {}
 
-  CAMState(const StateIDType& new_id ): id(new_id), time(0),
-    orientation(Eigen::Vector4d(0, 0, 0, 1)),
-    position(Eigen::Vector3d::Zero()),
-    orientation_null(Eigen::Vector4d(0, 0, 0, 1)),
-    position_null(Eigen::Vector3d::Zero()) {}
+  CAMState(const StateIDType& new_id)
+      : id(new_id),
+        time(0),
+        orientation(Eigen::Vector4d(0, 0, 0, 1)),
+        position(Eigen::Vector3d::Zero()),
+        orientation_null(Eigen::Vector4d(0, 0, 0, 1)),
+        position_null(Eigen::Vector3d::Zero()) {}
 };
 
 typedef std::map<StateIDType, CAMState, std::less<int>,
-        Eigen::aligned_allocator<
-        std::pair<const StateIDType, CAMState> > > CamStateServer;
-} // namespace msckf_vio
-
-#endif // MSCKF_VIO_CAM_STATE_H
+                 Eigen::aligned_allocator<std::pair<const StateIDType, CAMState> > >
+    CamStateServer;
+}  // namespace msckf_vio

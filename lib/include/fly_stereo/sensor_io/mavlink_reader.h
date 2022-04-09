@@ -1,16 +1,15 @@
+#pragma once
+
+#include <atomic>
+#include <condition_variable>
+#include <mutex>
+#include <queue>
 #include <string>
 #include <thread>
-#include <mutex>
-#include <atomic>
-#include <queue>
-#include <condition_variable>
 
-#include "yaml-cpp/yaml.h"
 #include "fly_stereo/sensor_io/mavlink/fly_stereo/mavlink.h"
 #include "fly_stereo/vio.h"
-
-#ifndef INCLUDE_FLY_STEREO_MAVLINK_READER_H_
-#define INCLUDE_FLY_STEREO_MAVLINK_READER_H_
+#include "yaml-cpp/yaml.h"
 
 class MavlinkReader {
  public:
@@ -24,7 +23,8 @@ class MavlinkReader {
   bool WaitForShutdownCmd();
   void ResetShutdownCmds();
   void SendCounterReset();
-  void SendVioMsg(const vio_t &vio);
+  void SendVioMsg(const vio_t& vio);
+
  private:
   int SetSerialParams(int device);
 
@@ -44,5 +44,3 @@ class MavlinkReader {
   bool command_on_ = false;
   bool command_shutdown_ = false;
 };
-
-#endif  // INCLUDE_FLY_STEREO_MAVLINK_READER_H_

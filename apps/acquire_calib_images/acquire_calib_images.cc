@@ -1,22 +1,23 @@
 
-#include <sys/time.h>
 #include <errno.h>
 #include <getopt.h>
+#include <sys/time.h>
+
+#include <experimental/filesystem>
 #include <iostream>
 #include <string>
-#include <experimental/filesystem>
 
-#include "opencv2/core.hpp"
-#include "opencv2/highgui.hpp"
-#include "opencv2/core/cuda.hpp"
-#include "yaml-cpp/yaml.h"
 #include "fly_stereo/sensor_io/sensor_interface.h"
+#include "opencv2/core.hpp"
+#include "opencv2/core/cuda.hpp"
+#include "opencv2/highgui.hpp"
+#include "yaml-cpp/yaml.h"
 
 char get_user_input(int timeout_s, int timout_us) {
   fd_set fdset;
   struct timeval timeout;
-  int  rc;
-  int  val;
+  int rc;
+  int val;
 
   timeout.tv_sec = 0;
   timeout.tv_usec = 50000;
@@ -26,7 +27,7 @@ char get_user_input(int timeout_s, int timout_us) {
 
   rc = select(1, &fdset, NULL, NULL, &timeout);
   if (rc == -1) {
-    std::cerr<< "Error in select " << strerror(errno) << std::endl;
+    std::cerr << "Error in select " << strerror(errno) << std::endl;
     return 0;
   } else if (rc == 0) {
     return 0;
@@ -45,8 +46,8 @@ int main(int argc, char *argv[]) {
 
   std::string config_file, save_dir;
   int opt;
-  while((opt = getopt(argc, argv, "c:n:s:")) != -1) {
-    switch(opt) {
+  while ((opt = getopt(argc, argv, "c:n:s:")) != -1) {
+    switch (opt) {
       case 'c':
         config_file = std::string(optarg);
         break;
@@ -103,16 +104,13 @@ int main(int argc, char *argv[]) {
       }
     } else {
       // Default behavior is just to save an image every ~5 seconds
-      if (counter % 100 == 0)
-        save_img = true;
+      if (counter % 100 == 0) save_img = true;
     }
 
     if (save_img) {
       std::cout << "Saving Image pair: " << ++image_counter << std::endl;
-      std::experimental::filesystem::path file0("cam0_" + std::to_string(
-        image_counter) + ".png");
-      std::experimental::filesystem::path file1("cam1_" + std::to_string(
-        image_counter) + ".png");
+      std::experimental::filesystem::path file0("cam0_" + std::to_string(image_counter) + ".png");
+      std::experimental::filesystem::path file1("cam1_" + std::to_string(image_counter) + ".png");
       std::experimental::filesystem::path save_path_0 = save_dir / file0;
       std::experimental::filesystem::path save_path_1 = save_dir / file1;
 
@@ -127,4 +125,3 @@ int main(int argc, char *argv[]) {
 
   return 0;
 }
-

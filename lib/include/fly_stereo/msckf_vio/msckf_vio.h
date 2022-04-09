@@ -4,21 +4,19 @@
  * Copyright (C) 2017 The Trustees of the University of Pennsylvania
  * All rights reserved.
  */
+#pragma once
 
-#ifndef MSCKF_VIO_H
-#define MSCKF_VIO_H
-
-#include <map>
-#include <set>
-#include <vector>
-#include <string>
-#include <mutex>
-#include <queue>
+#include <yaml-cpp/yaml.h>
 
 #include <Eigen/Dense>
 #include <Eigen/Geometry>
 #include <boost/shared_ptr.hpp>
-#include <yaml-cpp/yaml.h>
+#include <map>
+#include <mutex>
+#include <queue>
+#include <set>
+#include <string>
+#include <vector>
 
 // #include <ros/ros.h>
 // #include <sensor_msgs/Imu.h>
@@ -26,11 +24,11 @@
 // #include <tf/transform_broadcaster.h>
 // #include <std_srvs/Trigger.h>
 
-#include "imu_state.h"
 #include "cam_state.h"
 #include "feature.hpp"
 #include "fly_stereo/interface.h"
 #include "fly_stereo/mavlink/fly_stereo/mavlink.h"
+#include "imu_state.h"
 // #include <msckf_vio/CameraMeasurement.h>
 
 namespace msckf_vio {
@@ -42,212 +40,196 @@ namespace msckf_vio {
  *    http://www.ee.ucr.edu/~mourikis/tech_reports/TR_MSCKF.pdf
  */
 class MsckfVio {
-  public:
-    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+ public:
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
-    // Constructor
-    MsckfVio();
-    // Disable copy and assign constructor
-    MsckfVio(const MsckfVio&) = delete;
-    MsckfVio operator=(const MsckfVio&) = delete;
+  // Constructor
+  MsckfVio();
+  // Disable copy and assign constructor
+  MsckfVio(const MsckfVio&) = delete;
+  MsckfVio operator=(const MsckfVio&) = delete;
 
-    // Destructor
-    ~MsckfVio() {}
+  // Destructor
+  ~MsckfVio() {}
 
-    /*
-     * @brief initialize Initialize the VIO.
-     */
-    bool initialize(const YAML::Node &input_params);
+  /*
+   * @brief initialize Initialize the VIO.
+   */
+  bool initialize(const YAML::Node& input_params);
 
-    /*
-     * @brief reset Resets the VIO to initial status.
-     */
-    void reset();
+  /*
+   * @brief reset Resets the VIO to initial status.
+   */
+  void reset();
 
-    typedef boost::shared_ptr<MsckfVio> Ptr;
-    typedef boost::shared_ptr<const MsckfVio> ConstPtr;
+  typedef boost::shared_ptr<MsckfVio> Ptr;
+  typedef boost::shared_ptr<const MsckfVio> ConstPtr;
 
-    /*
-     * @brief imuCallback
-     *    Callback function for the imu message.
-     * @param msg IMU msg.
-     */
-    void imuCallback(const mavlink_imu_t &msg);
+  /*
+   * @brief imuCallback
+   *    Callback function for the imu message.
+   * @param msg IMU msg.
+   */
+  void imuCallback(const mavlink_imu_t& msg);
 
-    /*
-     * @brief featureCallback
-     *    Callback function for feature measurements.
-     * @param msg Stereo feature measurements.
-     */
-    void featureCallback(const struct ImagePoints& msg);
+  /*
+   * @brief featureCallback
+   *    Callback function for feature measurements.
+   * @param msg Stereo feature measurements.
+   */
+  void featureCallback(const struct ImagePoints& msg);
 
-    /*
-     * @brief loadParameters
-     *    Load parameters from the parameter server.
-     */
-    bool loadParameters(const YAML::Node &input_params);
+  /*
+   * @brief loadParameters
+   *    Load parameters from the parameter server.
+   */
+  bool loadParameters(const YAML::Node& input_params);
 
-  private:
-    /*
-     * @brief StateServer Store one IMU states and several
-     *    camera states for constructing measurement
-     *    model.
-     */
-    struct StateServer {
-      IMUState imu_state;
-      CamStateServer cam_states;
+ private:
+  /*
+   * @brief StateServer Store one IMU states and several
+   *    camera states for constructing measurement
+   *    model.
+   */
+  struct StateServer {
+    IMUState imu_state;
+    CamStateServer cam_states;
 
-      // State covariance matrix
-      Eigen::MatrixXd state_cov;
-      Eigen::Matrix<double, 12, 12> continuous_noise_cov;
-    };
+    // State covariance matrix
+    Eigen::MatrixXd state_cov;
+    Eigen::Matrix<double, 12, 12> continuous_noise_cov;
+  };
 
+  /*
+   * @brief createRosIO
+   *    Create ros publisher and subscirbers.
+   */
+  bool createRosIO();
 
-    /*
-     * @brief createRosIO
-     *    Create ros publisher and subscirbers.
-     */
-    bool createRosIO();
+  /*
+   * @brief publish Publish the results of VIO.
+   * @param time The time stamp of output msgs.
+   */
+  void publish();
 
+  /*
+   * @brief initializegravityAndBias
+   *    Initialize the IMU bias and initial orientation
+   *    based on the first few IMU readings.
+   */
+  void initializeGravityAndBias();
 
-    /*
-     * @brief publish Publish the results of VIO.
-     * @param time The time stamp of output msgs.
-     */
-    void publish();
+  /*
+   * @biref resetCallback
+   *    Callback function for the reset service.
+   *    Note that this is NOT anytime-reset. This function should
+   *    only be called before the sensor suite starts moving.
+   *    e.g. while the robot is still on the ground.
+   */
+  bool resetCallback();
 
-    /*
-     * @brief initializegravityAndBias
-     *    Initialize the IMU bias and initial orientation
-     *    based on the first few IMU readings.
-     */
-    void initializeGravityAndBias();
+  // Filter related functions
+  // Propogate the state
+  void batchImuProcessing(const uint64_t& time_bound);
+  void processModel(const double& time, const Eigen::Vector3d& m_gyro, const Eigen::Vector3d& m_acc);
+  void predictNewState(const double& dt, const Eigen::Vector3d& gyro, const Eigen::Vector3d& acc);
 
-    /*
-     * @biref resetCallback
-     *    Callback function for the reset service.
-     *    Note that this is NOT anytime-reset. This function should
-     *    only be called before the sensor suite starts moving.
-     *    e.g. while the robot is still on the ground.
-     */
-    bool resetCallback();
+  // Measurement update
+  void stateAugmentation(const double& time);
+  void addFeatureObservations(const ImagePoints& msg);
+  // This function is used to compute the measurement Jacobian
+  // for a single feature observed at a single camera frame.
+  void measurementJacobian(const StateIDType& cam_state_id, const FeatureIDType& feature_id,
+                           Eigen::Matrix<double, 4, 6>& H_x, Eigen::Matrix<double, 4, 3>& H_f, Eigen::Vector4d& r);
+  // This function computes the Jacobian of all measurements viewed
+  // in the given camera states of this feature.
+  void featureJacobian(const FeatureIDType& feature_id, const std::vector<StateIDType>& cam_state_ids,
+                       Eigen::MatrixXd& H_x, Eigen::VectorXd& r);
+  void measurementUpdate(const Eigen::MatrixXd& H, const Eigen::VectorXd& r);
+  bool gatingTest(const Eigen::MatrixXd& H, const Eigen::VectorXd& r, const int& dof);
+  void removeLostFeatures();
+  void findRedundantCamStates(std::vector<StateIDType>& rm_cam_state_ids);
+  void pruneCamStateBuffer();
+  // Reset the system online if the uncertainty is too large.
+  void onlineReset();
 
-    // Filter related functions
-    // Propogate the state
-    void batchImuProcessing(
-        const uint64_t& time_bound);
-    void processModel(const double& time,
-        const Eigen::Vector3d& m_gyro,
-        const Eigen::Vector3d& m_acc);
-    void predictNewState(const double& dt,
-        const Eigen::Vector3d& gyro,
-        const Eigen::Vector3d& acc);
+  // Chi squared test table.
+  static std::map<int, double> chi_squared_test_table;
 
-    // Measurement update
-    void stateAugmentation(const double& time);
-    void addFeatureObservations(const ImagePoints& msg);
-    // This function is used to compute the measurement Jacobian
-    // for a single feature observed at a single camera frame.
-    void measurementJacobian(const StateIDType& cam_state_id,
-        const FeatureIDType& feature_id,
-        Eigen::Matrix<double, 4, 6>& H_x,
-        Eigen::Matrix<double, 4, 3>& H_f,
-        Eigen::Vector4d& r);
-    // This function computes the Jacobian of all measurements viewed
-    // in the given camera states of this feature.
-    void featureJacobian(const FeatureIDType& feature_id,
-        const std::vector<StateIDType>& cam_state_ids,
-        Eigen::MatrixXd& H_x, Eigen::VectorXd& r);
-    void measurementUpdate(const Eigen::MatrixXd& H,
-        const Eigen::VectorXd& r);
-    bool gatingTest(const Eigen::MatrixXd& H,
-        const Eigen::VectorXd&r, const int& dof);
-    void removeLostFeatures();
-    void findRedundantCamStates(
-        std::vector<StateIDType>& rm_cam_state_ids);
-    void pruneCamStateBuffer();
-    // Reset the system online if the uncertainty is too large.
-    void onlineReset();
+  // Mutex for imu
+  std::mutex imu_mutex_;
+  // State vector
+  StateServer state_server;
+  // Maximum number of camera states
+  int max_cam_state_size;
 
-    // Chi squared test table.
-    static std::map<int, double> chi_squared_test_table;
+  // Features used
+  MapServer map_server;
 
-    // Mutex for imu
-    std::mutex imu_mutex_;
-    // State vector
-    StateServer state_server;
-    // Maximum number of camera states
-    int max_cam_state_size;
+  // IMU data buffer
+  // This is buffer is used to handle the unsynchronization or
+  // transfer delay between IMU and Image messages.
+  std::queue<mavlink_imu_t> imu_msg_buffer;
 
-    // Features used
-    MapServer map_server;
+  // Indicate if the gravity vector is set.
+  bool is_gravity_set;
 
-    // IMU data buffer
-    // This is buffer is used to handle the unsynchronization or
-    // transfer delay between IMU and Image messages.
-    std::queue<mavlink_imu_t> imu_msg_buffer;
+  // Indicate if the received image is the first one. The
+  // system will start after receiving the first image.
+  bool is_first_img;
 
-    // Indicate if the gravity vector is set.
-    bool is_gravity_set;
+  // The position uncertainty threshold is used to determine
+  // when to reset the system online. Otherwise, the ever-
+  // increaseing uncertainty will make the estimation unstable.
+  // Note this online reset will be some dead-reckoning.
+  // Set this threshold to nonpositive to disable online reset.
+  double position_std_threshold;
 
-    // Indicate if the received image is the first one. The
-    // system will start after receiving the first image.
-    bool is_first_img;
+  // Tracking rate
+  double tracking_rate;
 
-    // The position uncertainty threshold is used to determine
-    // when to reset the system online. Otherwise, the ever-
-    // increaseing uncertainty will make the estimation unstable.
-    // Note this online reset will be some dead-reckoning.
-    // Set this threshold to nonpositive to disable online reset.
-    double position_std_threshold;
+  // Threshold for determine keyframes
+  double translation_threshold;
+  double rotation_threshold;
+  double tracking_rate_threshold;
 
-    // Tracking rate
-    double tracking_rate;
+  // // Ros node handle
+  // ros::NodeHandle nh;
 
-    // Threshold for determine keyframes
-    double translation_threshold;
-    double rotation_threshold;
-    double tracking_rate_threshold;
+  // // Subscribers and publishers
+  // ros::Subscriber imu_sub;
+  // ros::Subscriber feature_sub;
+  // ros::Publisher odom_pub;
+  // ros::Publisher feature_pub;
+  // tf::TransformBroadcaster tf_pub;
+  // ros::ServiceServer reset_srv;
 
-    // // Ros node handle
-    // ros::NodeHandle nh;
+  // Frame id
+  std::string fixed_frame_id;
+  std::string child_frame_id;
 
-    // // Subscribers and publishers
-    // ros::Subscriber imu_sub;
-    // ros::Subscriber feature_sub;
-    // ros::Publisher odom_pub;
-    // ros::Publisher feature_pub;
-    // tf::TransformBroadcaster tf_pub;
-    // ros::ServiceServer reset_srv;
+  // Whether to publish tf or not.
+  bool publish_tf;
 
-    // Frame id
-    std::string fixed_frame_id;
-    std::string child_frame_id;
+  // Framte rate of the stereo images. This variable is
+  // only used to determine the timing threshold of
+  // each iteration of the filter.
+  double frame_rate;
 
-    // Whether to publish tf or not.
-    bool publish_tf;
+  // Debugging variables and functions
+  // void mocapOdomCallback(const nav_msgs::OdometryConstPtr& msg);
 
-    // Framte rate of the stereo images. This variable is
-    // only used to determine the timing threshold of
-    // each iteration of the filter.
-    double frame_rate;
+  // ros::Subscriber mocap_odom_sub;
+  // ros::Publisher mocap_odom_pub;
+  // geometry_msgs::TransformStamped raw_mocap_odom_msg;
+  Eigen::Isometry3d mocap_initial_frame;
 
-    // Debugging variables and functions
-    // void mocapOdomCallback(const nav_msgs::OdometryConstPtr& msg);
-
-    // ros::Subscriber mocap_odom_sub;
-    // ros::Publisher mocap_odom_pub;
-    // geometry_msgs::TransformStamped raw_mocap_odom_msg;
-    Eigen::Isometry3d mocap_initial_frame;
-
-    double GetTimeSec() const;
-    YAML::Node input_params_;
-    uint64_t start_time_;
+  double GetTimeSec() const;
+  YAML::Node input_params_;
+  uint64_t start_time_;
 };
 
 typedef MsckfVio::Ptr MsckfVioPtr;
 typedef MsckfVio::ConstPtr MsckfVioConstPtr;
 
-} // namespace msckf_vio
-
-#endif
+}  // namespace msckf_vio

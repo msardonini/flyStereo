@@ -1,16 +1,15 @@
-#ifndef LIB_INCLUDE_FLY_STEREO_SQL_LOGGER_H_
-#define LIB_INCLUDE_FLY_STEREO_SQL_LOGGER_H_
+#pragma once
 
+#include <atomic>
 #include <memory>
-#include <vector>
 #include <mutex>
 #include <queue>
-#include <atomic>
 #include <thread>
+#include <vector>
 
-#include "yaml-cpp/yaml.h"
 #include "fly_stereo/sensor_io/mavlink/fly_stereo/mavlink.h"
 #include "opencv2/core.hpp"
+#include "yaml-cpp/yaml.h"
 
 struct LogParams {
   uint64_t timestamp_flyms;
@@ -19,7 +18,6 @@ struct LogParams {
   cv::Mat frame1;
   std::vector<mavlink_imu_t> imu_msgs;
 };
-
 
 struct Sqlite3_params;
 
@@ -48,13 +46,13 @@ class SqlLogger {
    *
    * @return     0 on success, -1 on failure
    */
-  int QueryEntry(uint64_t &timestamp_flyms, uint64_t &timestamp_flystereo, cv::Mat &frame0,
-    cv::Mat &frame1, std::vector<mavlink_imu_t> &imu_msgs);
+  int QueryEntry(uint64_t &timestamp_flyms, uint64_t &timestamp_flystereo, cv::Mat &frame0, cv::Mat &frame1,
+                 std::vector<mavlink_imu_t> &imu_msgs);
 
  private:
   int LogEntry(const LogParams &params);
-  int LogEntry(const uint64_t timestamp_flyms, const uint64_t timestamp_flystereo,
-    const cv::Mat &frame0, const cv::Mat &frame1, const std::vector<mavlink_imu_t>  &imu_msgs);
+  int LogEntry(const uint64_t timestamp_flyms, const uint64_t timestamp_flystereo, const cv::Mat &frame0,
+               const cv::Mat &frame1, const std::vector<mavlink_imu_t> &imu_msgs);
   void LogThread();
   std::atomic<bool> is_running_;
   std::unique_ptr<Sqlite3_params> sql3_;
@@ -65,5 +63,3 @@ class SqlLogger {
   std::thread queue_thread_;
   std::queue<LogParams> log_queue_;
 };
-
-#endif  // LIB_INCLUDE_FLY_STEREO_SQL_LOGGER_H_

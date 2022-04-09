@@ -2,21 +2,22 @@
 #include <getopt.h>
 #include <sys/stat.h>
 #include <unistd.h>
-#include <iostream>
-#include <iomanip>
-#include <chrono>
-#include <thread>
+
 #include <atomic>
+#include <chrono>
 #include <csignal>
 #include <fstream>
+#include <iomanip>
+#include <iostream>
+#include <thread>
 
-#include "spdlog/spdlog.h"
-#include "spdlog/sinks/stdout_color_sinks.h"
-#include "spdlog/sinks/rotating_file_sink.h"
-#include "yaml-cpp/yaml.h"
-#include "fly_stereo/vio.h"
 #include "fly_stereo/image_processor.h"
 #include "fly_stereo/sensor_io/mavlink_reader.h"
+#include "fly_stereo/vio.h"
+#include "spdlog/sinks/rotating_file_sink.h"
+#include "spdlog/sinks/stdout_color_sinks.h"
+#include "spdlog/spdlog.h"
+#include "yaml-cpp/yaml.h"
 
 std::atomic<bool> is_running(true);
 
@@ -27,10 +28,10 @@ void SignalHandler(int signal_num) {
 
 // Thread to collect the imu data and disperse it to all objects that need it
 void imu_thread(MavlinkReader *mavlink_reader, ImageProcessor *image_processor) {
-  while(is_running.load()) {
+  while (is_running.load()) {
     mavlink_imu_t attitude;
     // Get the next attitude message, block until we have one
-    if(mavlink_reader->GetAttitudeMsg(&attitude, true)) {
+    if (mavlink_reader->GetAttitudeMsg(&attitude, true)) {
       // Send the imu message to the image processor
       image_processor->ReceiveImu(attitude);
 
@@ -40,18 +41,16 @@ void imu_thread(MavlinkReader *mavlink_reader, ImageProcessor *image_processor) 
   }
 }
 
-void tracked_features_thread(ImageProcessor *image_processor, Vio *vio, MavlinkReader
-  *mavlink_reader) {
-
+void tracked_features_thread(ImageProcessor *image_processor, Vio *vio, MavlinkReader *mavlink_reader) {
   std::chrono::time_point<std::chrono::system_clock> t_start = std::chrono::system_clock::now();
   std::chrono::time_point<std::chrono::system_clock> t_ip = std::chrono::system_clock::now();
   std::chrono::time_point<std::chrono::system_clock> t_vio = std::chrono::system_clock::now();
   std::chrono::time_point<std::chrono::system_clock> t_mav = std::chrono::system_clock::now();
 
-  while(is_running.load()) {
+  while (is_running.load()) {
     t_start = std::chrono::system_clock::now();
     ImagePoints pts;
-    if(image_processor->GetTrackedPoints(&pts)) {
+    if (image_processor->GetTrackedPoints(&pts)) {
       t_ip = std::chrono::system_clock::now();
       vio_t vio_data;
       // Send the features to the vio object
@@ -61,10 +60,8 @@ void tracked_features_thread(ImageProcessor *image_processor, Vio *vio, MavlinkR
       mavlink_reader->SendVioMsg(vio_data);
       t_mav = std::chrono::system_clock::now();
 
-
-    spdlog::trace("dts ms: ip: {}, vio: {}, mav: {} ", (t_ip - t_start).count() / 1E6,
-      (t_vio - t_ip).count() / 1E6, (t_mav - t_vio).count() / 1E6);
-
+      spdlog::trace("dts ms: ip: {}, vio: {}, mav: {} ", (t_ip - t_start).count() / 1E6, (t_vio - t_ip).count() / 1E6,
+                    (t_mav - t_vio).count() / 1E6);
     }
   }
 }
@@ -78,14 +75,14 @@ void UpdateLogDirectory(YAML::Node &node) {
 
   std::string log_dir(log_location + std::string("/run") + run_str.str());
 
-  //Find the next run number folder that isn't in use
+  // Find the next run number folder that isn't in use
   struct stat st = {0};
   while (!stat(log_dir.c_str(), &st)) {
     run_str.str(std::string());
     run_str << std::internal << std::setfill('0') << std::setw(3) << ++run_number;
     log_dir = (log_location + std::string("/run") + run_str.str());
   }
-  //Make a new folder to hold the logged data
+  // Make a new folder to hold the logged data
   mkdir(log_dir.c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
 
   // Save the run folder to our YAML params
@@ -101,11 +98,10 @@ int InitializeSpdLog(const std::string &log_dir) {
 
   sinks.push_back(std::make_shared<spdlog::sinks::stdout_color_sink_mt>());
   sinks.back()->set_level(spdlog::level::info);
-  sinks.push_back(std::make_shared<spdlog::sinks::rotating_file_sink_mt> (
-    log_dir + "/console_log.txt", max_bytes, max_files));
+  sinks.push_back(
+      std::make_shared<spdlog::sinks::rotating_file_sink_mt>(log_dir + "/console_log.txt", max_bytes, max_files));
   sinks.back()->set_level(spdlog::level::trace);
-  auto flyMS_log = std::make_shared<spdlog::logger>("flyStereo_log", std::begin(sinks),
-    std::end(sinks));
+  auto flyMS_log = std::make_shared<spdlog::logger>("flyStereo_log", std::begin(sinks), std::end(sinks));
 
   // Register the logger to the global level
   flyMS_log->set_level(spdlog::level::trace);
@@ -114,12 +110,12 @@ int InitializeSpdLog(const std::string &log_dir) {
 }
 
 // Application Entry Point
-int main(int argc, char* argv[]) {
+int main(int argc, char *argv[]) {
   pid_t pid = getpid();
   spdlog::info("PID of this process: {}", pid);
   // Check if a PID file exists for this program, if so, shut down
   std::string pid_file("/home/msardonini/.pid/flyStereo.pid");
-  if (access(pid_file.c_str(), F_OK ) != -1) {
+  if (access(pid_file.c_str(), F_OK) != -1) {
     spdlog::error("PID file found, program already running. Exiting now");
     return -1;
   } else {
@@ -133,8 +129,8 @@ int main(int argc, char* argv[]) {
   std::string config_file;
 
   int opt;
-  while((opt = getopt(argc, argv, "c:")) != -1) {
-    switch(opt) {
+  while ((opt = getopt(argc, argv, "c:")) != -1) {
+    switch (opt) {
       case 'c':
         config_file = std::string(optarg);
         break;
@@ -157,8 +153,8 @@ int main(int argc, char* argv[]) {
   mavlink_reader.Init(fly_stereo_params);
 
   if (fly_stereo_params["wait_for_start_command"].as<bool>()) {
-    while(is_running.load()) {
-      if(mavlink_reader.WaitForStartCmd() == true) {
+    while (is_running.load()) {
+      if (mavlink_reader.WaitForStartCmd() == true) {
         break;
       }
     }
@@ -175,8 +171,7 @@ int main(int argc, char* argv[]) {
   std::thread imu_thread_obj(imu_thread, &mavlink_reader, &image_processor);
 
   Vio vio(fly_stereo_params, fly_stereo_params["stereo_calibration"]);
-  std::thread features_thread_obj(tracked_features_thread, &image_processor, &vio,
-    &mavlink_reader);
+  std::thread features_thread_obj(tracked_features_thread, &image_processor, &vio, &mavlink_reader);
 
   // If we have received shutdown commands prior to starting, we do not want to shut down.
   // Reset them
@@ -184,7 +179,7 @@ int main(int argc, char* argv[]) {
   while (is_running.load()) {
     // If we are receiving start/finish commands then wait for the signal
     if (fly_stereo_params["wait_for_start_command"].as<bool>()) {
-      if(mavlink_reader.WaitForShutdownCmd() == true) {
+      if (mavlink_reader.WaitForShutdownCmd() == true) {
         is_running.store(false);
       }
     } else {

@@ -1,8 +1,8 @@
 import os
 from shutil import copyfile
 
-input_dir='/home/msardonini/Pictures/flight_vehicle_cal_imgs/flight_cal'
-output_dir='/home/msardonini/Pictures/flight_vehicle_cal_imgs/flight_cal_rotated'
+input_dir = '/home/msardonini/Pictures/flight_vehicle_cal_imgs/flight_cal'
+output_dir = '/home/msardonini/Pictures/flight_vehicle_cal_imgs/flight_cal_rotated'
 
 # if __name__ == "__main__":
 #   files = os.listdir(input_dir)
@@ -33,18 +33,17 @@ output_dir='/home/msardonini/Pictures/flight_vehicle_cal_imgs/flight_cal_rotated
 #       copyfile(input_dir + '/' + file, output_dir + '/' + 'cam1_' + str(file_count) + '.png')
 #       file_count = file_count + 1
 
-input_dir='/home/msardonini/Pictures/flight_vehicle_cal_imgs/flight_cal_rotated'
-output_dir='/home/msardonini/Pictures/flight_vehicle_cal_imgs/flight_cal_rotated'
-
+input_dir = '/home/msardonini/Pictures/flight_vehicle_cal_imgs/flight_cal_rotated'
+output_dir = '/home/msardonini/Pictures/flight_vehicle_cal_imgs/flight_cal_rotated'
 
 import cv2
 
 if __name__ == "__main__":
-  # Roatate all cam1 files
-  files = os.listdir(input_dir)
+    # Roatate all cam1 files
+    files = os.listdir(input_dir)
 
-  for file in files:
-    if 'cam1' in file:
-      image = cv2.imread(input_dir + '/' + file)
-      img_rotate_180 = cv2.rotate(image, cv2.ROTATE_180)
-      cv2.imwrite(output_dir + '/' + file, img_rotate_180)
+    for file in files:
+        if 'cam1' in file:
+            image = cv2.imread(input_dir + '/' + file)
+            img_rotate_180 = cv2.rotate(image, cv2.ROTATE_180)
+            cv2.imwrite(output_dir + '/' + file, img_rotate_180)

@@ -11,4 +11,3 @@ ExecStart=/home/msardonini/git/fly_stereo/build/bin/fly_stereo -c /home/msardoni
 
 [Install]
 WantedBy=multi-user.target
-

@@ -1,14 +1,14 @@
 #include "fly_stereo/sensor_io/mavlink_reader.h"
 
-
-#include <sys/stat.h>
-#include <unistd.h>
-#include <termios.h>
-#include <fcntl.h>
 #include <errno.h>
-#include <string>
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <termios.h>
+#include <unistd.h>
+
 #include <chrono>
 #include <iostream>
+#include <string>
 
 #include "spdlog/spdlog.h"
 
@@ -28,12 +28,11 @@ MavlinkReader::~MavlinkReader() {
 
 int MavlinkReader::Init(YAML::Node input_params) {
   // Open the serial device if not in replay mode
-  if (!input_params["replay_mode"] ||
-      !input_params["replay_mode"]["enable"].as<bool>() ||
+  if (!input_params["replay_mode"] || !input_params["replay_mode"]["enable"].as<bool>() ||
       input_params["replay_mode"]["enable_serial_replay"].as<bool>()) {
     std::string dev = input_params["mavlink_reader"]["device"].as<std::string>();
     serial_dev_ = open(dev.c_str(), O_RDWR | O_NOCTTY | O_NDELAY);
-    if(serial_dev_ == -1) {
+    if (serial_dev_ == -1) {
       spdlog::error("Failed to open the serial device");
       return -1;
     }
@@ -54,11 +53,11 @@ int MavlinkReader::Init(YAML::Node input_params) {
 }
 
 int MavlinkReader::SetSerialParams(int device) {
-  struct termios  config;
+  struct termios config;
   //
   // Get the current configuration of the serial interface
   //
-  if(tcgetattr(device, &config) < 0) {
+  if (tcgetattr(device, &config) < 0) {
     spdlog::error("Failed to get the serial device attributes");
     return -1;
   }
@@ -66,8 +65,7 @@ int MavlinkReader::SetSerialParams(int device) {
   fcntl(device, F_SETFL, fcntl(device, F_GETFL) & ~O_NONBLOCK);
 
   // Set the serial device configs
-  config.c_iflag &= ~(IGNBRK | BRKINT | ICRNL | INLCR | PARMRK | INPCK | ISTRIP
-    | IXON);
+  config.c_iflag &= ~(IGNBRK | BRKINT | ICRNL | INLCR | PARMRK | INPCK | ISTRIP | IXON);
   config.c_oflag = 0;
   config.c_lflag &= ~(ECHO | ECHONL | ICANON | IEXTEN | ISIG);
   config.c_cflag &= ~(CSIZE | PARENB);
@@ -76,14 +74,14 @@ int MavlinkReader::SetSerialParams(int device) {
   // One input byte is enough to return from read()
   // Inter-character timer off
   //
-  config.c_cc[VMIN]  = 0;
+  config.c_cc[VMIN] = 0;
   config.c_cc[VTIME] = 0;
 
   //
   // Communication speed (simple version, using the predefined
   // constants)
   //
-  if(cfsetispeed(&config, B115200) < 0 || cfsetospeed(&config, B115200) < 0) {
+  if (cfsetispeed(&config, B115200) < 0 || cfsetospeed(&config, B115200) < 0) {
     spdlog::error("Failed to set the baudrate on the serial port!");
     return -1;
   }
@@ -91,7 +89,7 @@ int MavlinkReader::SetSerialParams(int device) {
   //
   // Finally, apply the configuration
   //
-  if(tcsetattr(device, TCSAFLUSH, &config) < 0) {
+  if (tcsetattr(device, TCSAFLUSH, &config) < 0) {
     spdlog::error("Failed to set the baudrate on the serial port!");
     return -1;
   }
@@ -105,8 +103,8 @@ void MavlinkReader::SendCounterReset() {
   mavlink_message_t msg;
   mavlink_reset_counters_t reset_msg;
   uint8_t buf[1024];
-  reset_msg.timestamp_us = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::
-    system_clock::now().time_since_epoch()).count();
+  reset_msg.timestamp_us =
+      std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
 
   mavlink_msg_reset_counters_encode(1, 200, &msg, &reset_msg);
   uint16_t len = mavlink_msg_to_send_buffer(buf, &msg);
@@ -116,16 +114,15 @@ void MavlinkReader::SendCounterReset() {
   }
 }
 
-
-void MavlinkReader::SendVioMsg(const vio_t &vio) {
+void MavlinkReader::SendVioMsg(const vio_t& vio) {
   if (serial_dev_ == 0) {
     return;
   }
   mavlink_message_t msg;
   mavlink_vio_t vio_msg;
   uint8_t buf[1024];
-  vio_msg.timestamp_us = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::
-    system_clock::now().time_since_epoch()).count();
+  vio_msg.timestamp_us =
+      std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
   for (unsigned int i = 0; i < 3; i++) {
     vio_msg.position[i] = vio.position(i);
     vio_msg.velocity[i] = vio.velocity(i);
@@ -162,7 +159,7 @@ void MavlinkReader::SerialReadThread() {
       uint8_t msg_received = mavlink_parse_char(MAVLINK_COMM_1, buf[i], &mav_message, &mav_status);
 
       if (msg_received) {
-        switch(mav_message.msgid) {
+        switch (mav_message.msgid) {
           case MAVLINK_MSG_ID_IMU: {
             mavlink_imu_t attitude_msg;
             mavlink_msg_imu_decode(&mav_message, &attitude_msg);
@@ -210,12 +207,11 @@ bool MavlinkReader::GetAttitudeMsg(mavlink_imu_t* attitude, bool block) {
   std::unique_lock<std::mutex> lock(queue_mutex_);
 
   if (block) {
-    while(output_queue_.empty()) {
+    while (output_queue_.empty()) {
       std::cv_status ret = cond_var_.wait_for(lock, std::chrono::seconds(1));
 
       // Return false if we have hit our timeout
-      if (ret == std::cv_status::timeout)
-        return false;
+      if (ret == std::cv_status::timeout) return false;
     }
   }
 
@@ -230,12 +226,11 @@ bool MavlinkReader::GetAttitudeMsg(mavlink_imu_t* attitude, bool block) {
 
 bool MavlinkReader::WaitForStartCmd() {
   std::unique_lock<std::mutex> lock(cmd_msg_mutex_);
-  while(command_on_ == false) {
+  while (command_on_ == false) {
     std::cv_status ret = cmd_msg_cond_var_.wait_for(lock, std::chrono::seconds(1));
 
     // Return false if we have hit our timeout
-    if (ret == std::cv_status::timeout)
-      return false;
+    if (ret == std::cv_status::timeout) return false;
   }
 
   return true;
@@ -248,12 +243,11 @@ void MavlinkReader::ResetShutdownCmds() {
 
 bool MavlinkReader::WaitForShutdownCmd() {
   std::unique_lock<std::mutex> lock(cmd_msg_mutex_);
-  while(command_shutdown_ == false) {
+  while (command_shutdown_ == false) {
     std::cv_status ret = cmd_msg_cond_var_.wait_for(lock, std::chrono::seconds(1));
 
     // Return false if we have hit our timeout
-    if (ret == std::cv_status::timeout)
-      return false;
+    if (ret == std::cv_status::timeout) return false;
   }
   return true;
 }

@@ -1,15 +1,14 @@
-#ifndef LIB_INCLUDE_FLY_STEREO_VIO_H_
-#define LIB_INCLUDE_FLY_STEREO_VIO_H_
+#pragma once
 
 // Package Includes
 #include "Eigen/Dense"
 #include "opencv2/core.hpp"
 #include "yaml-cpp/yaml.h"
 // #include "liblas/liblas.hpp"
-#include "opengv/types.hpp"
 #include "fly_stereo/interface.h"
 #include "fly_stereo/kalman_filter.h"
 #include "fly_stereo/visualization/visualization.h"
+#include "opengv/types.hpp"
 
 struct vio_t {
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
@@ -29,16 +28,14 @@ class Vio {
   int ProcessPoints(const ImagePoints &pts, vio_t &vio);
 
  private:
-
-  inline unsigned int Modulo( int value, unsigned m);
+  inline unsigned int Modulo(int value, unsigned m);
   int SaveInliers(std::vector<int> inliers, std::vector<int> pt_ids, opengv::points_t pts);
 
-  int CalculatePoseUpdate(const ImagePoints &pts, const Eigen::Matrix3d &imu_rotation,
-    Eigen::Matrix4d &pose_update, std::vector<cv::Point3d> *inlier_pts = nullptr);
+  int CalculatePoseUpdate(const ImagePoints &pts, const Eigen::Matrix3d &imu_rotation, Eigen::Matrix4d &pose_update,
+                          std::vector<cv::Point3d> *inlier_pts = nullptr);
 
   int ProcessImu(const std::vector<mavlink_imu_t> &imu_pts);
-  int ProcessVio(const Eigen::Matrix4d &pose_update, uint64_t image_timestamp,
-    Eigen::Matrix<double, 6, 1> &output);
+  int ProcessVio(const Eigen::Matrix4d &pose_update, uint64_t image_timestamp, Eigen::Matrix<double, 6, 1> &output);
   int Debug_SaveOutput(const Eigen::Matrix4d &pose_update, const Eigen::Matrix3d &R_imu);
 
   // The calibrated offsets for vio. These numbers will be subtracted off the result of the VIO
@@ -81,7 +78,6 @@ class Vio {
   // std::unique_ptr<liblas::Writer> writer_;
   // std::unique_ptr<liblas::Header> header_;
 
-
   std::vector<std::map<unsigned int, opengv::point_t> > point_history_;
   std::vector<Eigen::Matrix4d, Eigen::aligned_allocator<Eigen::Matrix4d> > pose_history_;
   unsigned int point_history_index_;
@@ -92,6 +88,3 @@ class Vio {
 
   Visualization visualization_;
 };
-
-
-#endif  // LIB_INCLUDE_FLY_STEREO_VIO_H_

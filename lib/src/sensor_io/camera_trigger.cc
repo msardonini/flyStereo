@@ -2,11 +2,12 @@
 #include "fly_stereo/sensor_io/camera_trigger.h"
 
 #include <errno.h>
-#include <unistd.h>
 #include <fcntl.h>
-#include <sys/ioctl.h>
-#include <string.h>
 #include <linux/gpio.h>
+#include <string.h>
+#include <sys/ioctl.h>
+#include <unistd.h>
+
 #include <iostream>
 
 // #define GPIOHANDLE_REQUEST_OUTPUT (1UL << 1)
@@ -21,8 +22,7 @@ CameraTrigger::CameraTrigger(YAML::Node input_params) {
   auto_trigger_async_ = input_params["auto_trigger_async"].as<bool>();
   replay_mode_ = input_params["replay_mode"].as<bool>();
   if (auto_trigger_async_) {
-    auto_trigger_async_rate_hz_ = input_params["auto_trigger_async_rate_hz"].as<
-      double>();
+    auto_trigger_async_rate_hz_ = input_params["auto_trigger_async_rate_hz"].as<double>();
   }
 }
 
@@ -60,7 +60,7 @@ int CameraTrigger::Init() {
     return -1;
   }
 
-  if (req.fd == 0){
+  if (req.fd == 0) {
     std::cerr << "ERROR in rc_gpio_init, ioctl gave NULL fd\n";
     return -1;
   }
@@ -73,11 +73,9 @@ int CameraTrigger::Init() {
   return 0;
 }
 
-
 void CameraTrigger::TriggerThread() {
   is_running_.store(true);
-  uint64_t delta_t_us =  static_cast<uint64_t> (1.0E6 /
-    auto_trigger_async_rate_hz_);
+  uint64_t delta_t_us = static_cast<uint64_t>(1.0E6 / auto_trigger_async_rate_hz_);
   while (is_running_.load()) {
     TriggerCamera();
     std::this_thread::sleep_for(std::chrono::microseconds(delta_t_us));
@@ -92,8 +90,9 @@ std::pair<int, uint64_t> CameraTrigger::GetTriggerCount() {
 int CameraTrigger::TriggerCamera() {
   // If we are in replay mode, don't mess with the hardware and just update the counters
   if (replay_mode_) {
-    uint64_t timestamp_us = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::
-      steady_clock::now().time_since_epoch()).count();
+    uint64_t timestamp_us =
+        std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now().time_since_epoch())
+            .count();
     return UpdateCounter(timestamp_us);
   }
 
@@ -115,8 +114,9 @@ int CameraTrigger::TriggerCamera() {
     perror("ERROR in rc_gpio_set_value");
     return -1;
   }
-  uint64_t timestamp_us = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::
-    steady_clock::now().time_since_epoch()).count();
+  uint64_t timestamp_us =
+      std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now().time_since_epoch())
+          .count();
 
   return UpdateCounter(timestamp_us);
 }
