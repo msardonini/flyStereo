@@ -9,15 +9,15 @@
 #include "Eigen/Geometry"
 #include "opencv2/calib3d.hpp"
 #include "opencv2/core/eigen.hpp"
-#include "opengv/absolute_pose/NoncentralAbsoluteAdapter.hpp"
-#include "opengv/absolute_pose/methods.hpp"
-#include "opengv/point_cloud/PointCloudAdapter.hpp"
-#include "opengv/point_cloud/methods.hpp"
-#include "opengv/relative_pose/CentralRelativeAdapter.hpp"
-#include "opengv/sac/Ransac.hpp"
-#include "opengv/sac_problems/absolute_pose/AbsolutePoseSacProblem.hpp"
-#include "opengv/sac_problems/point_cloud/PointCloudSacProblem.hpp"
-#include "opengv/triangulation/methods.hpp"
+// #include "opengv/absolute_pose/NoncentralAbsoluteAdapter.hpp"
+// #include "opengv/absolute_pose/methods.hpp"
+// #include "opengv/point_cloud/PointCloudAdapter.hpp"
+// #include "opengv/point_cloud/methods.hpp"
+// #include "opengv/relative_pose/CentralRelativeAdapter.hpp"
+// #include "opengv/sac/Ransac.hpp"
+// #include "opengv/sac_problems/absolute_pose/AbsolutePoseSacProblem.hpp"
+// #include "opengv/sac_problems/point_cloud/PointCloudSacProblem.hpp"
+// #include "opengv/triangulation/methods.hpp"
 #include "spdlog/fmt/ostr.h"  // To print out Eigen objects
 #include "spdlog/spdlog.h"
 
@@ -152,7 +152,7 @@ int Vio::ProcessPoints(const ImagePoints &pts, vio_t &vio) {
 
   ProcessVio(pose_body, pts.timestamp_us, kf_state);
 
-  visualization_.ReceiveData(pose_body, inliers);
+  // visualization_.ReceiveData(pose_body, inliers);
 
   Debug_SaveOutput(pose_body, R_t0_t1_imu);
   // Debug_SaveOutput(pose_body, pts.R_t0_t1_cam0 * R_imu_cam0_eigen_.transpose());
@@ -314,128 +314,129 @@ int Vio::CalculatePoseUpdate(const ImagePoints &pts, const Eigen::Matrix3d &imu_
   cv::transpose(rot, rot_inv);
   cv::hconcat(rot_inv, -tvec, affine);
 
-  // put the points into the opengv object
-  opengv::points_t points(2 * num_pts);
-  for (size_t i = 0; i < num_pts; i++) {
-    cv::cv2eigen(triangulation_output_pts[i], points[i]);
-    cv::cv2eigen(triangulation_output_pts[i], points[i + num_pts]);
-  }
+  // // put the points into the opengv object
+  // opengv::points_t points(2 * num_pts);
+  // for (size_t i = 0; i < num_pts; i++) {
+  //   cv::cv2eigen(triangulation_output_pts[i], points[i]);
+  //   cv::cv2eigen(triangulation_output_pts[i], points[i + num_pts]);
+  // }
 
-  // Containers for homogeneous undistorted points
-  std::vector<cv::Vec3d> xform_vec_cam0_t0;
-  std::vector<cv::Vec3d> xform_vec_cam0_t1;
-  std::vector<cv::Vec3d> xform_vec_cam1_t0;
-  std::vector<cv::Vec3d> xform_vec_cam1_t1;
-  cv::convertPointsToHomogeneous(pts_cam0_t0_ud, xform_vec_cam0_t0);
-  cv::convertPointsToHomogeneous(pts_cam0_t1_ud, xform_vec_cam0_t1);
-  cv::convertPointsToHomogeneous(pts_cam1_t0_ud, xform_vec_cam1_t0);
-  cv::convertPointsToHomogeneous(pts_cam1_t1_ud, xform_vec_cam1_t1);
+  // // Containers for homogeneous undistorted points
+  // std::vector<cv::Vec3d> xform_vec_cam0_t0;
+  // std::vector<cv::Vec3d> xform_vec_cam0_t1;
+  // std::vector<cv::Vec3d> xform_vec_cam1_t0;
+  // std::vector<cv::Vec3d> xform_vec_cam1_t1;
+  // cv::convertPointsToHomogeneous(pts_cam0_t0_ud, xform_vec_cam0_t0);
+  // cv::convertPointsToHomogeneous(pts_cam0_t1_ud, xform_vec_cam0_t1);
+  // cv::convertPointsToHomogeneous(pts_cam1_t0_ud, xform_vec_cam1_t0);
+  // cv::convertPointsToHomogeneous(pts_cam1_t1_ud, xform_vec_cam1_t1);
 
-  // Containers for use with OpenGV
-  opengv::bearingVectors_t bearing_vectors_cam0_t0;
-  opengv::bearingVectors_t bearing_vectors_cam0_t1;
-  opengv::bearingVectors_t bearing_vectors_cam1_t0;
-  opengv::bearingVectors_t bearing_vectors_cam1_t1;
-  std::vector<int> cam_correspondences_cam0_t0;
-  std::vector<int> cam_correspondences_cam0_t1;
-  std::vector<int> cam_correspondences_cam1_t0;
-  std::vector<int> cam_correspondences_cam1_t1;
+  // // Containers for use with OpenGV
+  // opengv::bearingVectors_t bearing_vectors_cam0_t0;
+  // opengv::bearingVectors_t bearing_vectors_cam0_t1;
+  // opengv::bearingVectors_t bearing_vectors_cam1_t0;
+  // opengv::bearingVectors_t bearing_vectors_cam1_t1;
+  // std::vector<int> cam_correspondences_cam0_t0;
+  // std::vector<int> cam_correspondences_cam0_t1;
+  // std::vector<int> cam_correspondences_cam1_t0;
+  // std::vector<int> cam_correspondences_cam1_t1;
 
-  // Fill the bearing/correspondence vectors. The bearing unit vector is unit vector pointing in
-  // the same direction as the homogeneous 3D point
-  for (size_t i = 0; i < pts_cam0_t0.size(); i++) {
-    opengv::bearingVector_t bearing_vec;
-    cv::cv2eigen(static_cast<cv::Vec3d>(xform_vec_cam0_t0[i]), bearing_vec);
-    bearing_vec /= bearing_vec.norm();
-    bearing_vectors_cam0_t0.push_back(bearing_vec);
-    cam_correspondences_cam0_t0.push_back(0);
+  // // Fill the bearing/correspondence vectors. The bearing unit vector is unit vector pointing in
+  // // the same direction as the homogeneous 3D point
+  // for (size_t i = 0; i < pts_cam0_t0.size(); i++) {
+  //   opengv::bearingVector_t bearing_vec;
+  //   cv::cv2eigen(static_cast<cv::Vec3d>(xform_vec_cam0_t0[i]), bearing_vec);
+  //   bearing_vec /= bearing_vec.norm();
+  //   bearing_vectors_cam0_t0.push_back(bearing_vec);
+  //   cam_correspondences_cam0_t0.push_back(0);
 
-    cv::cv2eigen(static_cast<cv::Vec3d>(xform_vec_cam0_t1[i]), bearing_vec);
-    bearing_vec /= bearing_vec.norm();
-    bearing_vectors_cam0_t1.push_back(bearing_vec);
-    cam_correspondences_cam0_t1.push_back(0);
+  //   cv::cv2eigen(static_cast<cv::Vec3d>(xform_vec_cam0_t1[i]), bearing_vec);
+  //   bearing_vec /= bearing_vec.norm();
+  //   bearing_vectors_cam0_t1.push_back(bearing_vec);
+  //   cam_correspondences_cam0_t1.push_back(0);
 
-    cv::cv2eigen(static_cast<cv::Vec3d>(xform_vec_cam1_t0[i]), bearing_vec);
-    bearing_vec /= bearing_vec.norm();
-    bearing_vectors_cam1_t0.push_back(bearing_vec);
-    cam_correspondences_cam1_t0.push_back(1);
+  //   cv::cv2eigen(static_cast<cv::Vec3d>(xform_vec_cam1_t0[i]), bearing_vec);
+  //   bearing_vec /= bearing_vec.norm();
+  //   bearing_vectors_cam1_t0.push_back(bearing_vec);
+  //   cam_correspondences_cam1_t0.push_back(1);
 
-    cv::cv2eigen(static_cast<cv::Vec3d>(xform_vec_cam1_t1[i]), bearing_vec);
-    bearing_vec /= bearing_vec.norm();
-    bearing_vectors_cam1_t1.push_back(bearing_vec);
-    cam_correspondences_cam1_t1.push_back(1);
-  }
+  //   cv::cv2eigen(static_cast<cv::Vec3d>(xform_vec_cam1_t1[i]), bearing_vec);
+  //   bearing_vec /= bearing_vec.norm();
+  //   bearing_vectors_cam1_t1.push_back(bearing_vec);
+  //   cam_correspondences_cam1_t1.push_back(1);
+  // }
 
-  // Construct a vector of bearing vectors in timetemp T1 that points at 'points' in T0
-  opengv::bearingVectors_t bearing_vectors_t1;
-  bearing_vectors_t1.insert(std::end(bearing_vectors_t1), std::begin(bearing_vectors_cam0_t1),
-                            std::end(bearing_vectors_cam0_t1));
-  bearing_vectors_t1.insert(std::end(bearing_vectors_t1), std::begin(bearing_vectors_cam1_t1),
-                            std::end(bearing_vectors_cam1_t1));
-  std::vector<int> correspondences_t1;
-  correspondences_t1.insert(std::end(correspondences_t1), std::begin(cam_correspondences_cam0_t1),
-                            std::end(cam_correspondences_cam0_t1));
-  correspondences_t1.insert(std::end(correspondences_t1), std::begin(cam_correspondences_cam1_t1),
-                            std::end(cam_correspondences_cam1_t1));
+  // // Construct a vector of bearing vectors in timetemp T1 that points at 'points' in T0
+  // opengv::bearingVectors_t bearing_vectors_t1;
+  // bearing_vectors_t1.insert(std::end(bearing_vectors_t1), std::begin(bearing_vectors_cam0_t1),
+  //                           std::end(bearing_vectors_cam0_t1));
+  // bearing_vectors_t1.insert(std::end(bearing_vectors_t1), std::begin(bearing_vectors_cam1_t1),
+  //                           std::end(bearing_vectors_cam1_t1));
+  // std::vector<int> correspondences_t1;
+  // correspondences_t1.insert(std::end(correspondences_t1), std::begin(cam_correspondences_cam0_t1),
+  //                           std::end(cam_correspondences_cam0_t1));
+  // correspondences_t1.insert(std::end(correspondences_t1), std::begin(cam_correspondences_cam1_t1),
+  //                           std::end(cam_correspondences_cam1_t1));
 
-  // Add the params from our camera system
-  opengv::translations_t camOffsets;
-  opengv::rotations_t camRotations;
-  camOffsets.push_back(Eigen::Vector3d::Zero());
-  camRotations.push_back(Eigen::Matrix3d::Identity());
-  Eigen::Matrix3d R;
-  cv::cv2eigen(R_cam0_cam1_.t(), R);
-  Eigen::MatrixXd T;
-  cv::cv2eigen(-T_cam0_cam1_, T);
-  camRotations.push_back(R);
-  camOffsets.push_back(T);
+  // // Add the params from our camera system
+  // opengv::translations_t camOffsets;
+  // opengv::rotations_t camRotations;
+  // camOffsets.push_back(Eigen::Vector3d::Zero());
+  // camRotations.push_back(Eigen::Matrix3d::Identity());
+  // Eigen::Matrix3d R;
+  // cv::cv2eigen(R_cam0_cam1_.t(), R);
+  // Eigen::MatrixXd T;
+  // cv::cv2eigen(-T_cam0_cam1_, T);
+  // camRotations.push_back(R);
+  // camOffsets.push_back(T);
 
-  // Create a non-central absolute adapter
-  opengv::absolute_pose::NoncentralAbsoluteAdapter adapter(bearing_vectors_t1, correspondences_t1, points, camOffsets,
-                                                           camRotations, imu_rotation);
+  // // Create a non-central absolute adapter
+  // opengv::absolute_pose::NoncentralAbsoluteAdapter adapter(bearing_vectors_t1, correspondences_t1, points,
+  // camOffsets,
+  //                                                          camRotations, imu_rotation);
 
-  // Create the ransac model and compute
-  opengv::sac::Ransac<opengv::sac_problems::absolute_pose::AbsolutePoseSacProblem> ransac;
-  std::shared_ptr<opengv::sac_problems::absolute_pose::AbsolutePoseSacProblem> absposeproblem_ptr(
-      new opengv::sac_problems::absolute_pose::AbsolutePoseSacProblem(
-          adapter, opengv::sac_problems::absolute_pose::AbsolutePoseSacProblem::GP3P));
-  ransac.sac_model_ = absposeproblem_ptr;
-  ransac.threshold_ = 1.0 - cos(atan(sqrt(2.0) * 0.5 / 500.0));
-  ransac.max_iterations_ = 1000;
-  ransac.computeModel();
+  // // Create the ransac model and compute
+  // opengv::sac::Ransac<opengv::sac_problems::absolute_pose::AbsolutePoseSacProblem> ransac;
+  // std::shared_ptr<opengv::sac_problems::absolute_pose::AbsolutePoseSacProblem> absposeproblem_ptr(
+  //     new opengv::sac_problems::absolute_pose::AbsolutePoseSacProblem(
+  //         adapter, opengv::sac_problems::absolute_pose::AbsolutePoseSacProblem::GP3P));
+  // ransac.sac_model_ = absposeproblem_ptr;
+  // ransac.threshold_ = 1.0 - cos(atan(sqrt(2.0) * 0.5 / 500.0));
+  // ransac.max_iterations_ = 1000;
+  // ransac.computeModel();
 
-  // If requested, copy the inlier points
-  if (inlier_pts != nullptr) {
-    inlier_pts->clear();
-    for (size_t i = 0; i < ransac.inliers_.size(); i++) {
-      Eigen::Vector3d &pt = points[ransac.inliers_[i]];
-      inlier_pts->push_back(cv::Point3d(pt(0), pt(1), pt(2)));
-    }
-  }
+  // // If requested, copy the inlier points
+  // if (inlier_pts != nullptr) {
+  //   inlier_pts->clear();
+  //   for (size_t i = 0; i < ransac.inliers_.size(); i++) {
+  //     Eigen::Vector3d &pt = points[ransac.inliers_[i]];
+  //     inlier_pts->push_back(cv::Point3d(pt(0), pt(1), pt(2)));
+  //   }
+  // }
 
-  // //print the results
-  // std::cout << "the ransac results is: " << std::endl;
-  // std::cout << ransac.model_coefficients_ << std::endl << std::endl;
-  // std::cout << "Ransac needed " << ransac.iterations_ << " iterations and ";
-  // // std::cout << ransac_time << " seconds" << std::endl << std::endl;
-  // std::cout << "the number of inliers is: " << ransac.inliers_.size();
-  // std::cout << std::endl << std::endl;
-  // std::cout << "the found inliers are: " << std::endl;
-  //   std::cout << points[ransac.inliers_[i]].transpose() << "\n";
-  // std::cout << std::endl << std::endl;
+  // // //print the results
+  // // std::cout << "the ransac results is: " << std::endl;
+  // // std::cout << ransac.model_coefficients_ << std::endl << std::endl;
+  // // std::cout << "Ransac needed " << ransac.iterations_ << " iterations and ";
+  // // // std::cout << ransac_time << " seconds" << std::endl << std::endl;
+  // // std::cout << "the number of inliers is: " << ransac.inliers_.size();
+  // // std::cout << std::endl << std::endl;
+  // // std::cout << "the found inliers are: " << std::endl;
+  // //   std::cout << points[ransac.inliers_[i]].transpose() << "\n";
+  // // std::cout << std::endl << std::endl;
 
-  pose_update = Eigen::Matrix4d::Identity();
-  // pose_cam0_ = pose_cam0_ * delta_xform ;
-  // std::cout << "output transformation: \n" << pose_cam0_ << std::endl;
+  // pose_update = Eigen::Matrix4d::Identity();
+  // // pose_cam0_ = pose_cam0_ * delta_xform ;
+  // // std::cout << "output transformation: \n" << pose_cam0_ << std::endl;
 
-  std::cout << " Inlier percentage openCV " << get_inlier_pct(ransac.inliers_) << std::endl;
-  std::cout << "\n opencv output \n" << affine << std::endl << std::endl;
-  std::cout << "\n opengv output \n" << ransac.model_coefficients_ << std::endl << std::endl;
+  // std::cout << " Inlier percentage openCV " << get_inlier_pct(ransac.inliers_) << std::endl;
+  // std::cout << "\n opencv output \n" << affine << std::endl << std::endl;
+  // std::cout << "\n opengv output \n" << ransac.model_coefficients_ << std::endl << std::endl;
 
   // Put the ransc output pose update into a 4x4 Matrix
   bool USE_OPENGV = false;
   if (USE_OPENGV) {
-    pose_update.block<3, 4>(0, 0) = ransac.model_coefficients_;
+    // pose_update.block<3, 4>(0, 0) = ransac.model_coefficients_;
   } else {
     for (auto row = 0; row < 3; row++) {
       for (auto col = 0; col < 4; col++) {

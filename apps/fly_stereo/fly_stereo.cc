@@ -12,6 +12,7 @@
 #include <thread>
 
 #include "fly_stereo/image_processor.h"
+#include "fly_stereo/pipeline.h"
 #include "fly_stereo/sensor_io/mavlink_reader.h"
 #include "fly_stereo/vio.h"
 #include "spdlog/sinks/rotating_file_sink.h"
@@ -19,50 +20,15 @@
 #include "spdlog/spdlog.h"
 #include "yaml-cpp/yaml.h"
 
-std::atomic<bool> is_running(true);
+static Pipeline *pipeline_global = nullptr;
 
 void SignalHandler(int signal_num) {
   std::cout << "Received control+c, shutting down" << std::endl;
-  is_running.store(false);
-}
 
-// Thread to collect the imu data and disperse it to all objects that need it
-void imu_thread(MavlinkReader *mavlink_reader, ImageProcessor *image_processor) {
-  while (is_running.load()) {
-    mavlink_imu_t attitude;
-    // Get the next attitude message, block until we have one
-    if (mavlink_reader->GetAttitudeMsg(&attitude, true)) {
-      // Send the imu message to the image processor
-      image_processor->ReceiveImu(attitude);
-
-      // // Send the imu message to the vio object
-      // msckf_vio->imuCallback(attitude);
-    }
-  }
-}
-
-void tracked_features_thread(ImageProcessor *image_processor, Vio *vio, MavlinkReader *mavlink_reader) {
-  std::chrono::time_point<std::chrono::system_clock> t_start = std::chrono::system_clock::now();
-  std::chrono::time_point<std::chrono::system_clock> t_ip = std::chrono::system_clock::now();
-  std::chrono::time_point<std::chrono::system_clock> t_vio = std::chrono::system_clock::now();
-  std::chrono::time_point<std::chrono::system_clock> t_mav = std::chrono::system_clock::now();
-
-  while (is_running.load()) {
-    t_start = std::chrono::system_clock::now();
-    ImagePoints pts;
-    if (image_processor->GetTrackedPoints(&pts)) {
-      t_ip = std::chrono::system_clock::now();
-      vio_t vio_data;
-      // Send the features to the vio object
-      vio->ProcessPoints(pts, vio_data);
-      t_vio = std::chrono::system_clock::now();
-
-      mavlink_reader->SendVioMsg(vio_data);
-      t_mav = std::chrono::system_clock::now();
-
-      spdlog::trace("dts ms: ip: {}, vio: {}, mav: {} ", (t_ip - t_start).count() / 1E6, (t_vio - t_ip).count() / 1E6,
-                    (t_mav - t_vio).count() / 1E6);
-    }
+  if (pipeline_global) {
+    pipeline_global->shutdown();
+  } else {
+    std::cerr << "Error! No pipeline to shutdown" << std::endl;
   }
 }
 
@@ -89,7 +55,7 @@ void UpdateLogDirectory(YAML::Node &node) {
   node["record_mode"]["log_dir"] = log_dir;
 }
 
-int InitializeSpdLog(const std::string &log_dir) {
+void InitializeSpdLog(const std::string &log_dir) {
   int max_bytes = 1048576 * 20;  // Max 20 MB
   int max_files = 20;
 
@@ -148,52 +114,21 @@ int main(int argc, char *argv[]) {
   // Parse the yaml file with our configuration parameters
   YAML::Node fly_stereo_params = YAML::LoadFile(config_file)["fly_stereo"];
 
-  // Initialze the mavlink reader object
-  MavlinkReader mavlink_reader;
-  mavlink_reader.Init(fly_stereo_params);
-
-  if (fly_stereo_params["wait_for_start_command"].as<bool>()) {
-    while (is_running.load()) {
-      if (mavlink_reader.WaitForStartCmd() == true) {
-        break;
-      }
-    }
-  }
   // If we are running in logging mode, change the log directory in the config file
   if (fly_stereo_params["record_mode"] && fly_stereo_params["record_mode"]["enable"].as<bool>()) {
     UpdateLogDirectory(fly_stereo_params);
     InitializeSpdLog(fly_stereo_params["record_mode"]["log_dir"].as<std::string>());
   }
 
-  ImageProcessor image_processor(fly_stereo_params, fly_stereo_params["stereo_calibration"]);
-  image_processor.Init();
-
-  std::thread imu_thread_obj(imu_thread, &mavlink_reader, &image_processor);
-
-  Vio vio(fly_stereo_params, fly_stereo_params["stereo_calibration"]);
-  std::thread features_thread_obj(tracked_features_thread, &image_processor, &vio, &mavlink_reader);
+  // Initialize the pipeline
+  Pipeline pipeline(fly_stereo_params, fly_stereo_params["stereo_calibration"]);
+  pipeline.Init();
+  pipeline_global = &pipeline;
 
   // If we have received shutdown commands prior to starting, we do not want to shut down.
   // Reset them
-  mavlink_reader.ResetShutdownCmds();
-  while (is_running.load()) {
-    // If we are receiving start/finish commands then wait for the signal
-    if (fly_stereo_params["wait_for_start_command"].as<bool>()) {
-      if (mavlink_reader.WaitForShutdownCmd() == true) {
-        is_running.store(false);
-      }
-    } else {
-      std::this_thread::sleep_for(std::chrono::seconds(1));
-    }
-  }
-
-  // Clean up the threads
-  if (imu_thread_obj.joinable()) {
-    imu_thread_obj.join();
-  }
-  // Clean up the threads
-  if (features_thread_obj.joinable()) {
-    features_thread_obj.join();
+  while (pipeline.is_running()) {
+    std::this_thread::sleep_for(std::chrono::seconds(1));
   }
 
   std::cout << "Shutting down main " << std::endl;

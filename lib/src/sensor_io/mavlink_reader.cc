@@ -241,13 +241,4 @@ void MavlinkReader::ResetShutdownCmds() {
   command_shutdown_ = false;
 }
 
-bool MavlinkReader::WaitForShutdownCmd() {
-  std::unique_lock<std::mutex> lock(cmd_msg_mutex_);
-  while (command_shutdown_ == false) {
-    std::cv_status ret = cmd_msg_cond_var_.wait_for(lock, std::chrono::seconds(1));
-
-    // Return false if we have hit our timeout
-    if (ret == std::cv_status::timeout) return false;
-  }
-  return true;
-}
+bool MavlinkReader::CheckForShutdownCmd() { return command_shutdown_.load(); }

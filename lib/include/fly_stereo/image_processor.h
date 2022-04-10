@@ -23,82 +23,59 @@
 
 class ImageProcessor {
  public:
-  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
   ImageProcessor(const YAML::Node &input_params, const YAML::Node &stereo_calibration);
 
   // Forbit the unused constructors
   ImageProcessor() = delete;
   ImageProcessor(const ImageProcessor &) = delete;
+  auto operator=(const ImageProcessor &) = delete;
   ImageProcessor(ImageProcessor &&) = delete;
+  auto operator=(ImageProcessor &&) = delete;
 
-  ~ImageProcessor();
+  ~ImageProcessor() = default;
 
-  int Init();
+  void Init();
 
-  bool IsRunning() { return is_running_.load(); }
-
-  void ReceiveImu(const mavlink_imu_t &msg);
-
-  bool GetTrackedPoints(ImagePoints *usr_pts);
+  auto process_image(const cv::cuda::GpuMat &d_frame_cam0, const cv::cuda::GpuMat &d_frame_cam1,
+                     const std::vector<mavlink_imu_t> &imu_data, uint64_t current_frame_time, ImagePoints &points)
+      -> int;
 
  private:
-  cv::cuda::GpuMat AppendGpuMatColwise(const cv::cuda::GpuMat &mat1, const cv::cuda::GpuMat &mat2);
+  auto UpdatePointsViaImu(const std::vector<cv::Point2f> &current_pts, const cv::Matx33d &rotation,
+                          const cv::Matx33d &camera_matrix, std::vector<cv::Point2f> &updated_pts) -> int;
 
-  int UpdatePointsViaImu(const std::vector<cv::Point2f> &current_pts, const cv::Matx33d &rotation,
-                         const cv::Matx33d &camera_matrix, std::vector<cv::Point2f> &updated_pts);
+  auto UpdatePointsViaImu(const cv::cuda::GpuMat &current_pts, const cv::Matx33d &rotation,
+                          const cv::Matx33d &camera_matrix, cv::cuda::GpuMat &updated_pts) -> int;
 
-  int UpdatePointsViaImu(const cv::cuda::GpuMat &current_pts, const cv::Matx33d &rotation,
-                         const cv::Matx33d &camera_matrix, cv::cuda::GpuMat &updated_pts);
+  auto StereoMatch(cv::Ptr<cv::cuda::SparsePyrLKOpticalFlow> opt, const cv::cuda::GpuMat &d_frame_cam0,
+                   const cv::cuda::GpuMat &d_frame_cam1, OpticalFlowPoints &points,
+                   std::pair<unsigned int, unsigned int> indices, cv::cuda::GpuMat &d_status) -> int;
 
-  int ProcessThread();
+  auto GetInputMaskFromPoints(const cv::cuda::GpuMat &d_input_corners, const cv::Size frame_size, cv::Mat &mask) -> int;
 
-  int StereoMatch(cv::Ptr<cv::cuda::SparsePyrLKOpticalFlow> opt, cv::cuda::GpuMat &d_frame_cam0,
-                  cv::cuda::GpuMat &d_frame_cam1, OpticalFlowPoints &points,
-                  std::pair<unsigned int, unsigned int> indices, cv::cuda::GpuMat &d_status);
+  // cv::cuda::FastFeatureDetector or cv::cuda::CornersDetector
+  template <typename T>
+  auto DetectNewFeatures(const cv::Ptr<T> &detector_ptr, const cv::cuda::GpuMat &d_frame,
+                         const cv::cuda::GpuMat &d_input_corners, cv::cuda::GpuMat &d_output) -> int;
 
-  int RemoveOutliers(const std::vector<uchar> &status, std::vector<cv::Point2f> &points);
-  // Overloaded constructor for the GPU implementation
-  int RemoveOutliers(const cv::cuda::GpuMat &d_status, cv::cuda::GpuMat &d_points);
-  int RemoveOutliers(const std::vector<uchar> &status, std::vector<unsigned int> &points);
-
-  int RemovePointsOutOfFrame(const cv::Size framesize, const std::vector<cv::Point2f> &points,
-                             std::vector<unsigned char> &status);
-  // Overloaded constructor for the GPU implementation
-  int RemovePointsOutOfFrame(const cv::Size framesize, const cv::cuda::GpuMat &d_points, cv::cuda::GpuMat &d_status);
-
-  int GetInputMaskFromPoints(const cv::cuda::GpuMat &d_input_corners, const cv::Size frame_size, cv::Mat &mask);
-  int DetectNewFeatures(const cv::Ptr<cv::cuda::FastFeatureDetector> &detector_ptr, const cv::cuda::GpuMat &d_frame,
-                        const cv::cuda::GpuMat &d_input_corners, cv::cuda::GpuMat &d_output);
-  int DetectNewFeatures(const cv::Ptr<cv::cuda::CornersDetector> &detector_ptr, const cv::cuda::GpuMat &d_frame,
-                        const cv::cuda::GpuMat &d_input_corners, cv::cuda::GpuMat &d_output);
-
-  void rescalePoints(std::vector<cv::Point2f> &pts1, std::vector<cv::Point2f> &pts2, float &scaling_factor);
-
-  int twoPointRansac(const std::vector<cv::Point2f> &pts1, const std::vector<cv::Point2f> &pts2,
-                     const cv::Matx33f &R_p_c, const cv::Matx33d &intrinsics,
-                     const std::vector<double> &distortion_coeffs, const double &inlier_error,
-                     const double &success_probability, std::vector<uchar> &inlier_markers);
-
-  int GenerateImuXform(const std::vector<mavlink_imu_t> &imu_msgs, cv::Matx33f &rotation_t0_t1_cam0,
-                       cv::Matx33f &rotation_t0_t1_cam1);
-
-  int ProcessPoints(std::vector<cv::Point2f> pts_cam0_t0, std::vector<cv::Point2f> pts_cam0_t1,
-                    std::vector<cv::Point2f> pts_cam1_t0, std::vector<cv::Point2f> pts_cam1_t1,
-                    std::vector<unsigned int> ids);
-
-  int OuputTrackedPoints(OpticalFlowPoints &points, const std::vector<unsigned int> &ids,
-                         const std::vector<mavlink_imu_t> &imu_msgs, const cv::Matx33f &rotation_t0_t1_cam0);
+  auto OuputTrackedPoints(OpticalFlowPoints &points, const std::vector<unsigned int> &ids,
+                          const std::vector<mavlink_imu_t> &imu_msgs, const cv::Matx33f &rotation_t0_t1_cam0,
+                          ImagePoints &output_points) -> int;
 
   // Local version of input params
   YAML::Node input_params_;
 
-  // Thread mgmt
-  std::atomic<bool> is_running_;
-  std::thread image_processor_thread_;
-
-  // Video I/O
-  std::unique_ptr<SensorInterface> sensor_interface_;
-  bool draw_points_to_frame_;
+  // Algorithm state
+  OpticalFlowPoints points_;
+  unsigned int current_id = 0;  // The id of the last tracked point TODO CHANGE NAME
+  cv::Ptr<cv::cuda::CornersDetector> detector_ptr_;
+  cv::Ptr<cv::cuda::SparsePyrLKOpticalFlow> d_opt_flow_cam0_;
+  cv::Ptr<cv::cuda::SparsePyrLKOpticalFlow> d_opt_flow_stereo_t0_;
+  cv::Ptr<cv::cuda::SparsePyrLKOpticalFlow> d_opt_flow_stereo_t1_;
+  std::chrono::time_point<std::chrono::system_clock> prev_time_end_;
+  std::chrono::system_clock::duration fps_limit_inv_;
+  cv::cuda::GpuMat d_frame_cam0_t0_;
+  cv::cuda::GpuMat d_frame_cam1_t0_;
 
   // Rate limit factor
   float rate_limit_fps_;
@@ -141,11 +118,6 @@ class ImageProcessor {
   cv::Matx44d Q_;
   cv::Matx33f R_imu_cam0_;
   cv::Matx33f R_imu_cam1_;
-
-  // Class output and it's mutex guard
-  std::mutex output_mutex_;
-  ImagePoints output_points_;
-  std::condition_variable output_cond_var_;
 
   // 3D output
   unsigned int curr_pts_index_ = 0;

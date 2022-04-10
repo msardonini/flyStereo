@@ -33,6 +33,7 @@ add_library(fly_stereo_lib
   src/sensor_io/camera_trigger.cc
   src/sensor_io/camera.cc
   src/visualization/visualization.cc
+  src/pipeline.cc
 )
 
 target_include_directories(fly_stereo_lib

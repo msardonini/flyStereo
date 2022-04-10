@@ -22,9 +22,8 @@ struct ImagePoint {
 };
 
 struct ImagePoints {
-  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
   // Default Constructor
-  ImagePoints(){};
+  ImagePoints() = default;
 
   // Constructor with values
   ImagePoints(uint64_t _timestamp_us, std::vector<ImagePoint> _pts) : timestamp_us(_timestamp_us), pts(_pts) {}
