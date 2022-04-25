@@ -1,10 +1,10 @@
-#include "fly_stereo/image_processor.h"
+#include "flyStereo/image_processor.h"
 
 #include <fstream>  // std::ofstream
 #include <random>
 
 #include "Eigen/Dense"
-#include "fly_stereo/utility.h"
+#include "flyStereo/utility.h"
 #include "opencv2/calib3d.hpp"
 #include "opencv2/core/cuda.hpp"
 #include "opencv2/core/eigen.hpp"

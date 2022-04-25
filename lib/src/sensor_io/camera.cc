@@ -1,4 +1,4 @@
-#include "fly_stereo/sensor_io/camera.h"
+#include "flyStereo/sensor_io/camera.h"
 
 #include <iostream>
 #include <thread>
@@ -20,15 +20,6 @@ Camera::Camera(YAML::Node input_params, bool replay_mode) {
     YAML::Node gst_params = input_params["gstreamer_pipeline"];
     use_gstreamer_pipeline_ = gst_params["enable"].as<bool>();
   }
-
-  // If using the image sink, load the params
-  if (input_params["sink_pipeline"]) {
-    sink_pipeline_ = input_params["sink_pipeline"].as<std::string>();
-  }
-
-  height_ = input_params["height"].as<int>();
-  width_ = input_params["width"].as<int>();
-  framerate_ = input_params["framerate"].as<int>();
 
   enable_videoflip_ = input_params["enable_videoflip"].as<bool>();
   if (enable_videoflip_) {
@@ -120,26 +111,11 @@ int Camera::UpdateExposure() {
   return 0;
 }
 
-int Camera::InitSink(bool is_color) {
-  // If configured, create the image sinks
-  if (!sink_pipeline_.empty()) {
-    cam_sink_ = std::make_unique<cv::VideoWriter>(sink_pipeline_, 0, framerate_, cv::Size(width_, height_), is_color);
-    if (!cam_sink_->isOpened()) {
-      std::cerr << "Error! VideoWriter on cam" << device_num_ << " did not open" << std::endl;
-      return -1;
-    }
-  } else {
-    std::cerr << "Error! Called GetFrame without defining the sink pipeline" << std::endl;
-    return -1;
-  }
-  return 0;
-}
-
 int Camera::RunAutoExposure(const cv::Scalar &mean_pixel_val) {
   if (mean_pixel_val(0) < pixel_range_limits_[0]) {
     // If the image is too dark then update the exposure time first, then gain when that maxes
     // Also, calculate the value the exposure time would get updated to
-    unsigned int new_exposure_time = exposure_time_ * (1.0f + auto_exposure_update_percentage_);
+    int new_exposure_time = exposure_time_ * (1.0f + auto_exposure_update_percentage_);
     // Check for the edge case where the update is less than 1 ms
     if (new_exposure_time == exposure_time_) {
       new_exposure_time = exposure_time_ + 1;
@@ -158,7 +134,7 @@ int Camera::RunAutoExposure(const cv::Scalar &mean_pixel_val) {
           device_num_);
     }
   } else if (mean_pixel_val(0) > pixel_range_limits_[1]) {
-    unsigned int new_exposure_time = exposure_time_ * (1.0f - auto_exposure_update_percentage_);
+    int new_exposure_time = exposure_time_ * (1.0f - auto_exposure_update_percentage_);
     // Check for the edge case where the update is less than 1 ms
     if (new_exposure_time == exposure_time_) {
       new_exposure_time = exposure_time_ - 1;
@@ -221,22 +197,6 @@ int Camera::GetFrame(cv::cuda::GpuMat &frame) {
     }
   }
   return 0;
-}
-
-int Camera::SendFrame(cv::Mat &frame) {
-  if (!cam_sink_) {
-    if (InitSink(frame.channels() > 1)) {
-      return -1;
-    }
-  }
-  cam_sink_->write(frame);
-  return 0;
-}
-
-int Camera::SendFrame(cv::cuda::GpuMat &d_frame) {
-  cv::Mat frame;
-  d_frame.download(frame);
-  return SendFrame(frame);
 }
 
 int Camera::InitGstPipeline() {

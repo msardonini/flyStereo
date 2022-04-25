@@ -10,10 +10,10 @@
 #include <thread>
 
 #include "Eigen/Dense"
-#include "fly_stereo/interface.h"
-#include "fly_stereo/optical_flow_points.h"
-#include "fly_stereo/sensor_io/mavlink/fly_stereo/mavlink.h"
-#include "fly_stereo/sensor_io/sensor_interface.h"
+#include "flyStereo/interface.h"
+#include "flyStereo/optical_flow_points.h"
+#include "flyStereo/sensor_io/mavlink/fly_stereo/mavlink.h"
+#include "flyStereo/sensor_io/sensor_interface.h"
 #include "opencv2/core.hpp"
 #include "opencv2/cudafeatures2d.hpp"
 #include "opencv2/cudaimgproc.hpp"

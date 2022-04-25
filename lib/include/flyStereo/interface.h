@@ -4,7 +4,7 @@
 #include <vector>
 
 #include "Eigen/Dense"
-#include "fly_stereo/sensor_io/mavlink/fly_stereo/mavlink.h"
+#include "flyStereo/sensor_io/mavlink/fly_stereo/mavlink.h"
 
 struct ImagePoint {
   // Default Constructor

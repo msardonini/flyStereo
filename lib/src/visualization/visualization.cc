@@ -1,4 +1,4 @@
-#include "fly_stereo/visualization/visualization.h"
+#include "flyStereo/visualization/visualization.h"
 
 #include <iostream>
 

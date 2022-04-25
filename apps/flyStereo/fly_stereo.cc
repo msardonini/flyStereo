@@ -11,10 +11,10 @@
 #include <iostream>
 #include <thread>
 
-#include "fly_stereo/image_processor.h"
-#include "fly_stereo/pipeline.h"
-#include "fly_stereo/sensor_io/mavlink_reader.h"
-#include "fly_stereo/vio.h"
+#include "flyStereo/image_processor.h"
+#include "flyStereo/pipeline.h"
+#include "flyStereo/sensor_io/mavlink_reader.h"
+#include "flyStereo/vio.h"
 #include "spdlog/sinks/rotating_file_sink.h"
 #include "spdlog/sinks/stdout_color_sinks.h"
 #include "spdlog/spdlog.h"
@@ -112,7 +112,7 @@ int main(int argc, char *argv[]) {
   }
 
   // Parse the yaml file with our configuration parameters
-  YAML::Node fly_stereo_params = YAML::LoadFile(config_file)["fly_stereo"];
+  YAML::Node fly_stereo_params = YAML::LoadFile(config_file)["flyStereo"];
 
   // If we are running in logging mode, change the log directory in the config file
   if (fly_stereo_params["record_mode"] && fly_stereo_params["record_mode"]["enable"].as<bool>()) {

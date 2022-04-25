@@ -32,7 +32,9 @@ add_library(fly_stereo_lib
   src/sensor_io/mavlink_reader.cc
   src/sensor_io/camera_trigger.cc
   src/sensor_io/camera.cc
+  src/sensor_io/image_sink.cc
   src/visualization/visualization.cc
+  src/visualization/draw_to_image.cc
   src/pipeline.cc
 )
 
@@ -69,3 +71,16 @@ target_compile_options(fly_stereo_lib
 #)
 
 set_property(TARGET fly_stereo_lib PROPERTY CXX_STANDARD 20)
+
+
+
+# Build Tests
+add_executable(fly_stereo_tests
+  test/image_processor_tests.cc
+)
+
+target_link_libraries(fly_stereo_tests
+  fly_stereo_lib
+  gtest
+  gtest_main
+)

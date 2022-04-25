@@ -26,8 +26,8 @@
 
 #include "cam_state.h"
 #include "feature.hpp"
-#include "fly_stereo/interface.h"
-#include "fly_stereo/mavlink/fly_stereo/mavlink.h"
+#include "flyStereo/interface.h"
+#include "flyStereo/mavlink/fly_stereo/mavlink.h"
 #include "imu_state.h"
 // #include <msckf_vio/CameraMeasurement.h>
 

@@ -1,4 +1,4 @@
-fly_stereo:
+flyStereo:
   mavlink_reader:
     device: /dev/ttyTHS1
     replay_mode: false

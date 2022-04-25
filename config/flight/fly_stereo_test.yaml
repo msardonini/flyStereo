@@ -1,10 +1,10 @@
-fly_stereo:
+flyStereo:
   # Global Commands
   wait_for_start_command: false
 
   replay_mode:
     enable: true
-    replay_dir: /root/fly_stereo/replay_data/flight/11_21_20/run014
+    replay_dir: /root/flyStereo/replay_data/flight/11_21_20/run014
     replay_speed_multiplier: 2
     enable_serial_replay: false
 

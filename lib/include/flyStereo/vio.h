@@ -5,9 +5,9 @@
 #include "opencv2/core.hpp"
 #include "yaml-cpp/yaml.h"
 // #include "liblas/liblas.hpp"
-#include "fly_stereo/interface.h"
-#include "fly_stereo/kalman_filter.h"
-#include "fly_stereo/visualization/visualization.h"
+#include "flyStereo/interface.h"
+#include "flyStereo/kalman_filter.h"
+#include "flyStereo/visualization/visualization.h"
 #include "opengv/types.hpp"
 
 struct vio_t {

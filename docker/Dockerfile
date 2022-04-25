@@ -94,4 +94,4 @@ COPY printers /opt/printers
 RUN mv /opt/printers/.gdbinit /root
 
 
-RUN pip3 install pre-commit && apt-get install -y clang-format
+RUN pip3 install pre-commit && apt-get install -y clang-format libgtest-dev

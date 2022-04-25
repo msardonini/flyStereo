@@ -1,22 +1,22 @@
-fly_stereo:
+flyStereo:
   # Global Commands
   wait_for_start_command: false
 
   replay_mode:
     enable: true
-    replay_dir: /root/fly_stereo/replay_data/flight/11_21_20/run013
+    replay_dir: /root/flyStereo/replay_data/flight/11_21_20/run013
     replay_speed_multiplier: 1
     enable_serial_replay: false
 
   record_mode:
     enable: true  # Enables logging
-    log_root_dir: /root/fly_stereo/build_docker/replay
+    log_root_dir: /root/flyStereo/build_docker/replay
     outputs:
       SQL_database: false
       trajectory: true
 
   mavlink_reader:
-    # device: /root/fly_stereo/replay_data/flight/8_15_20/run005/imu.dat
+    # device: /root/flyStereo/replay_data/flight/8_15_20/run005/imu.dat
 
   vio:
     vio_calibration: [-0.0021, 0.0004, -0.0012]
@@ -81,21 +81,23 @@ fly_stereo:
       gstreamer_pipeline:
         enable: false
 
-      src_pipeline: "filesrc location=/root/fly_stereo/replay_data/flight/8_15_20/run005/cam0.mp4 ! decodebin ! videoconvert ! video/x-raw, format=(string)GRAY8 ! appsink sync=true "
-      # src_pipeline: "filesrc location=/root/fly_stereo/replay_data/test_replay/cam0.mp4 ! decodebin ! videoconvert ! appsink "
-      # sink_pipeline: "appsrc ! videoconvert ! queue ! xvimagesink sync=false "
-      # sink_pipeline: "appsrc ! videoconvert ! tee name=t ! queue ! autovideosink t. ! queue ! videoconvert ! x264enc tune=zerolatency ! qtmux ! filesink location=/root/fly_stereo/build_docker/replay/run023/cam0_annotated.mp4"
-      sink_pipeline: "appsrc ! videoconvert ! queue ! videoconvert ! x264enc tune=zerolatency ! qtmux ! filesink location=/root/fly_stereo/build_docker/replay/run023/cam0_annotated.mp4"
+      src_pipeline: "filesrc location=/root/flyStereo/replay_data/flight/8_15_20/run005/cam0.mp4 ! decodebin ! videoconvert ! video/x-raw, format=(string)GRAY8 ! appsink sync=true "
+      # src_pipeline: "filesrc location=/root/flyStereo/replay_data/test_replay/cam0.mp4 ! decodebin ! videoconvert ! appsink "
 
       enable_videoflip: false
       flip_method: -1
       device_num: 0
-      framerate: 20
-      width: 1280
-      height: 720
       hardware_trigger_mode: true
       gain: 1
       exposure_time: 500
+    ImageSinkCam0:
+      framerate: 20
+      width: 1280
+      height: 720
+      sink_pipeline: "appsrc ! videoconvert ! queue ! videoconvert ! x264enc tune=zerolatency ! qtmux ! filesink location=/root/flyStereo/build_docker/replay/run023/cam0_annotated.mp4"
+      # sink_pipeline: "appsrc ! videoconvert ! queue ! xvimagesink sync=false "
+      # sink_pipeline: "appsrc ! videoconvert ! tee name=t ! queue ! autovideosink t. ! queue ! videoconvert ! x264enc tune=zerolatency ! qtmux ! filesink location=/root/flyStereo/build_docker/replay/run023/cam0_annotated.mp4"
+
     Camera1:
       auto_exposure:
         enable: false
@@ -107,21 +109,22 @@ fly_stereo:
       gstreamer_pipeline:
         enable: false
 
-      src_pipeline: "filesrc location=/root/fly_stereo/replay_data/flight/8_15_20/run005/cam1.mp4 ! decodebin ! videoconvert ! video/x-raw, format=(string)GRAY8 ! appsink sync=true "
-      sink_pipeline: "appsrc ! videoconvert ! queue ! xvimagesink sync=false "
-      # sink_pipeline: "appsrc ! videoconvert ! tee name=t ! queue ! autovideosink t. ! queue ! videoconvert ! x264enc tune=zerolatency ! qtmux ! filesink location=/root/fly_stereo/build_docker/replay/run023/cam1_annotated.mp4"
-      # sink_pipeline: "appsrc ! videoconvert ! queue ! videoconvert ! x264enc tune=zerolatency ! qtmux ! filesink location=/root/fly_stereo/build_docker/replay/run023/cam1_annotated.mp4"
+      src_pipeline: "filesrc location=/root/flyStereo/replay_data/flight/8_15_20/run005/cam1.mp4 ! decodebin ! videoconvert ! video/x-raw, format=(string)GRAY8 ! appsink sync=true "
 
 
       device_num: 1
       enable_videoflip: false
       flip_method: -1
-      framerate: 20
-      width: 1280
-      height: 720
       hardware_trigger_mode: true
       gain: 1
       exposure_time: 500
+    ImageSinkCam0:
+      framerate: 20
+      width: 1280
+      height: 720
+      sink_pipeline: "appsrc ! videoconvert ! queue ! xvimagesink sync=false "
+      # sink_pipeline: "appsrc ! videoconvert ! tee name=t ! queue ! autovideosink t. ! queue ! videoconvert ! x264enc tune=zerolatency ! qtmux ! filesink location=/root/flyStereo/build_docker/replay/run023/cam1_annotated.mp4"
+      # sink_pipeline: "appsrc ! videoconvert ! queue ! videoconvert ! x264enc tune=zerolatency ! qtmux ! filesink location=/root/flyStereo/build_docker/replay/run023/cam1_annotated.mp4"
 
   stereo_calibration:
     R_imu_cam0: [0.0, 3.1415926535, 0.0]

@@ -1,5 +1,5 @@
 
-#include "fly_stereo/vio.h"
+#include "flyStereo/vio.h"
 
 // System includes
 #include <fstream>

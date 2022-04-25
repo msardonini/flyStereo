@@ -6,8 +6,10 @@
 #include <atomic>
 #include <iostream>
 
-#include "fly_stereo/sensor_io/mavlink/fly_stereo/mavlink.h"
-#include "fly_stereo/sensor_io/sensor_interface.h"
+#include "flyStereo/sensor_io/mavlink/fly_stereo/mavlink.h"
+#include "flyStereo/sensor_io/sensor_interface.h"
+#include "flyStereo/sensor_io/image_sink.h"
+#include "flyStereo/visualization/draw_to_image.h"
 #include "opencv2/calib3d.hpp"
 #include "opencv2/core/cuda.hpp"
 #include "opencv2/imgproc.hpp"
@@ -80,10 +82,14 @@ int main(int argc, char *argv[]) {
     return -1;
   }
 
-  YAML::Node imu_comp_params = YAML::LoadFile(config_file)["fly_stereo"];
+  YAML::Node imu_comp_params = YAML::LoadFile(config_file)["flyStereo"];
 
   SensorInterface sensor_interface;
   sensor_interface.Init(imu_comp_params);
+
+  // Image Sinks
+  ImageSink cam0_sink(imu_comp_params);
+  ImageSink cam1_sink(imu_comp_params);
 
   std::thread imu_thread_obj(imu_thread, imu_comp_params["mavlink_reader"], &sensor_interface);
 
@@ -153,26 +159,26 @@ int main(int argc, char *argv[]) {
 
     cv::Vec3d tvec(0.0, 0.0, 0.0);
     cv::Vec3d rvec(0.0, 0.0, 0.0);
-    if (sensor_interface.cam0_->OutputEnabled()) {
+    if (cam0_sink) {
       std::vector<cv::Point2d> show_pts;
       cv::projectPoints(debug_pts_cam0, rvec, tvec, K_cam0, D_cam0, show_pts);
       std::vector<cv::Point2f> show_pts_f(show_pts.begin(), show_pts.end());
       cv::Mat show_frame, show_frame_color;
       d_frame_cam0.download(show_frame);
       cv::cvtColor(show_frame, show_frame_color, cv::COLOR_GRAY2BGR);
-      sensor_interface.DrawPoints(show_pts_f, show_frame_color);
-      sensor_interface.cam0_->SendFrame(show_frame_color);
+      DrawPoints(show_pts_f, show_frame_color);
+      cam0_sink.SendFrame(show_frame_color);
     }
 
-    if (sensor_interface.cam1_->OutputEnabled()) {
+    if (cam1_sink) {
       std::vector<cv::Point2d> show_pts;
       cv::projectPoints(debug_pts_cam1, rvec, tvec, K_cam1, D_cam1, show_pts);
       std::vector<cv::Point2f> show_pts_f(show_pts.begin(), show_pts.end());
       cv::Mat show_frame, show_frame_color;
       d_frame_cam1.download(show_frame);
       cv::cvtColor(show_frame, show_frame_color, cv::COLOR_GRAY2BGR);
-      sensor_interface.DrawPoints(show_pts_f, show_frame_color);
-      sensor_interface.cam1_->SendFrame(show_frame_color);
+      DrawPoints(show_pts_f, show_frame_color);
+      cam1_sink.SendFrame(show_frame_color);
     }
 
     // Sleep to limit the FPS

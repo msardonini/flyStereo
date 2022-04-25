@@ -12,12 +12,11 @@ ARGS="--env DISPLAY \
   --network=host \
   --cap-add=SYS_PTRACE \
   --ipc=host\
-  --gpus=all \
   --security-opt seccomp=unconfined \
-  -v /home/msardonini/git/fly_stereo:/root/fly_stereo "
+  -v /home/msardonini/git/flyStereo:/root/flyStereo "
 
 xhost +local:root
 
-docker run $ARGS fly_stereo:0.0.1
+docker run $ARGS flystereo:0.0.1
 
 xhost -local:root

@@ -6,3 +6,5 @@ matlab/*m~
 .gnupg
 .vscode**
 .devcontainer**
+**gmon.out
+**.jpg

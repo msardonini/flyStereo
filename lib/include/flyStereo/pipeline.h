@@ -3,10 +3,10 @@
 #include <atomic>
 #include <thread>
 
-#include "fly_stereo/image_processor.h"
-#include "fly_stereo/sensor_io/mavlink_reader.h"
-#include "fly_stereo/sensor_io/sensor_interface.h"
-#include "fly_stereo/vio.h"
+#include "flyStereo/image_processor.h"
+#include "flyStereo/sensor_io/mavlink_reader.h"
+#include "flyStereo/sensor_io/sensor_interface.h"
+#include "flyStereo/vio.h"
 #include "yaml-cpp/yaml.h"
 
 class Pipeline {

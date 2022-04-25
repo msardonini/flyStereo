@@ -1,4 +1,4 @@
-fly_stereo:
+flyStereo:
   wait_for_start_command: false
   record_mode: false
   log_dir: /home/msardonini/log

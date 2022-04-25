@@ -1,4 +1,4 @@
-fly_stereo:
+flyStereo:
   vio:
     vio_calibration: [-0.0021, 0.0004, -0.0012]
     image_width: 1280

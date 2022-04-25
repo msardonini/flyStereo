@@ -3,11 +3,11 @@
 // System includes
 
 // Package includes
-#include "fly_stereo/interface.h"
-#include "fly_stereo/sensor_io/camera.h"
-#include "fly_stereo/sensor_io/camera_trigger.h"
-#include "fly_stereo/sensor_io/mavlink_reader.h"
-#include "fly_stereo/sql_logger.h"
+#include "flyStereo/interface.h"
+#include "flyStereo/sensor_io/camera.h"
+#include "flyStereo/sensor_io/camera_trigger.h"
+#include "flyStereo/sensor_io/mavlink_reader.h"
+#include "flyStereo/sql_logger.h"
 #include "yaml-cpp/yaml.h"
 
 class SensorInterface {
@@ -17,10 +17,6 @@ class SensorInterface {
 
   SensorInterface(const SensorInterface &) = delete;
   SensorInterface(SensorInterface &&) = delete;
-
-  void DrawPoints(const std::vector<cv::Point2f> &mypoints, cv::Mat &myimage);
-
-  void DrawPoints(const ImagePoints &mypoints, bool is_cam_0, cv::Mat &myimage);
 
   int GetSynchronizedData(cv::cuda::GpuMat &d_frame_cam0, cv::cuda::GpuMat &d_frame_cam1,
                           std::vector<mavlink_imu_t> &imu_data, uint64_t &current_frame_time);

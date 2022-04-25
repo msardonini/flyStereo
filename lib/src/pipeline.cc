@@ -1,6 +1,8 @@
-#include "fly_stereo/pipeline.h"
+#include "flyStereo/pipeline.h"
 
 #include "spdlog/spdlog.h"
+#include "flyStereo/sensor_io/image_sink.h"
+#include "flyStereo/visualization/draw_to_image.h"
 
 static constexpr unsigned int max_consecutive_missed_frames = 10;
 
@@ -62,6 +64,9 @@ void Pipeline::imu_thread() {
 void Pipeline::run() {
   auto consecutive_missed_frames = 0u;
 
+  ImageSink cam0_sink(params_);
+  ImageSink cam1_sink(params_);
+
   while (is_running_.load()) {
     // Read the frames and check for errors
     cv::cuda::GpuMat d_frame_cam0_t1, d_frame_cam1_t1;
@@ -105,28 +110,30 @@ void Pipeline::run() {
     /*********************************************************************
      * Output Images to the sink, if requested
      *********************************************************************/
-    if (sensor_interface_.cam0_->OutputEnabled()) {
+
+    if (cam0_sink) {
       cv::Mat show_frame, show_frame_color;
       d_frame_cam0_t1.download(show_frame);
       if (draw_points_to_frame_) {
         cv::cvtColor(show_frame, show_frame_color, cv::COLOR_GRAY2BGR);
-        sensor_interface_.DrawPoints(output_points, true, show_frame_color);
+        DrawPoints(output_points, true, show_frame_color);
       } else {
         show_frame_color = show_frame;
       }
       // DrawPoints(debug_pts, show_frame);
-      sensor_interface_.cam0_->SendFrame(show_frame_color);
+      cam0_sink.SendFrame(show_frame_color);
     }
-    if (sensor_interface_.cam1_->OutputEnabled()) {
+
+    if (cam1_sink) {
       cv::Mat show_frame, show_frame_color;
       d_frame_cam1_t1.download(show_frame);
       if (draw_points_to_frame_) {
         cv::cvtColor(show_frame, show_frame_color, cv::COLOR_GRAY2BGR);
-        sensor_interface_.DrawPoints(output_points, false, show_frame_color);
+        DrawPoints(output_points, false, show_frame_color);
       } else {
         show_frame_color = show_frame;
       }
-      sensor_interface_.cam1_->SendFrame(show_frame_color);
+      cam1_sink.SendFrame(show_frame_color);
     }
   }
 }

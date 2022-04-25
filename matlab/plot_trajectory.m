@@ -5,8 +5,8 @@ clear all; clc;
 
 data = dlmread('../replay_data/flight/11_21_20/run013/trajectory.txt');
 
-% data = dlmread('/home/msardonini/mntNano/fly_stereo/build/file.txt');
-% data = dlmread('/home/msardonini/git/fly_stereo/replay_data/flight/8_22_20/run051/trajectory.txt');
+% data = dlmread('/home/msardonini/mntNano/flyStereo/build/file.txt');
+% data = dlmread('/home/msardonini/git/flyStereo/replay_data/flight/8_22_20/run051/trajectory.txt');
 
 
 pose = data(:,1:16);

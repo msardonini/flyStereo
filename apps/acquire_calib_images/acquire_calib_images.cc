@@ -7,7 +7,8 @@
 #include <iostream>
 #include <string>
 
-#include "fly_stereo/sensor_io/sensor_interface.h"
+#include "flyStereo/sensor_io/sensor_interface.h"
+#include "flyStereo/sensor_io/image_sink.h"
 #include "opencv2/core.hpp"
 #include "opencv2/core/cuda.hpp"
 #include "opencv2/highgui.hpp"
@@ -35,6 +36,8 @@ char get_user_input(int timeout_s, int timout_us) {
     if (FD_ISSET(0, &fdset)) {
       val = getchar();
       return val;
+    } else {
+      throw std::runtime_error("Error in getting user input!??");
     }
   }
 }
@@ -73,10 +76,12 @@ int main(int argc, char *argv[]) {
     return -1;
   }
 
-  YAML::Node params = YAML::LoadFile(config_file)["fly_stereo"];
+  YAML::Node params = YAML::LoadFile(config_file)["flyStereo"];
 
   std::unique_ptr<SensorInterface> sensor_interface = std::make_unique<SensorInterface>();
   sensor_interface->Init(params);
+  ImageSink cam0_sink(params);
+  ImageSink cam1_sink(params);
 
   cv::cuda::GpuMat d_frame_cam0, d_frame_cam1;
   std::experimental::filesystem::path save_dir_fp(save_dir);
@@ -91,8 +96,8 @@ int main(int argc, char *argv[]) {
       return -1;
     }
 
-    sensor_interface->cam0_->SendFrame(d_frame_cam0);
-    sensor_interface->cam1_->SendFrame(d_frame_cam1);
+    cam0_sink.SendFrame(d_frame_cam0);
+    cam1_sink.SendFrame(d_frame_cam1);
 
     bool save_img = false;
     if (user_input) {

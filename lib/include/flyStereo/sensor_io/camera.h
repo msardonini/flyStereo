@@ -35,11 +35,7 @@ class Camera {
 
   int Init();
 
-  int SendFrame(cv::Mat &frame);
-  int SendFrame(cv::cuda::GpuMat &d_frame);
   int GetFrame(cv::cuda::GpuMat &frame);
-
-  bool OutputEnabled() { return static_cast<bool>(!sink_pipeline_.empty()); }
 
   uint64_t GetTimestampNs() const { return timestamp_ns_; }
 
@@ -49,7 +45,6 @@ class Camera {
 
  private:
   // Initialize the image sink object
-  int InitSink(bool is_color);
   int UpdateGain();
   int UpdateExposure();
   int InitGstPipeline();
@@ -66,10 +61,8 @@ class Camera {
   int gain_;
   int exposure_time_;
   std::string src_pipeline_;
-  std::string sink_pipeline_;
   int height_;
   int width_;
-  int framerate_;
   int device_num_;
 
   // Params for auto exposure

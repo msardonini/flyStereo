@@ -7,7 +7,7 @@
 #include <thread>
 #include <vector>
 
-#include "fly_stereo/sensor_io/mavlink/fly_stereo/mavlink.h"
+#include "flyStereo/sensor_io/mavlink/fly_stereo/mavlink.h"
 #include "opencv2/core.hpp"
 #include "yaml-cpp/yaml.h"
 

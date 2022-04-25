@@ -7,8 +7,8 @@
 #include <string>
 #include <thread>
 
-#include "fly_stereo/sensor_io/mavlink/fly_stereo/mavlink.h"
-#include "fly_stereo/vio.h"
+#include "flyStereo/sensor_io/mavlink/fly_stereo/mavlink.h"
+#include "flyStereo/vio.h"
 #include "yaml-cpp/yaml.h"
 
 class MavlinkReader {

@@ -1,10 +1,10 @@
-fly_stereo:
+flyStereo:
   mavlink_reader:
     # device: /dev/ttyTHS1
     # replay_mode: false
-    device: /root/fly_stereo/replay_data/walking_around/10/imu.dat
+    device: /root/flyStereo/replay_data/walking_around/10/imu.dat
     replay_mode: true
-    # replay_imu_data_file: /home/msardonini/git/fly_stereo/replay_data/test_replay/imu.dat
+    # replay_imu_data_file: /home/msardonini/git/flyStereo/replay_data/test_replay/imu.dat
 
   vio:
     vio_calibration: [-0.0021, 0.0004, -0.0012]
@@ -45,9 +45,9 @@ fly_stereo:
       #   num_frames_to_calc: 3
       use_gstreamer_pipeline: false
       device_num: 0
-      src_pipeline: "filesrc location=/root/fly_stereo/replay_data/walking_around/10/cam0.mp4 ! decodebin ! videoconvert ! video/x-raw, format=(string)GRAY8 ! appsink sync=true "
-      # src_pipeline: "filesrc location=/root/fly_stereo/replay_data/test_replay/cam0.mp4 ! decodebin ! videoconvert ! appsink "
-      sink_pipeline: "appsrc ! videoconvert ! videoflip method=rotate-180 ! tee name=t ! queue ! autovideosink t. ! queue ! jpegenc ! avimux ! filesink location=/root/fly_stereo/replay_data/walking_around/10/cam0_annotated.avi"
+      src_pipeline: "filesrc location=/root/flyStereo/replay_data/walking_around/10/cam0.mp4 ! decodebin ! videoconvert ! video/x-raw, format=(string)GRAY8 ! appsink sync=true "
+      # src_pipeline: "filesrc location=/root/flyStereo/replay_data/test_replay/cam0.mp4 ! decodebin ! videoconvert ! appsink "
+      sink_pipeline: "appsrc ! videoconvert ! videoflip method=rotate-180 ! tee name=t ! queue ! autovideosink t. ! queue ! jpegenc ! avimux ! filesink location=/root/flyStereo/replay_data/walking_around/10/cam0_annotated.avi"
       framerate: 20
       width: 1280
       height: 720
@@ -62,9 +62,9 @@ fly_stereo:
       #   num_frames_to_calc: 3
       use_gstreamer_pipeline: false
       device_num: 1
-      src_pipeline: "filesrc location=/root/fly_stereo/replay_data/walking_around/10/cam1.mp4 ! decodebin ! videoconvert ! video/x-raw, format=(string)GRAY8 ! appsink sync=true "
-      # src_pipeline: "filesrc location=/root/fly_stereo/replay_data/test_replay/cam1.mp4 ! decodebin ! videoconvert ! appsink max-buffers=1"
-      sink_pipeline: "appsrc ! videoconvert ! videoflip method=rotate-180 ! tee name=t ! queue ! autovideosink t. ! queue ! jpegenc ! avimux ! filesink location=/root/fly_stereo/replay_data/walking_around/10/cam1_annotated.avi"
+      src_pipeline: "filesrc location=/root/flyStereo/replay_data/walking_around/10/cam1.mp4 ! decodebin ! videoconvert ! video/x-raw, format=(string)GRAY8 ! appsink sync=true "
+      # src_pipeline: "filesrc location=/root/flyStereo/replay_data/test_replay/cam1.mp4 ! decodebin ! videoconvert ! appsink max-buffers=1"
+      sink_pipeline: "appsrc ! videoconvert ! videoflip method=rotate-180 ! tee name=t ! queue ! autovideosink t. ! queue ! jpegenc ! avimux ! filesink location=/root/flyStereo/replay_data/walking_around/10/cam1_annotated.avi"
       framerate: 20
       width: 1280
       height: 720
