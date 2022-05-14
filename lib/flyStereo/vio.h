@@ -3,12 +3,12 @@
 // Package Includes
 #include "Eigen/Dense"
 #include "opencv2/core.hpp"
+#include "opencv2/core/affine.hpp"
 #include "yaml-cpp/yaml.h"
 // #include "liblas/liblas.hpp"
 #include "flyStereo/interface.h"
 #include "flyStereo/kalman_filter.h"
 #include "flyStereo/stereo_calibration.h"
-#include "flyStereo/visualization/visualization.h"
 
 struct vio_t {
   Eigen::Vector3d position;
@@ -74,6 +74,4 @@ class Vio {
   // Kalman Filter object to fuse imu and visual odom measurmenets
   KalmanFilter kf_;
   uint64_t last_timestamp_ = 0;
-
-  Visualization visualization_;
 };

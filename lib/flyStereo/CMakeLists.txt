@@ -23,6 +23,12 @@ endif()
 
 find_package(benchmark REQUIRED)
 
+if (${FLYSTEREO_WITH_VIZ})
+  # TODO make this it's own module
+  set (FLY_STEREO_VIZ_SRC visualization/visualization.cc)
+endif()
+
+
 #add_definitions(-march=native)
 add_library(fly_stereo_lib
   image_processing/image_processor.cc
@@ -34,9 +40,9 @@ add_library(fly_stereo_lib
   sensor_io/camera_trigger.cc
   sensor_io/camera.cc
   sensor_io/image_sink.cc
-  visualization/visualization.cc
   visualization/draw_to_image.cc
   pipeline.cc
+  ${FLY_STEREO_VIZ_SRC}
 )
 
 target_include_directories(fly_stereo_lib

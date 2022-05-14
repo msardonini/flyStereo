@@ -27,7 +27,7 @@ constexpr unsigned int history_size = 10;
 constexpr unsigned int min_num_matches = 25;
 // Constructor with config params
 Vio::Vio(const StereoCalibration &stereo_calibration, const cv::Matx33d &R_imu_cam0, const cv::Vec3d &vio_calibration)
-    : stereo_cal_(stereo_calibration), visualization_(R_imu_cam0) {
+    : stereo_cal_(stereo_calibration) {
   // // If we have recording enabled, initialize the logging files
   // if (input_params["record_mode"] && input_params["record_mode"]["enable"].as<bool>() &&
   //     input_params["record_mode"]["outputs"]["trajectory"].as<bool>()) {
