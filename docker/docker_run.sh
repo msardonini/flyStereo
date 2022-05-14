@@ -13,6 +13,7 @@ ARGS="--env DISPLAY \
   --cap-add=SYS_PTRACE \
   --ipc=host\
   --security-opt seccomp=unconfined \
+  --gpus all \
   -v /home/msardonini/git/flyStereo:/root/flyStereo "
 
 xhost +local:root

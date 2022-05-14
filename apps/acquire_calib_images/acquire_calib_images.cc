@@ -7,8 +7,8 @@
 #include <iostream>
 #include <string>
 
-#include "flyStereo/sensor_io/sensor_interface.h"
 #include "flyStereo/sensor_io/image_sink.h"
+#include "flyStereo/sensor_io/sensor_interface.h"
 #include "opencv2/core.hpp"
 #include "opencv2/core/cuda.hpp"
 #include "opencv2/highgui.hpp"
@@ -83,7 +83,7 @@ int main(int argc, char *argv[]) {
   ImageSink cam0_sink(params);
   ImageSink cam1_sink(params);
 
-  cv::cuda::GpuMat d_frame_cam0, d_frame_cam1;
+  UMat<uint8_t> d_frame_cam0, d_frame_cam1;
   std::experimental::filesystem::path save_dir_fp(save_dir);
   std::experimental::filesystem::create_directory(save_dir_fp);
   int counter = 1;
@@ -119,11 +119,8 @@ int main(int argc, char *argv[]) {
       std::experimental::filesystem::path save_path_0 = save_dir / file0;
       std::experimental::filesystem::path save_path_1 = save_dir / file1;
 
-      cv::Mat frame0, frame1;
-      d_frame_cam0.download(frame0);
-      d_frame_cam1.download(frame1);
-      cv::imwrite(save_path_0.c_str(), frame0);
-      cv::imwrite(save_path_1.c_str(), frame1);
+      cv::imwrite(save_path_0.c_str(), d_frame_cam0.frame());
+      cv::imwrite(save_path_1.c_str(), d_frame_cam1.frame());
     }
     counter++;
   }

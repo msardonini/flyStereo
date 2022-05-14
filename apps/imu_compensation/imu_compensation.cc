@@ -6,9 +6,9 @@
 #include <atomic>
 #include <iostream>
 
+#include "flyStereo/sensor_io/image_sink.h"
 #include "flyStereo/sensor_io/mavlink/fly_stereo/mavlink.h"
 #include "flyStereo/sensor_io/sensor_interface.h"
-#include "flyStereo/sensor_io/image_sink.h"
 #include "flyStereo/visualization/draw_to_image.h"
 #include "opencv2/calib3d.hpp"
 #include "opencv2/core/cuda.hpp"
@@ -112,7 +112,7 @@ int main(int argc, char *argv[]) {
   // cv::cuda::GpuMat d_debug_pts; d_debug_pts.upload(debug_pts);
   //   d_debug_pts.download(debug_pts);
 
-  cv::cuda::GpuMat d_frame_cam0, d_frame_cam1;
+  UMat<uint8_t> d_frame_cam0, d_frame_cam1;
   std::vector<mavlink_imu_t> imu_msgs;
 
   // Get the config params for the rotation of IMU to cameras
@@ -163,10 +163,10 @@ int main(int argc, char *argv[]) {
       std::vector<cv::Point2d> show_pts;
       cv::projectPoints(debug_pts_cam0, rvec, tvec, K_cam0, D_cam0, show_pts);
       std::vector<cv::Point2f> show_pts_f(show_pts.begin(), show_pts.end());
-      cv::Mat show_frame, show_frame_color;
-      d_frame_cam0.download(show_frame);
-      cv::cvtColor(show_frame, show_frame_color, cv::COLOR_GRAY2BGR);
-      DrawPoints(show_pts_f, show_frame_color);
+      UMat<cv::Vec3b> show_frame_color;
+      UMat<uint8_t> show_frame = d_frame_cam0.frame().clone();
+      cv::cvtColor(show_frame.frame(), show_frame_color.frame(), cv::COLOR_GRAY2BGR);
+      DrawPoints(show_pts_f, show_frame_color.frame());
       cam0_sink.SendFrame(show_frame_color);
     }
 
@@ -174,10 +174,10 @@ int main(int argc, char *argv[]) {
       std::vector<cv::Point2d> show_pts;
       cv::projectPoints(debug_pts_cam1, rvec, tvec, K_cam1, D_cam1, show_pts);
       std::vector<cv::Point2f> show_pts_f(show_pts.begin(), show_pts.end());
-      cv::Mat show_frame, show_frame_color;
-      d_frame_cam1.download(show_frame);
-      cv::cvtColor(show_frame, show_frame_color, cv::COLOR_GRAY2BGR);
-      DrawPoints(show_pts_f, show_frame_color);
+      UMat<cv::Vec3b> show_frame_color;
+      UMat<uint8_t> show_frame = d_frame_cam1.frame().clone();
+      cv::cvtColor(show_frame.frame(), show_frame_color.frame(), cv::COLOR_GRAY2BGR);
+      DrawPoints(show_pts_f, show_frame_color.frame());
       cam1_sink.SendFrame(show_frame_color);
     }
 

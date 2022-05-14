@@ -11,7 +11,7 @@
 #include <iostream>
 #include <thread>
 
-#include "flyStereo/image_processor.h"
+#include "flyStereo/image_processing/image_processor.h"
 #include "flyStereo/pipeline.h"
 #include "flyStereo/sensor_io/mavlink_reader.h"
 #include "flyStereo/vio.h"
