@@ -6,15 +6,22 @@
 #include "opencv2/core/core.hpp"
 #include "opencv2/core/cuda.hpp"
 
-constexpr int num_pts = 100;
-const cv::Size2i imsize(640, 480);
+// We need a way to identify unique points, so we use an unordered map. Overload the std::hash functor for cv::Point2i
+namespace std {
+template <>
+struct hash<cv::Point2i> {
+  std::size_t operator()(const cv::Point2i &k) const { return std::hash<int>()(k.y) << 32 | std::hash<int>()(k.x); }
+};
+}  // namespace std
+
+constexpr int num_pts = 300;
+const cv::Size2i imsize(1280, 500);
 
 template <typename T>
 class UMatTestFixture : public ::testing::Test {
  public:
   UMatTestFixture() {
     // Generate random points
-    pts_.resize(num_pts);
     for (int i = 0; i < num_pts; i++) {
       const cv::Point2i tmp_pt(rand() % imsize.width, rand() % imsize.height);
 
@@ -23,13 +30,10 @@ class UMatTestFixture : public ::testing::Test {
         tmp_vec = static_cast<T>(rand() % std::numeric_limits<uint64_t>::max());
       } else {
         for (auto j = 0; j < tmp_vec.rows; j++) {
-          tmp_vec[j] = static_cast<T::value_type>(rand() % std::numeric_limits<uint64_t>::max());
+          tmp_vec[j] = static_cast<T::value_type>(rand() % std::numeric_limits<int>::max());
         }
       }
-
-      // std::for_each(tmp_vec.begin(), tmp_vec.end(),
-      //               [&](T &val) { val = });
-      pts_[i] = std::make_pair(tmp_pt, tmp_vec);
+      pts_.emplace(tmp_pt, tmp_vec);
     }
 
     // Create images, set to zero and fill with the random points
@@ -38,7 +42,7 @@ class UMatTestFixture : public ::testing::Test {
     for (const auto &pt : pts_) {
       frame_(pt.first) = pt.second;
     }
-    d_frame_.upload(frame_);
+    d_frame_.upload(frame_.clone());
   }
 
   /**
@@ -71,7 +75,7 @@ class UMatTestFixture : public ::testing::Test {
   }
 
  protected:
-  std::vector<std::pair<cv::Point2i, T>> pts_;
+  std::unordered_map<cv::Point2i, T> pts_;
   cv::Mat_<T> frame_;
   cv::cuda::GpuMat d_frame_;
 };
