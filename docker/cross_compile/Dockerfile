@@ -1,18 +1,40 @@
 FROM nvcr.io/nvidia/l4t-base:r34.1
+# FROM nvcr.io/nvidia/l4t-cuda:11.4.14-runtime
 
-RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y cmake vim xz-utils git libgstreamer1.0-dev gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly gstreamer1.0-plugins-base gstreamer1.0-tools gstreamer1.0-libav libgstreamer-plugins-base1.0-dev python3-dev python3-pip gdb libsqlite3-dev libgtk2.0-dev clang-format libgtest-dev
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
+  # Development and build
+  cmake \
+  vim \
+  xz-utils \
+  git \
+  g++-11 \
+  gdb \
+  libgtest-dev \
+  libbenchmark-dev \
+  # SQLite
+  libsqlite3-dev \
+  # gStreamer
+  libgstreamer1.0-dev \
+  gstreamer1.0-plugins-good \
+  gstreamer1.0-plugins-bad \
+  gstreamer1.0-plugins-ugly \
+  gstreamer1.0-plugins-base \
+  gstreamer1.0-tools \
+  gstreamer1.0-libav \
+  libgstreamer-plugins-base1.0-dev \
+  libgtk2.0-dev \
+  # Python
+  python3-dev \
+  python3-pip \
+  clang-format \
+  libgtest-dev \
+  # VPI and CUDA
+  libnvvpi2 \
+  vpi2-dev \
+  vpi2-samples \
+  cuda-toolkit-11-4
+
 RUN pip3 install numpy pre-commit
-
-
-# Build and install Yaml-Cpp
-RUN cd /opt && \
-  git clone https://github.com/jbeder/yaml-cpp.git && \
-  cd yaml-cpp && \
-  git checkout yaml-cpp-0.6.3 && \
-  mkdir build && \
-  cd build && \
-  cmake -DYAML_BUILD_SHARED_LIBS=ON -DBUILD_TESTING=OFF .. && \
-  make install
 
 # Build and install Eigen
 RUN cd /opt && \
@@ -22,18 +44,6 @@ RUN cd /opt && \
   mkdir build && \
   cd build && \
   cmake .. && \
-  make install
-
-# Build and install VTK
-RUN apt-get install -y libxt-dev
-RUN cd /opt && \
-  git clone https://github.com/Kitware/VTK.git && \
-  cd VTK && \
-  git checkout v8.2.0 && \
-  mkdir build && \
-  cd build && \
-  cmake .. && \
-  make -j$('nproc') && \
   make install
 
 # Build and install OpenCV
@@ -56,7 +66,7 @@ RUN cd /opt && \
         -D WITH_CUBLAS=ON \
         -D WITH_LIBV4L=ON \
         -D WITH_V4L=ON \
-        -D WITH_VTK=ON \
+        -D WITH_VTK=OFF \
         -D WITH_GSTREAMER=ON \
         -D WITH_GSTREAMER_0_10=OFF \
         -D WITH_OPENGL=ON \
@@ -69,6 +79,17 @@ RUN cd /opt && \
   make -j$('nproc') && \
   make install
 
+# Build and install Yaml-Cpp
+RUN cd /opt && \
+  git clone https://github.com/jbeder/yaml-cpp.git && \
+  cd yaml-cpp && \
+  git checkout yaml-cpp-0.6.3 && \
+  mkdir build && \
+  cd build && \
+  cmake -DYAML_BUILD_SHARED_LIBS=ON -DBUILD_TESTING=OFF .. && \
+  make install
+
+
 # Build and install Spdlog
 RUN cd /opt && \
   git clone https://github.com/gabime/spdlog.git && \
@@ -80,7 +101,7 @@ RUN cd /opt && \
   make install
 
 # Install the python script that will show eigen matrices when running gdb
-COPY printers /opt/printers
+COPY docker/printers /opt/printers
 RUN mv /opt/printers/.gdbinit /root
 
 
@@ -90,4 +111,18 @@ RUN mv /opt/printers/.gdbinit /root
 #   apt-get install -y software-properties-common && \
 #   add-apt-repository 'deb https://repo.download.nvidia.com/jetson/x86_64/focal r34.1 main' && \
 #   apt-get update && \
-#   apt-get install -y libnvvpi2 vpi2-dev vpi2-samples vpi2-cross-aarch64-l4t
+#   apt-get install -y libnvvpi2 vpi2-dev vpi2-samples
+
+
+RUN mkdir /opt/flyStereo
+
+COPY . /opt/flyStereo/
+
+
+
+# RUN export PATH=${PATH}:/usr/local/cuda/bin && \
+#   cd /opt/flyStereo && \
+#   mkdir build && \
+#   cd build && \
+#   cmake .. && \
+#   make -j$('nproc')

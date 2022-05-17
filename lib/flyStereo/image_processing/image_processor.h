@@ -84,6 +84,9 @@ class ImageProcessor {
   UMat<cv::Vec2f> pts_d_c0_t1_;  //< Detected points in camera 0 frame at time t1
   UMat<cv::Vec2f> pts_d_c1_t0_;  //< Detected points in camera 1 frame at time t0
   UMat<cv::Vec2f> pts_d_c1_t1_;  //< Detected points in camera 1 frame at time t1
+  UMat<cv::Vec2f> copy_1_;
+  UMat<cv::Vec2f> copy_2_;
+  UMat<cv::Vec2f> copy_3_;
 
   // IDs of the points
   std::vector<uint32_t> ids_pts_tracked_;

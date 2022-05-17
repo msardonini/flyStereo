@@ -71,9 +71,9 @@ class UMat {
     if (unified_ptr_) {
       cudaFree(unified_ptr_);
     }
+    unified_ptr_ = umat.unified_ptr_;
     frame_ = umat.frame_;
     d_frame_ = umat.d_frame_;
-    unified_ptr_ = umat.unified_ptr_;
     umat.unified_ptr_ = nullptr;
     umat.frame_ = cv::Mat_<T>();
     umat.d_frame_ = cv::cuda::GpuMat();
@@ -191,6 +191,13 @@ class UMat {
    * @return const cv::cuda::GpuMat&
    */
   const cv::cuda::GpuMat &d_frame() const { return d_frame_; }
+
+  /**
+   * @brief Creates a copy of the UMat
+   *
+   * @return UMat<T>
+   */
+  UMat<T> clone() const { return UMat<T>(*this); }
 
   /**
    * @brief Decreases the number of rows in the UMat. The requsted number must be less than the current number of

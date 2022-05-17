@@ -66,13 +66,25 @@ target_link_libraries(fly_stereo_lib
     yaml-cpp
     ${GST_LIBRARIES}
     ${CUDA_LIBRARIES}
-    vpi
 )
+
+if (${WITH_VPI})
+ target_compile_definitions(fly_stereo_lib
+  PUBLIC
+    WITH_VPI)
+  target_link_libraries(fly_stereo_lib
+    PUBLIC
+      vpi)
+  endif()
 
 target_compile_options(fly_stereo_lib
   PRIVATE
     -Wall
+    -pg
 )
+
+SET(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -pg")
+SET(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -pg")
 
 #target_compile_definitions(fly_stereo_lib
 #  PUBLIC
@@ -83,26 +95,4 @@ target_compile_options(fly_stereo_lib
 set_property(TARGET fly_stereo_lib PROPERTY CXX_STANDARD 20)
 
 
-
-# Build Tests
-add_executable(fly_stereo_tests
-  test/opt_flow_tests.cc
-  test/image_processor_tests.cc
-  # test/umat_tests.cc
-)
-
-target_link_libraries(fly_stereo_tests
-  fly_stereo_lib
-  gtest
-  gtest_main
-)
-
-# Build Tests
-add_executable(fly_stereo_benchmark
-  test/benchmark/opt_flow_benchmark.cc
-)
-
-target_link_libraries(fly_stereo_benchmark
-  fly_stereo_lib
-  benchmark::benchmark
-)
+add_subdirectory(tests)

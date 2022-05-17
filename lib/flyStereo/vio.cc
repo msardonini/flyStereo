@@ -274,10 +274,10 @@ int Vio::CalculatePoseUpdate(const TrackedImagePoints &pts, const Eigen::Matrix3
   cv::solvePnPRansac(triangulation_output_pts, cv::Mat_<cv::Vec2d>(pts.cam0_t1.frame()), stereo_cal_.K_cam0,
                      stereo_cal_.D_cam0, rvec, tvec, false, 500, 0.05, 0.99, inliers, cv::SOLVEPNP_P3P);
 
-  std::cout << " Inlier percentage openCV " << static_cast<float>(inliers.size()) / triangulation_output_pts.size()
-            << std::endl;
+  // std::cout << " Inlier percentage openCV " << static_cast<float>(inliers.size()) / triangulation_output_pts.size()
+  //           << std::endl;
 
-  pose_update = cv::Affine3d(rvec, tvec).inv();
+  pose_update = cv::Affine3d(rvec, tvec);
 
   std::cout << " translation " << pose_update.translation().t() << std::endl;
 

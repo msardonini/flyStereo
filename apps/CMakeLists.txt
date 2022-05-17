@@ -6,8 +6,10 @@ add_subdirectory(flyStereo)
 
 add_subdirectory(imu_compensation)
 
-add_subdirectory(viz_demo)
 
+if(${FLYSTEREO_WITH_VIZ})
+  add_subdirectory(viz_demo)
+endif()
 
 add_executable(test_time_log
   test_time_log.cc
