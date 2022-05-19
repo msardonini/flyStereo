@@ -17,7 +17,7 @@
 #include "flyStereo/debug_video_recorder.h"
 
 // Debug test function
-template <typename OptFlowCalculator = OptFlowVpiGpu>
+template <typename OptFlowCalculator = OptFlowCvGpu>
 double print_percent_status(UMat<uint8_t> &status) {
   int counter = std::accumulate(status.frame().begin(), status.frame().end(), 0, [](int sum, uint8_t val) {
     if (val == OptFlowCalculator::success_value) {

@@ -1,16 +1,16 @@
 cmake_minimum_required(VERSION 3.10.2)
 
-# find_package(CUDA REQUIRED)
 find_package(OpenCV REQUIRED)
 
-list(APPEND CMAKE_PREFIX_PATH /usr/local/lib/cmake/opengv-1.0)
 
 find_package(yaml-cpp REQUIRED)
 find_package(Eigen3 3.3.7 REQUIRED NO_MODULE)
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
-# find_package(libLAS)
 
-find_package(vpi REQUIRED)
+if (${WITH_VPI})
+  find_package(vpi REQUIRED)
+endif()
+
 find_package(PkgConfig)
 pkg_check_modules(GST gstreamer-1.0>=1.4
   gstreamer-video-1.0>=1.4

@@ -11,7 +11,9 @@
 
 #include "Eigen/Dense"
 #include "flyStereo/image_processing/opt_flow_cv_gpu.h"
+#ifdef WITH_VPI
 #include "flyStereo/image_processing/opt_flow_vpi_gpu.h"
+#endif
 #include "flyStereo/image_processing/optical_flow_points.h"
 #include "flyStereo/interface.h"
 #include "flyStereo/sensor_io/mavlink/fly_stereo/mavlink.h"

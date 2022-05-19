@@ -15,16 +15,22 @@ class OptFlowCvGpu : public OptFlowBase<OptFlowCvGpu> {
 
   void init(cv::Size size) {}
 
-  void calc(const UMat<uint8_t>& prev_image, const UMat<uint8_t>& curr_image, const UMat<cv::Vec2f>& prev_pts,
-            UMat<cv::Vec2f>& curr_pts, UMat<uint8_t>& status) {
+  void calc(const cv::cuda::GpuMat& prev_image, const cv::cuda::GpuMat& curr_image, const cv::cuda::GpuMat& prev_pts,
+            cv::cuda::GpuMat& curr_pts, cv::cuda::GpuMat& status) {
     if (opt_flow_ptr_) {
-      cv::cuda::GpuMat status_tmp;
-      opt_flow_ptr_->calc(prev_image.d_frame().clone(), curr_image.d_frame().clone(), prev_pts.d_frame(),
-                          curr_pts.d_frame(), status_tmp);
-      status = status_tmp;
+      opt_flow_ptr_->calc(prev_image, curr_image, prev_pts, curr_pts, status);
     } else {
       throw std::runtime_error("OptFlowCvGpu::calc: opt_flow_ptr_ is null");
     }
+  }
+
+  void calc(const UMat<uint8_t>& prev_image, const UMat<uint8_t>& curr_image, const UMat<cv::Vec2f>& prev_pts,
+            UMat<cv::Vec2f>& curr_pts, UMat<uint8_t>& status) {
+    cv::cuda::GpuMat status_tmp;
+    cv::cuda::GpuMat pts_tmp;
+    // auto tmp = curr_pts.d_frame();
+    calc(prev_image.d_frame().clone(), curr_image.d_frame().clone(), prev_pts.d_frame(), curr_pts.d_frame(), status_tmp);
+    status = status_tmp;
   }
 
   const static uint8_t success_value = 1;

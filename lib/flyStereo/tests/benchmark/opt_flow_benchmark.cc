@@ -2,7 +2,9 @@
 
 #include "benchmark/benchmark.h"
 #include "flyStereo/image_processing/opt_flow_cv_gpu.h"
+#ifdef WITH_VPI
 #include "flyStereo/image_processing/opt_flow_vpi_gpu.h"
+#endif
 #include "flyStereo/tests/generators.h"
 #include "flyStereo/umat.h"
 
@@ -25,10 +27,13 @@ static void OptFlowTest(benchmark::State& state) {
 
   optflow.init(prev_frame.d_frame().size());
   // Perform setup here
+
+  cv::cuda::GpuMat prev_frame_cv = prev_frame.d_frame().clone();
+  cv::cuda::GpuMat curr_frame_cv = curr_frame.d_frame().clone();
   for (auto _ : state) {
     // Perform tracking here
     // std::swap(prev_frame, curr_frame);
-    optflow.calc(prev_frame, curr_frame, prev_pts, clone, status);
+    optflow.calc(prev_frame_cv, curr_frame_cv, prev_pts.d_frame(), clone.d_frame(), status.d_frame());
   }
 }
 
@@ -36,7 +41,7 @@ static void OptFlowTest(benchmark::State& state) {
 #ifdef WITH_VPI
 BENCHMARK_TEMPLATE1(OptFlowTest, OptFlowVpiGpu);
 #endif
-BENCHMARK_TEMPLATE1(OptFlowTest, OptFlowCvGpu);
+BENCHMARK_TEMPLATE1(OptFlowTest, OptFlowCvGpu)->Iterations(1000);
 
 // Run the benchmark
 BENCHMARK_MAIN();
