@@ -1,0 +1,6 @@
+[submodule "external/cmake-gtest-coverage-example"]
+	path = external/cmake-gtest-coverage-example
+	url = git@github.com:pyarmak/cmake-gtest-coverage-example.git
+[submodule "external/thread-pool"]
+	path = external/thread-pool
+	url = git@github.com:bshoshany/thread-pool.git

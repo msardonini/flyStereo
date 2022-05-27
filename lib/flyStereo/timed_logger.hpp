@@ -26,16 +26,16 @@ class TimedLogger {
   void timed_log(int channel, std::string_view msg) {
     auto time_now = std::chrono::system_clock::now();
 
-    std::scoped_lock(channel_mutex_);
+    std::scoped_lock lock(channel_mutex_);
     if (channels_.count(channel)) {
       auto& time_prev = channels_.find(channel)->second;
-      spdlog::info("{} Took: {} Microseconds", msg,
+      spdlog::info("{} Took: {} Seconds", msg,
                    std::chrono::duration_cast<std::chrono::microseconds>(time_now - time_prev).count());
     } else {
       spdlog::info("{}", msg);
     }
 
-    channels_.insert(std::make_pair(channel, time_now));
+    channels_.insert_or_assign(channel, time_now);
   }
 
  private:

@@ -159,9 +159,6 @@ class UMat {
     if (unified_ptr_ != nullptr) {
       cudaFree(unified_ptr_);
     }
-    if (cols_ != nullptr) {
-      cudaFree(cols_);
-    }
   }
 
   /**
@@ -238,9 +235,14 @@ class UMat {
   }
   void *data() { return unified_ptr_; }
 
-  int *get_cols() const { return reinterpret_cast<int *>(cols_); }
+  /**
+   * @brief Convienence function for getting the size of the UMat
+   *
+   * @return cv::Size
+   */
+  cv::Size size() const { return frame_.size(); }
 
- private:
+ protected:
   /**
    * @brief Initializes the memory for the UMat object
    *
@@ -251,8 +253,6 @@ class UMat {
     cudaMallocManaged(&unified_ptr_, frame_size.area() * sizeof(T));
     frame_ = cv::Mat_<T>(frame_size.height, frame_size.width, reinterpret_cast<T *>(unified_ptr_));
     d_frame_ = cv::cuda::GpuMat(frame_size.height, frame_size.width, get_type(), reinterpret_cast<T *>(unified_ptr_));
-    cudaMallocManaged(&cols_, sizeof(int));
-    *reinterpret_cast<int *>(cols_) = frame_size.width;
   }
 
   /**
@@ -308,7 +308,6 @@ class UMat {
     }
   }
 
-  void *cols_ = nullptr;
   cv::cuda::GpuMat d_frame_;     //< d_frame_, non-owning matrix
   cv::Mat_<T> frame_;            //< The frame_, non-ownding matrix
   void *unified_ptr_ = nullptr;  //< Pointer to the unified memory

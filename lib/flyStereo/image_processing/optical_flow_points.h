@@ -2,7 +2,7 @@
 
 #include <map>
 
-#include "flyStereo/umat.h"
+#include "flyStereo/types/umat.h"
 #include "opencv2/core.hpp"
 #include "opencv2/cudafeatures2d.hpp"
 #include "opencv2/cudaimgproc.hpp"
@@ -15,7 +15,8 @@
  * @param status The status of the points, typically returned from calcOpticalFlowPyrLK
  * @param points The points to modify
  */
-inline void RemovePoints(const UMat<uint8_t> &status, UMat<cv::Vec2f> &points, const uint8_t success_value) {
+inline void RemovePoints(const UMatVpiArray<uint8_t> &status, const uint8_t success_value,
+                         UMatVpiArray<cv::Vec2f> &points) {
   auto &points_frame = points.frame();
   auto &status_frame = status.frame();
   // Check to make sure the points match
@@ -35,7 +36,7 @@ inline void RemovePoints(const UMat<uint8_t> &status, UMat<cv::Vec2f> &points, c
 }
 
 template <typename T>
-inline void RemovePoints(const UMat<uint8_t> &status, std::vector<T> &points, const uint8_t success_value) {
+inline void RemovePoints(const UMatVpiArray<uint8_t> &status, const uint8_t success_value, std::vector<T> &points) {
   const auto &status_frame = status.frame();
 
   if (static_cast<int>(points.size()) != status_frame.cols) {
@@ -50,6 +51,11 @@ inline void RemovePoints(const UMat<uint8_t> &status, std::vector<T> &points, co
     }
   }
   points.resize(point_index);
+}
+
+template <typename... Args>
+inline void RemovePoints(const UMatVpiArray<uint8_t> &status, const uint8_t success_value, Args &... args) {
+  (RemovePoints(status, success_value, args), ...);
 }
 
 inline void MarkPointsOutOfFrame(UMat<uint8_t> &status, const UMat<cv::Vec2f> &points, const cv::Size &frame_size,
@@ -77,7 +83,7 @@ inline UMat<cv::Vec2f> AppendUMatColwise(const UMat<cv::Vec2f> &mat1, const UMat
 
   // Edge case: if the matrices are empty, return an empty matrix
   if (mat1_f.cols == 0 && mat2_f.cols == 0) {
-    return UMat<cv::Vec2f>();
+    return UMat<cv::Vec2f>(cv::Size(0, 1));
   }
 
   // Check edge cases where one of the UMats is empty

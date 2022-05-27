@@ -11,6 +11,7 @@ ARGS="--env DISPLAY \
   --env DDS_DOMAIN_ID=$DDS_DOMAIN_ID \
   --network=host \
   --cap-add=SYS_PTRACE \
+  --cap-add=SYS_ADMIN
   --ipc=host\
   --security-opt seccomp=unconfined \
   --gpus all \

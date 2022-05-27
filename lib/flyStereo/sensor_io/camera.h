@@ -3,7 +3,7 @@
 #include <memory>
 #include <string>
 
-#include "flyStereo/umat.h"
+#include "flyStereo/types/umat.h"
 #include "gst/app/gstappsink.h"
 #include "gst/gst.h"
 #include "gst/video/video.h"

@@ -5,7 +5,7 @@
 
 #include "Eigen/Dense"
 #include "flyStereo/sensor_io/mavlink/fly_stereo/mavlink.h"
-#include "flyStereo/umat.h"
+#include "flyStereo/types/umat.h"
 
 // struct ImagePoint {
 //   // Default Constructor

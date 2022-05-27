@@ -2,7 +2,7 @@
 #include "flyStereo/image_processing/opt_flow_cv_gpu.h"
 #include "flyStereo/image_processing/opt_flow_vpi_gpu.h"
 #include "flyStereo/tests/generators.h"
-#include "flyStereo/umat.h"
+#include "flyStereo/types/umat.h"
 #include "gtest/gtest.h"
 
 constexpr int num_pts = 500;

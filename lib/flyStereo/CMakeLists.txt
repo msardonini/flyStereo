@@ -66,6 +66,7 @@ target_link_libraries(fly_stereo_lib
     yaml-cpp
     ${GST_LIBRARIES}
     ${CUDA_LIBRARIES}
+    thread_pool
 )
 
 if (${WITH_VPI})
@@ -80,7 +81,7 @@ if (${WITH_VPI})
 target_compile_options(fly_stereo_lib
   PRIVATE
     -Wall
-    -pg
+    # -pg
 )
 
 SET(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -pg")

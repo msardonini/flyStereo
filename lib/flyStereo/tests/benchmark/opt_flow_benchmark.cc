@@ -2,15 +2,16 @@
 
 #include "benchmark/benchmark.h"
 #include "flyStereo/image_processing/opt_flow_cv_gpu.h"
+#include "flyStereo/tests/generators.h"
+#include "flyStereo/types/umat.h"
+
 #ifdef WITH_VPI
 #include "flyStereo/image_processing/opt_flow_vpi_gpu.h"
 #endif
-#include "flyStereo/tests/generators.h"
-#include "flyStereo/umat.h"
 
 constexpr int num_pts = 500;
 const cv::Size imsize(1280, 720);
-constexpr int window_size = 21;
+constexpr int window_size = 6;
 constexpr int max_pyramid_level = 3;
 constexpr int max_iters = 30;
 constexpr bool use_initial_flow = true;
@@ -33,7 +34,7 @@ static void OptFlowTest(benchmark::State& state) {
   for (auto _ : state) {
     // Perform tracking here
     // std::swap(prev_frame, curr_frame);
-    optflow.calc(prev_frame_cv, curr_frame_cv, prev_pts.d_frame(), clone.d_frame(), status.d_frame());
+    optflow.calc(prev_frame, curr_frame, prev_pts, clone, status);
   }
 }
 
@@ -41,7 +42,7 @@ static void OptFlowTest(benchmark::State& state) {
 #ifdef WITH_VPI
 BENCHMARK_TEMPLATE1(OptFlowTest, OptFlowVpiGpu);
 #endif
-BENCHMARK_TEMPLATE1(OptFlowTest, OptFlowCvGpu)->Iterations(1000);
+BENCHMARK_TEMPLATE1(OptFlowTest, OptFlowCvGpu);
 
 // Run the benchmark
 BENCHMARK_MAIN();

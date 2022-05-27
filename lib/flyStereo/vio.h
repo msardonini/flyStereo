@@ -54,8 +54,8 @@ class Vio {
   Eigen::Matrix3d R_imu_cam0_eigen_;
   cv::Matx33d R_imu_cam0_;
 
-  cv::Matx34d P0_;
-  cv::Matx34d P1_;
+  cv::Matx34f P0_;
+  cv::Matx34f P1_;
 
   // The estimated pose after VIO is run in the cameara frame
   cv::Affine3d pose_cam0_;

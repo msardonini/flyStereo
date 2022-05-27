@@ -1,7 +1,8 @@
 #pragma once
-#include "flyStereo/umat.h"
+#include "flyStereo/image_processing/opt_flow_stream_base.h"
+#include "flyStereo/types/umat.h"
 
-template <typename E>
+template <typename E, typename StreamType>
 class OptFlowBase {
  public:
   using derived_type = E;
@@ -11,7 +12,7 @@ class OptFlowBase {
   derived_type derived_cast() && noexcept;
 
   void calc(const UMat<uint8_t>& prev_image, const UMat<uint8_t>& curr_image, const UMat<cv::Vec2f>& prev_pts,
-            UMat<cv::Vec2f>& curr_pts) {
+            UMat<cv::Vec2f>& curr_pts, StreamType* stream) {
     return derived_cast().calc(prev_image, curr_image, prev_pts, curr_pts);
   }
 
@@ -26,4 +27,4 @@ class OptFlowBase {
   OptFlowBase& operator=(OptFlowBase&&) = default;
 };
 
-#include "flyStereo/image_processing/optical_flow_base.tpp"
+#include "flyStereo/image_processing/opt_flow_base.tpp"

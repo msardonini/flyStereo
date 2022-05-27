@@ -42,7 +42,7 @@ struct ImageProcessorConstants {
   // Binning
   static constexpr unsigned int bins_width = 20;
   static constexpr unsigned int bins_height = 15;
-  static constexpr unsigned int max_pts_in_bin = 30;
+  static constexpr unsigned int max_pts_in_bin = 1;
 
   // goodFeraturesToTrack
   static constexpr int max_corners = 300;
@@ -68,21 +68,29 @@ ImageProcessor<OptFlowCalculator>::ImageProcessor(float rate_limit_fps, StereoCa
       is_rate_limiting_(rate_limit_fps > 0.f),
       stereo_cal_(stereo_calibration),
       R_imu_cam0_(R_imu_cam0) {
-  pts_t_c0_t0_ = UMat<cv::Vec2f>(cv::Size(0, 1));
-  pts_t_c0_t1_ = UMat<cv::Vec2f>(cv::Size(0, 1));
-  pts_t_c1_t0_ = UMat<cv::Vec2f>(cv::Size(0, 1));
-  pts_t_c1_t1_ = UMat<cv::Vec2f>(cv::Size(0, 1));
-  pts_d_c0_t0_ = UMat<cv::Vec2f>(cv::Size(0, 1));
-  pts_d_c0_t1_ = UMat<cv::Vec2f>(cv::Size(0, 1));
-  pts_d_c1_t0_ = UMat<cv::Vec2f>(cv::Size(0, 1));
-  pts_d_c1_t1_ = UMat<cv::Vec2f>(cv::Size(0, 1));
+  pts_t_c0_t0_ = UMatVpiArray<cv::Vec2f>(cv::Size(0, 1));
+  pts_t_c0_t1_ = UMatVpiArray<cv::Vec2f>(cv::Size(0, 1));
+  pts_t_c1_t0_ = UMatVpiArray<cv::Vec2f>(cv::Size(0, 1));
+  pts_t_c1_t1_ = UMatVpiArray<cv::Vec2f>(cv::Size(0, 1));
+  pts_d_c0_t0_ = UMatVpiArray<cv::Vec2f>(cv::Size(0, 1));
+  pts_d_c0_t1_ = UMatVpiArray<cv::Vec2f>(cv::Size(0, 1));
+  pts_d_c1_t0_ = UMatVpiArray<cv::Vec2f>(cv::Size(0, 1));
+  pts_d_c1_t1_ = UMatVpiArray<cv::Vec2f>(cv::Size(0, 1));
 
   // cv::Matx33f stereo_cal_.R_cam0_cam1 = stereo_cal_.R_cam0_cam1;
   R_imu_cam1_ = R_imu_cam0_ * cv::Matx33f(stereo_cal_.R_cam0_cam1);
 
   pose_ = Eigen::Matrix4d::Identity();
   prev_xform_ = Eigen::Matrix4d::Identity();
+
+  const auto max_pts = ImageProcessorConstants::bins_width * ImageProcessorConstants::bins_height *
+                       ImageProcessorConstants::max_pts_in_bin;
+  ids_pts_tracked_.reserve(max_pts);
+  ids_pts_detected_.reserve(max_pts);
 }
+
+template <typename OptFlowCalculator>
+ImageProcessor<OptFlowCalculator>::~ImageProcessor() {}
 
 template <typename OptFlowCalculator>
 void ImageProcessor<OptFlowCalculator>::Init() {
@@ -103,9 +111,9 @@ void ImageProcessor<OptFlowCalculator>::Init() {
 }
 
 template <typename OptFlowCalculator>
-int ImageProcessor<OptFlowCalculator>::UpdatePointsViaImu(const UMat<cv::Vec2f> &current_pts,
+int ImageProcessor<OptFlowCalculator>::UpdatePointsViaImu(const UMatVpiArray<cv::Vec2f> &current_pts,
                                                           const cv::Matx33d &rotation, const cv::Matx33d &camera_matrix,
-                                                          UMat<cv::Vec2f> &updated_pts) {
+                                                          UMatVpiArray<cv::Vec2f> &updated_pts) {
   if (current_pts.frame().rows != 1 && current_pts.frame().channels() != 2) {
     throw std::runtime_error("ImageProcessor::UpdatePointsViaImu: current_pts must be 1xNx2");
   }
@@ -147,18 +155,73 @@ TrackedImagePoints ImageProcessor<OptFlowCalculator>::OuputTrackedPoints(const s
                             imu_msgs, rotation_t0_t1_cam0_eigen);
 }
 
+template <typename OptFlowCalculator>
+void ImageProcessor<OptFlowCalculator>::detect(const UMat<uint8_t> &mask) {
+  // Detect new features to match for the next iteration
+  DetectNewFeatures<cv::cuda::CornersDetector>(detector_ptr_, d_frame_cam0_t1_, mask, pts_d_c0_t1_, detector_stream_);
+  // Match the detected features in the second camera
+
+  // std::cout << "c1 dets " << pts_d_c1_t1_.frame() << std::endl;
+  logger_.timed_log(0, "organize detections");
+  UMatVpiArray<uint8_t> status = UMatVpiArray<uint8_t>(pts_d_c0_t1_.frame().size());
+  StereoMatch(d_opt_flow_stereo_t1_, d_frame_cam0_t1_, d_frame_cam1_t1_, pts_d_c0_t1_, pts_d_c1_t1_, status,
+              detector_stream_);
+  logger_.timed_log(0, "detect");
+  detector_stream_.sync();
+
+  // // DEBUG CODE
+  // bool write_to_debug = true;
+  // if (write_to_debug) {
+  //   std::vector<cv::Point2f> pts_t0;
+  //   if (pts_d_c0_t1_.frame().cols > 0) {
+  //     pts_d_c0_t1_.d_frame().download(pts_t0);
+  //   }
+  //   // debug_record.DrawPts(mask.frame() * 255, 0, {});
+  //   debug_record.DrawPts(d_frame_cam0_t1_.frame(), 0, pts_t0);
+  //   std::vector<cv::Point2f> pts_t1;
+  //   if (pts_d_c1_t1_.d_frame().cols > 0) {
+  //     pts_d_c1_t1_.d_frame().download(pts_t1);
+  //   }
+  //   debug_record.DrawPts(d_frame_cam1_t1_.frame(), 1, pts_t1);
+  //   debug_record.WriteFrame();
+  // }
+  // // END DEBUG CODE
+
+  if (pts_d_c0_t1_.frame().cols != 0) {
+    MarkPointsOutOfFrame(status, pts_d_c1_t1_, d_frame_cam1_t1_.size(), OptFlowCalculator::success_value);
+    RemovePoints(status, OptFlowCalculator::success_value, pts_d_c0_t1_, pts_d_c1_t1_);
+
+    auto counter = 0;
+    std::for_each(status.frame().begin(), status.frame().end(), [&counter](auto &status_row) {
+      if (status_row == OptFlowCalculator::success_value) {
+        counter++;
+      }
+    });
+    std::cout << "percent pts " << counter / static_cast<float>(status.frame().cols) << std::endl;
+
+    // Fill in the ids vector with our new detected features
+    ids_pts_detected_.clear();
+    ids_pts_detected_.reserve(pts_d_c0_t1_.frame().cols);
+
+    for (int i = 0; i < pts_d_c0_t1_.frame().cols; i++) {
+      ids_pts_detected_.push_back(current_id_++);
+    }
+  }
+}
+
+template <typename OptFlowCalculator>
+void ImageProcessor<OptFlowCalculator>::track() {}
+
 // TODO make a check that the object is initialized before starting
 template <typename OptFlowCalculator>
-int ImageProcessor<OptFlowCalculator>::process_image(UMat<uint8_t> &d_frame_cam0_t1, UMat<uint8_t> &d_frame_cam1_t1,
+int ImageProcessor<OptFlowCalculator>::process_image(UMat<uint8_t> &d_frame_cam0_t1_umat,
+                                                     UMat<uint8_t> &d_frame_cam1_t1_umat,
                                                      const std::vector<mavlink_imu_t> &imu_msgs,
                                                      uint64_t current_frame_time, TrackedImagePoints &tracked_points) {
-  // Time checks for performance monitoring. TODO: Put these in a dedicated class
-  auto t_start = std::chrono::system_clock::now();
-  auto t_data = std::chrono::system_clock::now();
-  auto t_lk1 = std::chrono::system_clock::now();
-  auto t_det = std::chrono::system_clock::now();
-  auto t_log = std::chrono::system_clock::now();
+  d_frame_cam0_t1_ = std::move(d_frame_cam0_t1_umat);
+  d_frame_cam1_t1_ = std::move(d_frame_cam1_t1_umat);
 
+  logger_.timed_log(0, "start");
   cv::Matx33f rotation_t0_t1_cam0;
   cv::Matx33f rotation_t0_t1_cam1;
   int retval = SensorInterface::GenerateImuXform(imu_msgs, R_imu_cam0_, R_imu_cam1_, rotation_t0_t1_cam0,
@@ -166,22 +229,19 @@ int ImageProcessor<OptFlowCalculator>::process_image(UMat<uint8_t> &d_frame_cam0
 
   // Append the kepypoints from the previous iteration to the tracked points of the current
   // iteration. Points that pass through all the outlier checks will remain as tracked points
-  pts_t_c0_t0_ = AppendUMatColwise(pts_t_c0_t0_, pts_d_c0_t0_);
-  pts_t_c1_t0_ = AppendUMatColwise(pts_t_c1_t0_, pts_d_c1_t0_);
-
+  pts_t_c0_t0_ = AppendUMatColwise(pts_t_c0_t0_, pts_d_c0_t1_);
+  pts_t_c1_t0_ = AppendUMatColwise(pts_t_c1_t0_, pts_d_c1_t1_);
   ids_pts_tracked_.insert(std::end(ids_pts_tracked_), std::begin(ids_pts_detected_), std::end(ids_pts_detected_));
 
   // Remove the points the exceed the binning threshold
   if (pts_t_c0_t0_.frame().cols > 2) {
     // Vector to indicate whether a point should be deleted or kept after binning
-    UMat<uint8_t> bin_status;
-    BinAndMarkPoints(pts_t_c0_t0_, ids_pts_tracked_, d_frame_cam0_t1.frame().size(),
+    UMatVpiArray<uint8_t> bin_status;
+    BinAndMarkPoints(pts_t_c0_t0_, ids_pts_tracked_, d_frame_cam0_t1_.size(),
                      cv::Size(ImageProcessorConstants::bins_width, ImageProcessorConstants::bins_height),
                      ImageProcessorConstants::max_pts_in_bin, bin_status, OptFlowCalculator::success_value);
 
-    RemovePoints(bin_status, pts_t_c0_t0_, OptFlowCalculator::success_value);
-    RemovePoints(bin_status, pts_t_c1_t0_, OptFlowCalculator::success_value);
-    RemovePoints(bin_status, ids_pts_tracked_, OptFlowCalculator::success_value);
+    RemovePoints(bin_status, OptFlowCalculator::success_value, pts_t_c0_t0_, pts_t_c1_t0_, ids_pts_tracked_);
   }
 
   // Make a prediction of where the points will be in the current image given the IMU data
@@ -196,13 +256,17 @@ int ImageProcessor<OptFlowCalculator>::process_image(UMat<uint8_t> &d_frame_cam0
 
   // Apply the optical flow from the previous frame to the current frame
   if (!pts_t_c0_t0_.frame().empty()) {
-    UMat<uint8_t> status;
+    UMatVpiArray<uint8_t> status = UMatVpiArray<uint8_t>(pts_t_c0_t0_.frame().size());
 
     // UMat<uint8_t> d_frame_cam0_t0_copy(d_frame_cam0_t0_);
     // UMat<uint8_t> d_frame_cam0_t1_copy(d_frame_cam0_t1);
 
+    logger_.timed_log(0, "start calc");
     // auto copy_1 = pts_t_c0_t0_.clone();
-    d_opt_flow_cam0_.calc(d_frame_cam0_t0_, d_frame_cam0_t1, pts_t_c0_t0_, pts_t_c0_t1_, status);
+    d_opt_flow_cam0_.calc(d_frame_cam0_t0_, d_frame_cam0_t1_, pts_t_c0_t0_, pts_t_c0_t1_, status, &tracker_stream_);
+    // d_opt_flow_cam0_.calc(d_frame_cam0_t0_, d_frame_cam0_t1, pts_t_c0_t0_, pts_t_c0_t1_, status, tracker_stream_);
+    tracker_stream_.sync();
+    logger_.timed_log(0, "end calc");
 
     // // DEBUG CODE
     // std::vector<cv::Point2f> pts_t0;
@@ -212,39 +276,47 @@ int ImageProcessor<OptFlowCalculator>::process_image(UMat<uint8_t> &d_frame_cam0
     //     pts_t_c0_t0_.d_frame().download(pts_t0);
     //   }
     //   debug_record.DrawPts(d_frame_cam0_t0_.frame(), 0, pts_t0);
-    // }
-    // // std::vector<cv::Point2f> pts_t1_debug;
-    // // points_[t_c0_t1].download(pts_t1_debug);
-    // // END DEBUG CODE
 
-    // // // DEBUG CODE
-    // if (write_to_debug) {
     //   std::vector<cv::Point2f> pts_t1;
     //   if (pts_t_c0_t1_.d_frame().cols > 0) {
     //     pts_t_c0_t1_.d_frame().download(pts_t1);
     //   }
-    //   debug_record.DrawPts(d_frame_cam0_t1.frame(), 1, pts_t1);
+    //   debug_record.DrawPts(d_frame_cam0_t1_.frame(), 1, pts_t1);
     //   debug_record.WriteFrame();
     // }
     // // // END DEBUG CODE
 
-    // std::cout << "t0 opt-flow " << print_percent_status(status) << std::endl;
+    {
+      MarkPointsOutOfFrame(status, pts_t_c0_t1_, d_frame_cam0_t1_.size(), OptFlowCalculator::success_value);
+      RemovePoints(status, OptFlowCalculator::success_value, pts_t_c0_t0_, pts_t_c0_t1_, pts_t_c1_t0_,
+                   ids_pts_tracked_);
 
-    MarkPointsOutOfFrame(status, pts_t_c0_t1_, d_frame_cam0_t1.frame().size(), OptFlowCalculator::success_value);
-    // std::cout << "t0 mark " << print_percent_status(status) << std::endl;
+      // // DEBUG CODE
+      //   std::vector<cv::Point2f> pts_t0;
+      //   bool write_to_debug = true;
+      //   if (write_to_debug) {
+      //     if (pts_t_c0_t0_.frame().cols > 0) {
+      //       pts_t_c0_t0_.d_frame().download(pts_t0);
+      //     }
+      //     debug_record.DrawPts(d_frame_cam0_t0_.frame(), 0, pts_t0);
 
-    // std::cout << "t0 pts before " << pts_t_c0_t0_.frame().cols << std::endl;
-    RemovePoints(status, pts_t_c0_t0_, OptFlowCalculator::success_value);
-    // std::cout << "t0 pts after " << pts_t_c0_t0_.frame().cols << std::endl;
-    RemovePoints(status, pts_t_c0_t1_, OptFlowCalculator::success_value);
-    RemovePoints(status, pts_t_c1_t0_, OptFlowCalculator::success_value);
-    RemovePoints(status, ids_pts_tracked_, OptFlowCalculator::success_value);
+      //     std::vector<cv::Point2f> pts_t1;
+      //     if (pts_t_c0_t1_.d_frame().cols > 0) {
+      //       pts_t_c0_t1_.d_frame().download(pts_t1);
+      //     }
+      //     debug_record.DrawPts(d_frame_cam0_t1_.frame(), 1, pts_t1);
+      //     debug_record.WriteFrame();
+      //   }
+      //   // // END
+    }
+    logger_.timed_log(0, "t0 to t1");
 
     // Match the points from camera 0 to camera 1
-    // copy_2_ = pts_t_c0_t1_.clone();
-    int ret_val =
-        StereoMatch(d_opt_flow_stereo_t0_, d_frame_cam0_t1, d_frame_cam1_t1, pts_t_c0_t1_, pts_t_c1_t1_, status);
+    int ret_val = StereoMatch(d_opt_flow_stereo_t0_, d_frame_cam0_t1_, d_frame_cam1_t1_, pts_t_c0_t1_, pts_t_c1_t1_,
+                              status, tracker_stream_);
+    // tracker_stream_.sync();
 
+    logger_.timed_log(0, "stereomatch");
     // // DEBUG CODE
     // std::vector<cv::Point2f> pts_t0;
     // bool write_to_debug = true;
@@ -261,24 +333,21 @@ int ImageProcessor<OptFlowCalculator>::process_image(UMat<uint8_t> &d_frame_cam0
     // // // DEBUG CODE
     // if (write_to_debug) {
     //   std::vector<cv::Point2f> pts_t1;
-    //   if (pts_t_c0_t1_.d_frame().cols > 0) {
-    //     pts_t_c0_t1_.d_frame().download(pts_t1);
+    //   if (pts_t_c1_t1_.d_frame().cols > 0) {
+    //     pts_t_c1_t1_.d_frame().download(pts_t1);
     //   }
     //   debug_record.DrawPts(d_frame_cam1_t1.frame(), 1, pts_t1);
     //   debug_record.WriteFrame();
     // }
-    // // // END DEBUG CODE
+    // // END DEBUG CODE
 
     // Remove the outliers from the StereoMatch algorithm
     if (ret_val == 0) {
       // std::cout << "t pts before " << pts_t_c0_t1_.frame().cols << std::endl;
-      RemovePoints(status, pts_t_c0_t0_, OptFlowCalculator::success_value);
       // std::cout << "t pts after " << pts_t_c0_t1_.frame().cols << std::endl;
 
-      RemovePoints(status, pts_t_c0_t1_, OptFlowCalculator::success_value);
-      RemovePoints(status, pts_t_c1_t0_, OptFlowCalculator::success_value);
-      RemovePoints(status, pts_t_c1_t1_, OptFlowCalculator::success_value);
-      RemovePoints(status, ids_pts_tracked_, OptFlowCalculator::success_value);
+      RemovePoints(status, OptFlowCalculator::success_value, pts_t_c0_t0_, pts_t_c0_t1_, pts_t_c1_t0_, pts_t_c1_t1_,
+                   ids_pts_tracked_);
     } else {
       throw std::runtime_error("Error in stereo matching");
     }
@@ -293,60 +362,29 @@ int ImageProcessor<OptFlowCalculator>::process_image(UMat<uint8_t> &d_frame_cam0
     }
   }
 
-  t_lk1 = std::chrono::system_clock::now();
+  auto mask = GetInputMaskFromPoints(pts_t_c0_t1_, d_frame_cam0_t1_.size());
 
-  // debug_num_pts[3] = points_.GetCpu(t_c0_t1).size();
-
-  /*********************************************************************
-   * Detect new features for the next iterationq
-   *********************************************************************/
-  DetectNewFeatures<cv::cuda::CornersDetector>(detector_ptr_, d_frame_cam0_t1.d_frame(), pts_t_c0_t1_.d_frame(),
-                                               pts_d_c0_t1_);
-  // Match the detected features in the second camera
-  pts_d_c1_t1_ = cv::Mat_<cv::Vec2d>();
-
-  UMat<uint8_t> status;
-  // copy_3_ = pts_d_c0_t1_.clone();
-  StereoMatch(d_opt_flow_stereo_t1_, d_frame_cam0_t1, d_frame_cam1_t1, pts_d_c0_t1_, pts_d_c1_t1_, status);
-
-  if (pts_d_c0_t1_.frame().cols != 0) {
-    // std::cout << "d pts before " << pts_d_c0_t1_.frame().cols << std::endl;
-    MarkPointsOutOfFrame(status, pts_d_c1_t1_, d_frame_cam1_t1.frame().size(), OptFlowCalculator::success_value);
-    RemovePoints(status, pts_d_c0_t1_, OptFlowCalculator::success_value);
-    // std::cout << "d pts after " << pts_d_c0_t1_.frame().cols << std::endl;
-    RemovePoints(status, pts_d_c1_t1_, OptFlowCalculator::success_value);
-  }
-
-  t_det = std::chrono::system_clock::now();
-
-  // Fill in the ids vector with our new detected features
-  ids_pts_detected_.clear();
-  ids_pts_detected_.reserve(pts_d_c0_t1_.frame().cols);
-
-  for (int i = 0; i < pts_d_c0_t1_.frame().cols; i++) {
-    ids_pts_detected_.push_back(current_id_++);
-  }
+  detect(mask);
 
   if (pts_t_c0_t1_.frame().cols > 1 && pts_t_c1_t1_.frame().cols > 1) {
     tracked_points = OuputTrackedPoints(imu_msgs, rotation_t0_t1_cam0);
   }
 
   // Set the current t1 values to t0 for the next iteration
-  d_frame_cam0_t0_ = std::move(d_frame_cam0_t1);
-  d_frame_cam1_t0_ = std::move(d_frame_cam1_t1);
+  std::swap(d_frame_cam0_t1_, d_frame_cam0_t0_);
+  std::swap(d_frame_cam1_t1_, d_frame_cam1_t0_);
 
   pts_t_c0_t0_ = std::move(pts_t_c0_t1_);
-  pts_t_c0_t1_ = UMat<cv::Vec2f>(cv::Size(0, 1));
+  pts_t_c0_t1_ = UMatVpiArray<cv::Vec2f>(cv::Size(0, 1));
   pts_t_c1_t0_ = std::move(pts_t_c1_t1_);
-  pts_t_c1_t1_ = UMat<cv::Vec2f>(cv::Size(0, 1));
-  pts_d_c0_t0_ = std::move(pts_d_c0_t1_);
-  pts_d_c0_t1_ = UMat<cv::Vec2f>(cv::Size(0, 1));
-  pts_d_c1_t0_ = std::move(pts_d_c1_t1_);
-  pts_d_c1_t1_ = UMat<cv::Vec2f>(cv::Size(0, 1));
+  pts_t_c1_t1_ = UMatVpiArray<cv::Vec2f>(cv::Size(0, 1));
+  // pts_d_c0_t0_ = std::move(pts_d_c0_t1_);
+  // pts_d_c0_t1_ = UMatVpiArray<cv::Vec2f>(cv::Size(0, 1));
+  // pts_d_c1_t0_ = std::move(pts_d_c1_t1_);
+  // pts_d_c1_t1_ = UMatVpiArray<cv::Vec2f>(cv::Size(0, 1));
 
-  t_log = std::chrono::system_clock::now();
-  spdlog::trace("ip dts, data: {}, lk1: {}, det: {}, log {}", (t_data - t_start).count() / 1E6,
-                (t_lk1 - t_data).count() / 1E6, (t_det - t_lk1).count() / 1E6, (t_log - t_det).count() / 1E6);
+  // spdlog::trace("ip dts, data: {}, lk1: {}, det: {}, log {}", (t_data - t_start).count() / 1E6,
+  //               (t_lk1 - t_data).count() / 1E6, (t_det - t_lk1).count() / 1E6, (t_log - t_det).count() / 1E6);
 
   // Apply the rate limiting
   if (is_rate_limiting_) {
@@ -357,13 +395,20 @@ int ImageProcessor<OptFlowCalculator>::process_image(UMat<uint8_t> &d_frame_cam0
       "fps: {}",
       1.0 / static_cast<std::chrono::duration<double>>((std::chrono::system_clock::now() - prev_time_end_)).count());
   prev_time_end_ = std::chrono::system_clock::now();
+
+  logger_.timed_log(0, "end");
+
+  // Wait for the detection thread to finish
+  // detect_future.get();
   return 0;
 }
 
 template <typename OptFlowCalculator>
-int ImageProcessor<OptFlowCalculator>::StereoMatch(OptFlowCalculator &opt, const UMat<uint8_t> &d_frame_cam0,
-                                                   const UMat<uint8_t> &d_frame_cam1, const UMat<cv::Vec2f> &pts_cam0,
-                                                   UMat<cv::Vec2f> &pts_cam1, UMat<uint8_t> &status) {
+int ImageProcessor<OptFlowCalculator>::StereoMatch(OptFlowCalculator &opt, const UMatVpiImage &d_frame_cam0,
+                                                   const UMatVpiImage &d_frame_cam1,
+                                                   const UMatVpiArray<cv::Vec2f> &pts_cam0,
+                                                   UMatVpiArray<cv::Vec2f> &pts_cam1, UMatVpiArray<uint8_t> &status,
+                                                   OptFlowCalculator::stream_type &stream) {
   if (pts_cam0.frame().empty()) {
     return -1;
   }
@@ -386,8 +431,16 @@ int ImageProcessor<OptFlowCalculator>::StereoMatch(OptFlowCalculator &opt, const
     throw std::runtime_error("Projected points have wrong dimensions");
   }
 
-  opt.calc(d_frame_cam0, d_frame_cam1, pts_cam0, pts_cam1, status);
+  opt.calc(d_frame_cam0, d_frame_cam1, pts_cam0, pts_cam1, status, &stream);
 
+  logger_.timed_log(0, "start stereo match");
+  stream.sync();
+  logger_.timed_log(0, "end stereo match");
+
+  // std::for_each(status.frame().begin(), status.frame().end(), [](auto &status) { std::cout << ", " << (int)status;
+  // });
+
+  // stream.waitForCompletion();
   // // DEBUG CODE
   // bool write_to_debug = true;
   // if (write_to_debug) {
@@ -395,17 +448,21 @@ int ImageProcessor<OptFlowCalculator>::StereoMatch(OptFlowCalculator &opt, const
   //   if (pts_cam0.frame().cols > 0) {
   //     pts_cam0.d_frame().download(pts_t0);
   //   }
-  //   debug_record.DrawPts(d_frame_cam0.frame(), 0, pts_t0);
+  //   cv::Mat draw_frame1;
+  //   d_frame_cam0.download(draw_frame1);
+  //   debug_record.DrawPts(draw_frame1, 0, pts_t0);
 
   //   // SECOND FRAME
   //   std::vector<cv::Point2f> pts_t1;
   //   if (pts_cam1.d_frame().cols > 0) {
   //     pts_cam1.d_frame().download(pts_t1);
   //   }
-  //   debug_record.DrawPts(d_frame_cam1.frame(), 1, pts_t1);
+  //   cv::Mat draw_frame2;
+  //   d_frame_cam1.download(draw_frame2);
+  //   debug_record.DrawPts(draw_frame2, 1, pts_t1);
   //   debug_record.WriteFrame();
   // }
-  // // // END DEBUG CODE
+  // // END DEBUG CODE
 
   // Check if we have zero tracked points, this is a corner case and these variables need
   // to be reset to prevent errors in sizing, calc() does not return all zero length vectors
@@ -413,7 +470,7 @@ int ImageProcessor<OptFlowCalculator>::StereoMatch(OptFlowCalculator &opt, const
     return -1;
   }
 
-  MarkPointsOutOfFrame(status, pts_cam1, d_frame_cam1.frame().size(), OptFlowCalculator::success_value);
+  MarkPointsOutOfFrame(status, pts_cam1, d_frame_cam1.size(), OptFlowCalculator::success_value);
 
   std::vector<cv::Point2f> tracked_pts_cam0_t1_undistorted(0);
   std::vector<cv::Point2f> tracked_pts_cam1_t1_undistorted(0);
@@ -453,17 +510,16 @@ int ImageProcessor<OptFlowCalculator>::StereoMatch(OptFlowCalculator &opt, const
 }
 
 template <typename OptFlowCalculator>
-auto ImageProcessor<OptFlowCalculator>::GetInputMaskFromPoints(const cv::cuda::GpuMat &d_input_corners,
-                                                               const cv::Size frame_size, cv::Mat &mask) -> int {
+auto ImageProcessor<OptFlowCalculator>::GetInputMaskFromPoints(const UMatVpiArray<cv::Vec2f> &d_input_corners,
+                                                               const cv::Size frame_size) -> UMat<uint8_t> {
+  UMat<uint8_t> mask(frame_size);
+  mask.frame().setTo(1);
   double mask_box_size = 15.0;
-  cv::Mat local_mask(frame_size, CV_8U, cv::Scalar(1));
 
-  if (d_input_corners.cols > 0) {
-    std::vector<cv::Point2f> corners;
-    d_input_corners.download(corners);
-    for (const auto &point : corners) {
-      const int x = static_cast<int>(point.x);
-      const int y = static_cast<int>(point.y);
+  if (d_input_corners.d_frame().cols > 0) {
+    for (auto point = d_input_corners.frame().begin(); point != d_input_corners.frame().end(); point++) {
+      const int x = static_cast<int>((*point)[0]);
+      const int y = static_cast<int>((*point)[1]);
 
       int up_lim = y - floor(mask_box_size / 2);
       int bottom_lim = y + ceil(mask_box_size / 2);
@@ -476,31 +532,30 @@ auto ImageProcessor<OptFlowCalculator>::GetInputMaskFromPoints(const cv::cuda::G
 
       cv::Range row_range(up_lim, bottom_lim);
       cv::Range col_range(left_lim, right_lim);
-      local_mask(row_range, col_range) = 0;
+      mask.frame()(row_range, col_range) = 0;
     }
   }
-  mask = local_mask;
-  return 0;
+  return mask;
 }
 
 template <typename OptFlowCalculator>
 template <typename T>
-int ImageProcessor<OptFlowCalculator>::DetectNewFeatures(const cv::Ptr<T> &detector_ptr,
-                                                         const cv::cuda::GpuMat &d_frame,
-                                                         const cv::cuda::GpuMat &d_input_corners,
-                                                         UMat<cv::Vec2f> &d_output) {
-  // Create a mask to avoid redetecting existing features.
-
-  cv::Mat mask;
-  GetInputMaskFromPoints(d_input_corners, d_frame.size(), mask);
-
-  cv::cuda::GpuMat d_mask(mask);
-
+void ImageProcessor<OptFlowCalculator>::DetectNewFeatures(const cv::Ptr<T> &detector_ptr, const UMatVpiImage &d_frame,
+                                                          const UMat<uint8_t> &mask, UMatVpiArray<cv::Vec2f> &d_output,
+                                                          OptFlowCalculator::stream_type &stream) {
   // Detect new features
   cv::cuda::GpuMat tmp_output;
-  detector_ptr->detect(d_frame, tmp_output, d_mask);
+  logger_.timed_log(0, "inputMask");
+
+  // TODO implement VPI detector
+  if constexpr (std::is_same<typename OptFlowCalculator::stream_type, cv::cuda::Stream>::value) {
+    detector_ptr->detect(d_frame.d_frame(), tmp_output, mask.d_frame(), stream);
+  } else {
+    detector_ptr->detect(d_frame.d_frame(), tmp_output, mask.d_frame());
+  }
+  logger_.timed_log(0, "cudaDetect");
+
   d_output = tmp_output;
-  return 0;
 }
 
 template class ImageProcessor<OptFlowCvGpu>;

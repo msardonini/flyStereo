@@ -2,7 +2,7 @@
 
 #include <tuple>
 
-#include "flyStereo/umat.h"
+#include "flyStereo/types/umat.h"
 #include "opencv2/core/core.hpp"
 
 inline auto generate_image_points(const cv::Size& image_size, const int num_points, int translation_x = 5,

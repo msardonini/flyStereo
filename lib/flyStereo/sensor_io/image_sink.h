@@ -2,7 +2,7 @@
 
 #include <string>
 
-#include "flyStereo/umat.h"
+#include "flyStereo/types/umat.h"
 #include "opencv2/core/cuda.hpp"
 #include "opencv2/core/types.hpp"
 #include "opencv2/videoio.hpp"

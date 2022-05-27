@@ -47,8 +47,8 @@ Vio::Vio(const StereoCalibration &stereo_calibration, const cv::Matx33d &R_imu_c
 
   // Create the projection matrices such that the output points will be in the coordinate system
   // of cam0
-  P0_ = cv::Matx34d::eye();
-  P1_ = cv::Matx34d::eye();
+  P0_ = cv::Matx34f::eye();
+  P1_ = cv::Matx34f::eye();
   for (int i = 0; i < 3; i++) {
     for (int j = 0; j < 3; j++) {
       P1_(i, j) = stereo_cal_.R_cam0_cam1(i, j);
@@ -239,21 +239,24 @@ int Vio::CalculatePoseUpdate(const TrackedImagePoints &pts, const Eigen::Matrix3
   cv::undistortPoints(pts.cam1_t1.frame(), pts_cam1_t1_ud, stereo_cal_.K_cam1, stereo_cal_.D_cam1);
 
   // Perform Triangulation to get 3D points for time step T0
-  cv::Mat pts_cam0_t0_mat(pts_cam0_t0_ud);
-  pts_cam0_t0_mat.convertTo(pts_cam0_t0_mat, CV_64FC2);
-  cv::Mat pts_cam1_t0_mat(pts_cam1_t0_ud);
-  pts_cam1_t0_mat.convertTo(pts_cam1_t0_mat, CV_64FC2);
+  // cv::Mat pts_cam0_t0_mat(pts_cam0_t0_ud);
+  // pts_cam0_t0_mat.convertTo(pts_cam0_t0_mat, CV_64FC2);
+  // cv::Mat pts_cam1_t0_mat(pts_cam1_t0_ud);
+  // pts_cam1_t0_mat.convertTo(pts_cam1_t0_mat, CV_64FC2);
   // cv::Mat pts_cam0_t1_mat(pts_cam0_t1_ud);
   // pts_cam0_t1_mat.convertTo(pts_cam0_t1_mat, CV_64F);
   // cv::Mat pts_cam1_t1_mat(pts_cam1_t1_ud);
   // pts_cam1_t1_mat.convertTo(pts_cam1_t1_mat, CV_64F);
 
   cv::Mat triangulation_output_pts_homo;
-  cv::triangulatePoints(P0_, P1_, pts_cam0_t0_mat, pts_cam1_t0_mat, triangulation_output_pts_homo);
+  cv::Affine3f extrinsic_cal(stereo_cal_.R_cam0_cam1, stereo_cal_.T_cam0_cam1);
+  cv::triangulatePoints(cv::Matx34f::eye(), P1_, pts_cam0_t0_ud, pts_cam1_t0_ud, triangulation_output_pts_homo);
 
   // Convert points from homogeneous to 3D coords
-  std::vector<cv::Vec3d> triangulation_output_pts;
+  std::vector<cv::Vec3f> triangulation_output_pts;
   cv::convertPointsFromHomogeneous(triangulation_output_pts_homo.t(), triangulation_output_pts);
+
+  std::cout << "pt 0 " << triangulation_output_pts[0] << std::endl;
 
   // std::for_each(triangulation_output_pts.begin(), triangulation_output_pts.end(),
   // [](auto &val) { std::cout << val << std::endl; });
@@ -271,13 +274,13 @@ int Vio::CalculatePoseUpdate(const TrackedImagePoints &pts, const Eigen::Matrix3
   std::vector<int> inliers;
   cv::Vec3d rvec, tvec;
 
-  cv::solvePnPRansac(triangulation_output_pts, cv::Mat_<cv::Vec2d>(pts.cam0_t1.frame()), stereo_cal_.K_cam0,
-                     stereo_cal_.D_cam0, rvec, tvec, false, 500, 0.05, 0.99, inliers, cv::SOLVEPNP_P3P);
+  cv::solvePnPRansac(triangulation_output_pts, pts.cam0_t1.frame(), stereo_cal_.K_cam0, stereo_cal_.D_cam0, rvec, tvec,
+                     false, 500, 0.05, 0.99, inliers, cv::SOLVEPNP_P3P);
 
   // std::cout << " Inlier percentage openCV " << static_cast<float>(inliers.size()) / triangulation_output_pts.size()
   //           << std::endl;
 
-  pose_update = cv::Affine3d(rvec, tvec);
+  pose_update = cv::Affine3d(rvec, tvec).inv();
 
   std::cout << " translation " << pose_update.translation().t() << std::endl;
 

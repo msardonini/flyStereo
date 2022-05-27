@@ -55,10 +55,10 @@ static inline mavlink_imu_t gen_empty_msg() {
   return msg;
 }
 
-static inline std::vector<cv::Point3f> get_ground_points_vec(const std::vector<std::pair<cv::Point3f, uint8_t>> &vals) {
+static inline std::vector<cv::Point3f> get_ground_points_vec(const std::vector<std::pair<cv::Point3f, uint8_t>>& vals) {
   std::vector<cv::Point3f> pts;
   pts.reserve(vals.size());
-  for (const auto &val : vals) {
+  for (const auto& val : vals) {
     pts.push_back(val.first);
   }
   return pts;
@@ -124,13 +124,13 @@ class ImageProcessingTestFixture : public ::testing::Test {
       // Generate the xform to cam0
       auto cam0_xform_inv = camera_trajectory[i].inv();
       std::vector<cv::Point2f> cam0_image_point_coords;
-      cv::projectPoints(ground_plane_points, cam0_xform_inv.rvec(), cam0_xform_inv.translation(), K_cam0, cv::Mat(),
+      cv::projectPoints(ground_plane_points, cam0_xform_inv.rvec(), cam0_xform_inv.translation(), K_cam0, cv::noArray(),
                         cam0_image_point_coords);
 
-      auto cam1_xform = camera_trajectory[i].inv();
-      cam1_xform = cam1_xform.concatenate(cv::Affine3f(R, T).inv());
+      auto cam1_xform = cam0_xform_inv.concatenate(cv::Affine3f(R, T));
+
       std::vector<cv::Point2f> cam1_image_point_coords;
-      cv::projectPoints(ground_plane_points, cam1_xform.rvec(), cam1_xform.translation(), K_cam1, cv::Mat(),
+      cv::projectPoints(ground_plane_points, cam1_xform.rvec(), cam1_xform.translation(), K_cam1, cv::noArray(),
                         cam1_image_point_coords);
 
       // Zip up the points and intensities
@@ -155,20 +155,20 @@ class ImageProcessingTestFixture : public ::testing::Test {
       std::erase_if(cam0_points_and_intensities, is_out_of_frame);
       std::erase_if(cam1_points_and_intensities, is_out_of_frame);
 
+      // Save the points and intensities for later use
       points_cam0.emplace_back(cam0_points_and_intensities);
       points_cam1.emplace_back(cam1_points_and_intensities);
-    }
 
-    // Render images from the points
-    for (auto image = 0; image < num_images; image++) {
+      // Generate Images with annotated points
       cv::Mat cam0_image = cv::Mat::zeros(image_size, CV_8UC1);
       cv::Mat cam1_image = cv::Mat::zeros(image_size, CV_8UC1);
 
-      for (auto pt = 0; pt < points_cam0[image].size(); pt++) {
-        cv::circle(cam0_image, points_cam0[image][pt].first, circle_radius, points_cam0[image][pt].second,
-                   circle_radius);
-        cv::circle(cam1_image, points_cam1[image][pt].first, circle_radius, points_cam1[image][pt].second,
-                   circle_radius);
+      for (const auto& pt : points_cam0[i]) {
+        cv::circle(cam0_image, pt.first, circle_radius, pt.second, circle_radius);
+      }
+
+      for (const auto& pt : points_cam1[i]) {
+        cv::circle(cam1_image, pt.first, circle_radius, pt.second, circle_radius);
       }
 
       images.emplace_back(cam0_image, cam1_image);
@@ -180,7 +180,7 @@ class ImageProcessingTestFixture : public ::testing::Test {
   cv::Matx33d K_cam1 = K_cam0;  // Same camera matrix
 
   cv::Matx33d R = cv::Matx33d(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0);
-  cv::Vec3d T = cv::Vec3d(.05, 0.0, 0.0);
+  cv::Vec3d T = cv::Vec3d(-.05, 0.0, 0.0);
 
   std::vector<uint8_t> ground_plane_point_intensities;  //< Intensity of the ground plane points
   std::vector<cv::Point3f> ground_plane_points;         //< Points on the ground plane, in cam0 t=0 frame
@@ -194,19 +194,25 @@ class ImageProcessingTestFixture : public ::testing::Test {
 };
 
 TEST_F(ImageProcessingTestFixture, test2) {
+  // Convert Images from cv::Mat to UMat
+  std::vector<std::pair<UMat<uint8_t>, UMat<uint8_t>>> images_umat;
+  images_umat.reserve(images.size());
+  std::transform(images.begin(), images.end(), std::back_inserter(images_umat),
+                 [](const std::pair<cv::Mat, cv::Mat>& image) {
+                   return std::make_pair(UMat<uint8_t>(image.first), UMat<uint8_t>(image.second));
+                 });
+
   StereoCalibration stereo_calibration(K_cam0, K_cam1, {}, {}, R, T);
-  ImageProcessor<OptFlowCvGpu> image_processor(0, stereo_calibration, cv::Matx33d::eye());
+  ImageProcessor<OptFlowVpiGpu> image_processor(0, stereo_calibration, cv::Matx33d::eye());
   image_processor.Init();
 
   std::list<uint64_t> latencies;
   Vio vio(stereo_calibration, cv::Matx33d::eye());
   for (auto frame = 0; frame < num_images; frame++) {
-    UMat<uint8_t> cam0_image_d(images[frame].first);
-    UMat<uint8_t> cam1_image_d(images[frame].second);
     TrackedImagePoints tracked_image_points;
     auto start = std::chrono::high_resolution_clock::now();
-    image_processor.process_image(cam0_image_d, cam1_image_d, std::vector<mavlink_imu_t>{imu_msgs[frame]}, frame * 1E6,
-                                  tracked_image_points);
+    image_processor.process_image(images_umat[frame].first, images_umat[frame].second,
+                                  std::vector<mavlink_imu_t>{imu_msgs[frame]}, frame * 1E6, tracked_image_points);
     auto end = std::chrono::high_resolution_clock::now();
     latencies.push_back(std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
     // image_processor.process_image(cam0_image_d, cam1_image_d, {}, frame * 1E6, output_points);

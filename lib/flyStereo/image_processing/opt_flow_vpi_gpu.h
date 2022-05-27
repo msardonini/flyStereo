@@ -2,7 +2,12 @@
 #include <chrono>
 
 #include "cuda_runtime.h"
-#include "flyStereo/image_processing/optical_flow_base.h"
+#include "flyStereo/image_processing/opt_flow_base.h"
+#include "flyStereo/image_processing/opt_flow_vpi_stream.h"
+#include "flyStereo/image_processing/vpi_check.h"
+#include "flyStereo/types/umat.h"
+#include "flyStereo/types/umat_vpiarray.h"
+#include "flyStereo/types/umat_vpiimage.h"
 #include "vpi/Array.h"
 #include "vpi/CUDAInterop.h"
 #include "vpi/Image.h"
@@ -12,32 +17,21 @@
 
 constexpr auto max_num_keypoints = 10000;
 
-static inline void check_status(VPIStatus status) {
-  if (status != VPI_SUCCESS) {
-    throw std::runtime_error(vpiStatusGetName(status));
-  }
-}
-static inline void check_status(cudaError status) {
-  if (status != cudaSuccess) {
-    throw std::runtime_error(cudaGetErrorString(status));
-  }
+inline void umat_to_vpi_image(const UMat<uint8_t>& umat, VPIImage& vpi_image) {
+  return umat_to_vpi_image(umat.d_frame(), vpi_image);
 }
 
-inline void umat_to_vpi_image(const UMat<uint8_t>& umat, VPIImage& vpi_image) {
-  const cv::cuda::GpuMat& gpuMat = umat.d_frame();
+inline void umat_to_vpi_image(const cv::cuda::GpuMat& mat, VPIImage& vpi_image) {
   VPIImageData img_data;
   memset(&img_data, 0, sizeof(img_data));
 
   img_data.bufferType = VPI_IMAGE_BUFFER_CUDA_PITCH_LINEAR;
   img_data.buffer.pitch.numPlanes = 1;
   img_data.buffer.pitch.format = VPI_IMAGE_FORMAT_U8;
-  // img_data.buffer.pitch.format = vpiImageFormatSetDataType(img_data.buffer.pitch.format, VPI_DATA_TYPE_UNSIGNED);
-  // img_data.buffer.pitch.format = vpiImageFormatSetMemLayout(img_data.buffer.pitch.format,
-  // VPI_MEM_LAYOUT_PITCH_LINEAR);
-  img_data.buffer.pitch.planes[0].width = gpuMat.cols;
-  img_data.buffer.pitch.planes[0].height = gpuMat.rows;
-  img_data.buffer.pitch.planes[0].pitchBytes = gpuMat.step;
-  img_data.buffer.pitch.planes[0].data = gpuMat.data;
+  img_data.buffer.pitch.planes[0].width = mat.cols;
+  img_data.buffer.pitch.planes[0].height = mat.rows;
+  img_data.buffer.pitch.planes[0].pitchBytes = mat.step;
+  img_data.buffer.pitch.planes[0].data = mat.data;
   img_data.buffer.pitch.planes[0].pixelType = VPI_PIXEL_TYPE_U8;
 
   if (vpi_image == nullptr) {
@@ -49,30 +43,35 @@ inline void umat_to_vpi_image(const UMat<uint8_t>& umat, VPIImage& vpi_image) {
 
 template <typename T>
 inline void umat_to_vpi_array(const UMat<T>& umat, VPIArray& vpi_array) {
-  const cv::cuda::GpuMat& gpuMat = umat.d_frame();
+  // const cv::cuda::GpuMat& gpuMat = umat.d_frame();
 
-  VPIArrayData array_data = {};
-  memset(&array_data, 0, sizeof(array_data));
+  // VPIArrayData array_data = {};
+  // memset(&array_data, 0, sizeof(array_data));
 
-  array_data.bufferType = VPI_ARRAY_BUFFER_CUDA_AOS;
-  array_data.buffer.aos.capacity = max_num_keypoints;
-  array_data.buffer.aos.data = gpuMat.data;
-  array_data.buffer.aos.sizePointer = const_cast<int*>(umat.get_cols());
-  array_data.buffer.aos.strideBytes = sizeof(T);
-  if constexpr (std::is_same_v<T, uint8_t>) {
-    array_data.buffer.aos.type = VPI_ARRAY_TYPE_U8;
-  } else if (std::is_same_v<T, cv::Vec2f>) {
-    array_data.buffer.aos.type = VPI_ARRAY_TYPE_KEYPOINT;
-  }
+  // array_data.bufferType = VPI_ARRAY_BUFFER_CUDA_AOS;
+  // array_data.buffer.aos.capacity = max_num_keypoints;
+  // array_data.buffer.aos.data = gpuMat.data;
+  // array_data.buffer.aos.sizePointer = const_cast<int*>(umat.get_cols());
+  // array_data.buffer.aos.strideBytes = sizeof(T);
+  // if constexpr (std::is_same_v<T, uint8_t>) {
+  //   array_data.buffer.aos.type = VPI_ARRAY_TYPE_U8;
+  // } else if (std::is_same_v<T, cv::Vec2f>) {
+  //   array_data.buffer.aos.type = VPI_ARRAY_TYPE_KEYPOINT;
+  // }
 
-  if (vpi_array == nullptr) {
-    check_status(vpiArrayCreateWrapper(&array_data, VPI_BACKEND_CUDA, &vpi_array));
-  } else {
-    check_status(vpiArraySetWrapper(vpi_array, &array_data));
-  }
+  // if (vpi_array == nullptr) {
+  //   check_status(vpiArrayCreateWrapper(&array_data, VPI_BACKEND_CUDA, &vpi_array));
+  // } else {
+  //   int size;
+  //   vpiArrayGetSize(vpi_array, &size);
+  //   std::cout << "exsiting size " << size << std::endl;
+  //   std::cout << "new size " << (int)*umat.get_cols() << std::endl;
+
+  //   check_status(vpiArraySetWrapper(vpi_array, &array_data));
+  // }
 }
 
-class OptFlowVpiGpu : public OptFlowBase<OptFlowVpiGpu> {
+class OptFlowVpiGpu : public OptFlowBase<OptFlowVpiGpu, OptFlowVpiStream> {
  public:
   OptFlowVpiGpu() = default;
 
@@ -94,11 +93,6 @@ class OptFlowVpiGpu : public OptFlowBase<OptFlowVpiGpu> {
       vpiPayloadDestroy(optflow_);
       vpiPyramidDestroy(curr_pyramid_);
       vpiPyramidDestroy(prev_pyramid_);
-      vpiArrayDestroy(status_);
-      vpiArrayDestroy(curr_pts_);
-      vpiArrayDestroy(prev_pts_);
-      vpiImageDestroy(curr_image_);
-      vpiImageDestroy(prev_image_);
       vpiStreamDestroy(stream_);
     }
   }
@@ -117,31 +111,22 @@ class OptFlowVpiGpu : public OptFlowBase<OptFlowVpiGpu> {
     initialized_ = true;
   }
 
-  // void calc(const UMat<uint8_t>& prev_image, const UMat<uint8_t>& curr_image, const UMat<cv::Vec2f>& prev_pts,
-  //           UMat<cv::Vec2f>& curr_pts, UMat<uint8_t>& status) {
   void calc(const UMat<uint8_t>& prev_image, const UMat<uint8_t>& curr_image, const UMat<cv::Vec2f>& prev_pts,
-            UMat<cv::Vec2f>& curr_pts, UMat<uint8_t>& status) {
+            UMat<cv::Vec2f>& curr_pts, UMat<uint8_t>& status, OptFlowVpiStream* stream = nullptr) {
+    return calc(prev_image.d_frame(), curr_image.d_frame(), prev_pts, curr_pts, status, stream);
+  }
+
+  void calc(const cv::cuda::GpuMat& prev_image, const cv::cuda::GpuMat& curr_image, const UMat<cv::Vec2f>& prev_pts,
+            UMat<cv::Vec2f>& curr_pts, UMat<uint8_t>& status, OptFlowVpiStream* stream = nullptr) {
     // Sanity Checks
-    if (prev_image.frame().size() != curr_image.frame().size()) {
+    if (prev_image.size() != curr_image.size()) {
       throw std::runtime_error("prev_image and curr_image must have the same size");
     } else if (use_initial_flow_ && prev_pts.frame().size() != curr_pts.frame().size()) {
       throw std::runtime_error("prev_pts and curr_pts must have the same size");
     }
 
-    if (!initialized_) {
-      init(prev_image.frame().size());
-    }
-
-    // If the user has not initialized status to the right size, do it now
-    if (status.frame().size() != prev_pts.frame().size()) {
-      status = UMat<uint8_t>(prev_pts.frame().size());
-    }
-
-    umat_to_vpi_image(prev_image, prev_image_);
-    umat_to_vpi_image(curr_image, curr_image_);
-    umat_to_vpi_array(prev_pts, prev_pts_);
-    umat_to_vpi_array(curr_pts, curr_pts_);
-    umat_to_vpi_array(status, status_);
+    // auto prev_image_vpi = prev_image;
+    // auto curr_image_vpi = curr_image;
 
     // Print first 10 points
     // std::cout << "Before PyrLK: " << std::endl;
@@ -151,14 +136,7 @@ class OptFlowVpiGpu : public OptFlowBase<OptFlowVpiGpu> {
     //             << ", " << curr_pts.frame()(i)[1] << ")" << std::endl;
     // }
 
-    check_status(
-        vpiSubmitGaussianPyramidGenerator(stream_, VPI_BACKEND_CUDA, prev_image_, prev_pyramid_, VPI_BORDER_ZERO));
-    check_status(
-        vpiSubmitGaussianPyramidGenerator(stream_, VPI_BACKEND_CUDA, curr_image_, curr_pyramid_, VPI_BORDER_ZERO));
-
-    check_status(vpiSubmitOpticalFlowPyrLK(stream_, VPI_BACKEND_CUDA, optflow_, prev_pyramid_, curr_pyramid_, prev_pts_,
-                                           curr_pts_, status_, &lk_params_));
-    check_status(vpiStreamSync(stream_));
+    calc(prev_image, curr_image, prev_pts, curr_pts, status, stream);
 
     // // Print first 10 points
     // std::cout << "After PyrLK: " << std::endl;
@@ -167,25 +145,63 @@ class OptFlowVpiGpu : public OptFlowBase<OptFlowVpiGpu> {
     //   curr_pts.frame()(i)[0]
     //             << ", " << curr_pts.frame()(i)[1] << ")" << std::endl;
     // }
+
+    // DEBUG destroy all vpi wrappers so we no longer require the inputs to be alive
+    //   umat_to_vpi_image(prev_image, prev_image_);
+    // umat_to_vpi_image(curr_image, curr_image_);
+    // umat_to_vpi_array(prev_pts, prev_pts_);
+    // umat_to_vpi_array(curr_pts, curr_pts_);
+    // umat_to_vpi_array(status, status_);
+  }
+
+  void calc(const UMatVpiImage& prev_image, const UMatVpiImage& curr_image, const UMatVpiArray<cv::Vec2f>& prev_pts,
+            UMatVpiArray<cv::Vec2f>& curr_pts, UMatVpiArray<uint8_t>& status, OptFlowVpiStream* stream = nullptr) {
+    if (!initialized_) {
+      init(prev_image.frame().size());
+    }
+
+    // If the user has not initialized status to the right size, do it now
+    if (status.frame().size() != curr_pts.frame().size()) {
+      status = UMatVpiArray<uint8_t>(curr_pts.frame().size());
+    }
+
+    // If the user has provided a stream, run asynchronously
+    if (stream != nullptr && 0) {
+      calc_opt_flow(stream->stream, prev_image, curr_image, prev_pts, curr_pts, status);
+    } else {
+      calc_opt_flow(stream_, prev_image, curr_image, prev_pts, curr_pts, status);
+      check_status(vpiStreamSync(stream_));
+    }
   }
 
   const static uint8_t success_value = 0;
+  using stream_type = OptFlowVpiStream;
 
  private:
+  void calc_opt_flow(VPIStream& stream, const UMatVpiImage& prev_image, const UMatVpiImage& curr_image,
+                     const UMatVpiArray<cv::Vec2f>& prev_pts, UMatVpiArray<cv::Vec2f>& curr_pts,
+                     UMatVpiArray<uint8_t>& status) {
+    check_status(vpiSubmitGaussianPyramidGenerator(stream, VPI_BACKEND_CUDA, prev_image.vpi_frame(), prev_pyramid_,
+                                                   VPI_BORDER_CLAMP));
+    check_status(vpiSubmitGaussianPyramidGenerator(stream, VPI_BACKEND_CUDA, curr_image.vpi_frame(), curr_pyramid_,
+                                                   VPI_BORDER_CLAMP));
+
+    check_status(vpiSubmitOpticalFlowPyrLK(stream, VPI_BACKEND_CUDA, optflow_, prev_pyramid_, curr_pyramid_,
+                                           prev_pts.vpi_array(), curr_pts.vpi_array(), status.vpi_array(),
+                                           &lk_params_));
+  }
   bool initialized_;
   int window_size_;
   int max_pyramid_level_;
   int max_iters_;
   bool use_initial_flow_;
-  VPIStream stream_ = NULL;
+  VPIStream stream_ = nullptr;
 
   // VPIPyramid pyr_prev_frame_;
 
-  VPIImage prev_image_ = nullptr;
-  VPIImage curr_image_ = nullptr;
-  VPIArray prev_pts_ = nullptr;
-  VPIArray curr_pts_ = nullptr;
-  VPIArray status_ = nullptr;
+  // VPIArray prev_pts_ = nullptr;
+  // VPIArray curr_pts_ = nullptr;
+  // VPIArray status_ = nullptr;
 
   VPIPyramid prev_pyramid_;
   VPIPyramid curr_pyramid_;
