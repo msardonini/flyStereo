@@ -10,9 +10,9 @@
 #include <thread>
 
 #include "Eigen/Dense"
-#include "flyStereo/image_processing/opt_flow_cv_gpu.h"
+#include "flyStereo/image_processing/optical_flow/pyr_lk_cv_gpu.h"
 #ifdef WITH_VPI
-#include "flyStereo/image_processing/opt_flow_vpi_gpu.h"
+#include "flyStereo/image_processing/optical_flow/pyr_lk_vpi_gpu.h"
 #endif
 #include "flyStereo/image_processing/optical_flow_points.h"
 #include "flyStereo/interface.h"
@@ -29,7 +29,7 @@
 #include "thread_pool.hpp"
 #include "yaml-cpp/yaml.h"
 
-template <typename OptFlowCalculator = OptFlowCvGpu>
+template <typename OptFlowCalculator = PyrLkCvGpu>
 class ImageProcessor {
  public:
   ImageProcessor(float rate_limit_fps, const YAML::Node &stereo_calibration, cv::Matx33d R_imu_cam0);

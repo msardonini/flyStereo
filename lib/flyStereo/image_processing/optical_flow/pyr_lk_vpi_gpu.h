@@ -2,8 +2,8 @@
 #include <chrono>
 
 #include "cuda_runtime.h"
-#include "flyStereo/image_processing/opt_flow_base.h"
-#include "flyStereo/image_processing/opt_flow_vpi_stream.h"
+#include "flyStereo/image_processing/optical_flow/optical_flow_base.h"
+#include "flyStereo/image_processing/streams/vpi_stream.h"
 #include "flyStereo/image_processing/vpi_check.h"
 #include "flyStereo/types/umat.h"
 #include "flyStereo/types/umat_vpiarray.h"
@@ -71,11 +71,11 @@ inline void umat_to_vpi_array(const UMat<T>& umat, VPIArray& vpi_array) {
   // }
 }
 
-class OptFlowVpiGpu : public OptFlowBase<OptFlowVpiGpu, OptFlowVpiStream> {
+class PyrLkVpiGpu : public OpticalFlowBase<PyrLkVpiGpu, VpiStream> {
  public:
-  OptFlowVpiGpu() = default;
+  PyrLkVpiGpu() = default;
 
-  OptFlowVpiGpu(int window_size, int max_pyramid_level, int max_iters, bool use_initial_flow)
+  PyrLkVpiGpu(int window_size, int max_pyramid_level, int max_iters, bool use_initial_flow)
       : initialized_(false),
         window_size_(window_size),
         max_pyramid_level_(max_pyramid_level),
@@ -88,7 +88,7 @@ class OptFlowVpiGpu : public OptFlowBase<OptFlowVpiGpu, OptFlowVpiStream> {
     lk_params_.epsilon = 0.01f;
   }
 
-  ~OptFlowVpiGpu() {
+  ~PyrLkVpiGpu() {
     if (initialized_) {
       vpiPayloadDestroy(optflow_);
       vpiPyramidDestroy(curr_pyramid_);
@@ -112,7 +112,7 @@ class OptFlowVpiGpu : public OptFlowBase<OptFlowVpiGpu, OptFlowVpiStream> {
   }
 
   void calc(UMatVpiImage& prev_image, UMatVpiImage& curr_image, UMatVpiArray<cv::Vec2f>& prev_pts,
-            UMatVpiArray<cv::Vec2f>& curr_pts, UMatVpiArray<uint8_t>& status, OptFlowVpiStream* stream = nullptr) {
+            UMatVpiArray<cv::Vec2f>& curr_pts, UMatVpiArray<uint8_t>& status, VpiStream* stream = nullptr) {
     if (!initialized_) {
       init(prev_image.frame().size());
     }
@@ -155,12 +155,12 @@ class OptFlowVpiGpu : public OptFlowBase<OptFlowVpiGpu, OptFlowVpiStream> {
   }
 
   void calc(const UMat<uint8_t>& prev_image, const UMat<uint8_t>& curr_image, const UMat<cv::Vec2f>& prev_pts,
-            UMat<cv::Vec2f>& curr_pts, UMat<uint8_t>& status, OptFlowVpiStream* stream = nullptr) {
+            UMat<cv::Vec2f>& curr_pts, UMat<uint8_t>& status, VpiStream* stream = nullptr) {
     return calc(prev_image.d_frame(), curr_image.d_frame(), prev_pts, curr_pts, status, stream);
   }
 
   void calc(const cv::cuda::GpuMat& prev_image, const cv::cuda::GpuMat& curr_image, const UMat<cv::Vec2f>& prev_pts,
-            UMat<cv::Vec2f>& curr_pts, UMat<uint8_t>& status, OptFlowVpiStream* stream = nullptr) {
+            UMat<cv::Vec2f>& curr_pts, UMat<uint8_t>& status, VpiStream* stream = nullptr) {
     // Sanity Checks
     if (prev_image.size() != curr_image.size()) {
       throw std::runtime_error("prev_image and curr_image must have the same size");
@@ -205,7 +205,7 @@ class OptFlowVpiGpu : public OptFlowBase<OptFlowVpiGpu, OptFlowVpiStream> {
   }
 
   const static uint8_t success_value = 0;
-  using stream_type = OptFlowVpiStream;
+  using stream_type = VpiStream;
 
  private:
   void calc_opt_flow(VPIStream& stream, const UMatVpiImage& prev_image, const UMatVpiImage& curr_image,

@@ -30,9 +30,9 @@ class OptFlowTestFixture : public ::testing::Test {
 };
 
 #ifdef WITH_VPI
-using OptFlowTypes = ::testing::Types<OptFlowVpiGpu, OptFlowCvGpu>;
+using OptFlowTypes = ::testing::Types<PyrLkVpiGpu, PyrLkCvGpu>;
 #else
-using OptFlowTypes = ::testing::Types<OptFlowCvGpu>;
+using OptFlowTypes = ::testing::Types<PyrLkCvGpu>;
 #endif
 TYPED_TEST_SUITE(OptFlowTestFixture, OptFlowTypes);
 

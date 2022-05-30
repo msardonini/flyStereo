@@ -40,9 +40,9 @@ static void OptFlowTest(benchmark::State& state) {
 
 // Register the function as a benchmark
 #ifdef WITH_VPI
-BENCHMARK_TEMPLATE1(OptFlowTest, OptFlowVpiGpu);
+BENCHMARK_TEMPLATE1(OptFlowTest, PyrLkVpiGpu);
 #endif
-BENCHMARK_TEMPLATE1(OptFlowTest, OptFlowCvGpu);
+BENCHMARK_TEMPLATE1(OptFlowTest, PyrLkCvGpu);
 
 // Run the benchmark
 BENCHMARK_MAIN();

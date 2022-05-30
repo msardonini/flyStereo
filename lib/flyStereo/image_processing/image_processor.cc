@@ -17,7 +17,7 @@
 #include "flyStereo/debug_video_recorder.h"
 
 // Debug test function
-template <typename OptFlowCalculator = OptFlowCvGpu>
+template <typename OptFlowCalculator = PyrLkCvGpu>
 double print_percent_status(UMat<uint8_t> &status) {
   int counter = std::accumulate(status.frame().begin(), status.frame().end(), 0, [](int sum, uint8_t val) {
     if (val == OptFlowCalculator::success_value) {
@@ -545,7 +545,7 @@ void ImageProcessor<OptFlowCalculator>::DetectNewFeatures(const cv::Ptr<T> &dete
   d_output = tmp_output;
 }
 
-template class ImageProcessor<OptFlowCvGpu>;
+template class ImageProcessor<PyrLkCvGpu>;
 #ifdef WITH_VPI
-template class ImageProcessor<OptFlowVpiGpu>;
+template class ImageProcessor<PyrLkVpiGpu>;
 #endif

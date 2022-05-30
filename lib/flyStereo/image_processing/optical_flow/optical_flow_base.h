@@ -1,9 +1,8 @@
 #pragma once
-#include "flyStereo/image_processing/opt_flow_stream_base.h"
 #include "flyStereo/types/umat.h"
 
 template <typename E, typename StreamType>
-class OptFlowBase {
+class OpticalFlowBase {
  public:
   using derived_type = E;
 
@@ -17,14 +16,14 @@ class OptFlowBase {
   }
 
  protected:
-  OptFlowBase() = default;
-  ~OptFlowBase() = default;
+  OpticalFlowBase() = default;
+  ~OpticalFlowBase() = default;
 
-  OptFlowBase(const OptFlowBase&) = default;
-  OptFlowBase& operator=(const OptFlowBase&) = default;
+  OpticalFlowBase(const OpticalFlowBase&) = default;
+  OpticalFlowBase& operator=(const OpticalFlowBase&) = default;
 
-  OptFlowBase(OptFlowBase&&) = default;
-  OptFlowBase& operator=(OptFlowBase&&) = default;
+  OpticalFlowBase(OpticalFlowBase&&) = default;
+  OpticalFlowBase& operator=(OpticalFlowBase&&) = default;
 };
 
-#include "flyStereo/image_processing/opt_flow_base.tpp"
+#include "flyStereo/image_processing/optical_flow/optical_flow_base.h"

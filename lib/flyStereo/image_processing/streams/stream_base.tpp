@@ -1,4 +1,4 @@
-#include "flyStereo/image_processing/opt_flow_stream_base.h"
+#include "flyStereo/image_processing/streams/stream_base.h"
 
 /**
  * Returns a reference to the actual derived type of the OptFlowStreamBase

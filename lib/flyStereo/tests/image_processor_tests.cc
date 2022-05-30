@@ -8,7 +8,7 @@
 
 #include "flyStereo/image_processing/image_processor.h"
 #ifdef WITH_VPI
-#include "flyStereo/image_processing/opt_flow_vpi_gpu.h"
+#include "flyStereo/image_processing/optical_flow/pyr_lk_vpi_gpu.h"
 #endif
 #include "flyStereo/sensor_io/mavlink/fly_stereo/mavlink.h"
 #include "flyStereo/utility.h"
@@ -203,7 +203,7 @@ TEST_F(ImageProcessingTestFixture, test2) {
                  });
 
   StereoCalibration stereo_calibration(K_cam0, K_cam1, {}, {}, R, T);
-  ImageProcessor<OptFlowVpiGpu> image_processor(0, stereo_calibration, cv::Matx33d::eye());
+  ImageProcessor<PyrLkVpiGpu> image_processor(0, stereo_calibration, cv::Matx33d::eye());
   image_processor.Init();
 
   std::list<uint64_t> latencies;

@@ -22,4 +22,4 @@ class OptFlowStreamBase {
   OptFlowStreamBase& operator=(OptFlowStreamBase&&) = default;
 };
 
-#include "flyStereo/image_processing/opt_flow_stream_base.tpp"
+#include "flyStereo/image_processing/streams/stream_base.tpp"

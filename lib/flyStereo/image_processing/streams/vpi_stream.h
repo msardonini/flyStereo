@@ -1,10 +1,10 @@
-#include "flyStereo/image_processing/opt_flow_stream_base.h"
+#include "flyStereo/image_processing/streams/stream_base.h"
 #include "flyStereo/image_processing/vpi_check.h"
 #include "vpi/Stream.h"
 
-class OptFlowVpiStream : public OptFlowStreamBase<OptFlowVpiStream> {
+class VpiStream : public OptFlowStreamBase<VpiStream> {
  public:
-  OptFlowVpiStream(bool use_default_stream = false) {
+  VpiStream(bool use_default_stream = false) {
     if (use_default_stream) {
       stream = nullptr;
     } else {
@@ -12,7 +12,7 @@ class OptFlowVpiStream : public OptFlowStreamBase<OptFlowVpiStream> {
     }
   }
 
-  ~OptFlowVpiStream() {
+  ~VpiStream() {
     if (stream) {
       vpiStreamDestroy(stream);
     }
