@@ -1,6 +1,6 @@
 #pragma once
-#include "flyStereo/image_processing/vpi_check.h"
 #include "flyStereo/types/umat.h"
+#include "flyStereo/types/vpi_check.h"
 #include "opencv2/core/core.hpp"
 #include "vpi/Image.h"
 

@@ -1,20 +1,10 @@
 #pragma once
 
 #include <atomic>
-#include <condition_variable>
-#include <iostream>
 #include <memory>
-#include <mutex>
-#include <queue>
 #include <string>
-#include <thread>
 
-#include "Eigen/Dense"
-#include "flyStereo/image_processing/optical_flow/pyr_lk_cv_gpu.h"
-#ifdef WITH_VPI
-#include "flyStereo/image_processing/optical_flow/pyr_lk_vpi_gpu.h"
-#endif
-#include "flyStereo/image_processing/optical_flow_points.h"
+#include "flyStereo/image_processing/point_ops.h"
 #include "flyStereo/interface.h"
 #include "flyStereo/sensor_io/mavlink/fly_stereo/mavlink.h"
 #include "flyStereo/sensor_io/sensor_interface.h"
@@ -22,14 +12,9 @@
 #include "flyStereo/timed_logger.hpp"
 #include "flyStereo/types/umat_vpiarray.h"
 #include "flyStereo/types/umat_vpiimage.h"
-#include "opencv2/core.hpp"
-#include "opencv2/cudafeatures2d.hpp"
-#include "opencv2/cudaimgproc.hpp"
-#include "opencv2/features2d.hpp"
-#include "thread_pool.hpp"
 #include "yaml-cpp/yaml.h"
 
-template <typename OptFlowCalculator = PyrLkCvGpu>
+template <typename IpBackend>
 class ImageProcessor {
  public:
   ImageProcessor(float rate_limit_fps, const YAML::Node &stereo_calibration, cv::Matx33d R_imu_cam0);
@@ -54,16 +39,9 @@ class ImageProcessor {
   auto UpdatePointsViaImu(const UMatVpiArray<cv::Vec2f> &current_pts, const cv::Matx33d &rotation,
                           const cv::Matx33d &camera_matrix, UMatVpiArray<cv::Vec2f> &updated_pts) -> int;
 
-  int StereoMatch(OptFlowCalculator &opt, UMatVpiImage &d_frame_cam0, UMatVpiImage &d_frame_cam1,
+  int StereoMatch(IpBackend::flow_type &opt, UMatVpiImage &d_frame_cam0, UMatVpiImage &d_frame_cam1,
                   UMatVpiArray<cv::Vec2f> &pts_cam0, UMatVpiArray<cv::Vec2f> &pts_cam1, UMatVpiArray<uint8_t> &status,
-                  OptFlowCalculator::stream_type &stream);
-
-  // template <typename OptFlowCalculator>
-  // int ImageProcessor<OptFlowCalculator>::StereoMatch(OptFlowCalculator &opt, const UMatVpiImage &d_frame_cam0,
-  //                                                    const UMatVpiImage &d_frame_cam1,
-  //                                                    const UMatVpiArray<cv::Vec2f> &pts_cam0,
-  //                                                    UMatVpiArray<cv::Vec2f> &pts_cam1, UMatVpiArray<uint8_t>
-  //                                                    &status, OptFlowCalculator::stream_type &stream)
+                  IpBackend::stream_type &stream);
 
   auto GetInputMaskFromPoints(const UMatVpiArray<cv::Vec2f> &d_input_corners, const cv::Size frame_size)
       -> UMat<uint8_t>;
@@ -71,7 +49,7 @@ class ImageProcessor {
   // cv::cuda::FastFeatureDetector or cv::cuda::CornersDetector
   template <typename T>
   auto DetectNewFeatures(const cv::Ptr<T> &detector_ptr, const UMatVpiImage &d_frame, const UMat<uint8_t> &mask,
-                         UMatVpiArray<cv::Vec2f> &d_output, OptFlowCalculator::stream_type &stream) -> void;
+                         UMatVpiArray<cv::Vec2f> &d_output, IpBackend::stream_type &stream) -> void;
 
   auto OuputTrackedPoints(const std::vector<mavlink_imu_t> &imu_msgs, const cv::Matx33f &rotation_t0_t1_cam0)
       -> TrackedImagePoints;
@@ -87,13 +65,11 @@ class ImageProcessor {
   // Algorithm state
   unsigned int current_id_ = 0;  // The id of the last tracked point TODO CHANGE NAME
   cv::Ptr<cv::cuda::CornersDetector> detector_ptr_;
-  OptFlowCalculator d_opt_flow_cam0_;
-  OptFlowCalculator d_opt_flow_stereo_t0_;
-  OptFlowCalculator d_opt_flow_stereo_t1_;
-  OptFlowCalculator::stream_type detector_stream_;
-  OptFlowCalculator::stream_type tracker_stream_;
-
-  thread_pool thread_pool_ = thread_pool(2);
+  IpBackend::flow_type d_opt_flow_cam0_;
+  IpBackend::flow_type d_opt_flow_stereo_t0_;
+  IpBackend::flow_type d_opt_flow_stereo_t1_;
+  IpBackend::stream_type detector_stream_;
+  IpBackend::stream_type tracker_stream_;
 
   std::chrono::time_point<std::chrono::system_clock> prev_time_end_;
   std::chrono::system_clock::duration fps_limit_inv_;

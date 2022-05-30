@@ -1,3 +1,4 @@
+#pragma once
 #include "flyStereo/image_processing/streams/stream_base.h"
 #include "opencv2/core/cuda.hpp"
 

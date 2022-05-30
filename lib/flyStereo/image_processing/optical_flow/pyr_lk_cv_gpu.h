@@ -9,8 +9,6 @@
 
 class PyrLkCvGpu : public OpticalFlowBase<PyrLkCvGpu, CvStream> {
  public:
-  using stream_type = CvStream;
-
   PyrLkCvGpu(int window_size = 21, int max_pyramid_level = 3, int max_iters = 30, bool use_initial_flow = false) {
     opt_flow_ptr_ = cv::cuda::SparsePyrLKOpticalFlow::create(cv::Size(window_size, window_size), max_pyramid_level,
                                                              max_iters, use_initial_flow);

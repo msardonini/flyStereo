@@ -3,6 +3,7 @@
 #include <map>
 
 #include "flyStereo/types/umat.h"
+#include "flyStereo/types/umat_vpiarray.h"
 #include "opencv2/core.hpp"
 #include "opencv2/cudafeatures2d.hpp"
 #include "opencv2/cudaimgproc.hpp"

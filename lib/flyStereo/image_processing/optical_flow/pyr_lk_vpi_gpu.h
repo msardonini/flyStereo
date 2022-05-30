@@ -4,10 +4,10 @@
 #include "cuda_runtime.h"
 #include "flyStereo/image_processing/optical_flow/optical_flow_base.h"
 #include "flyStereo/image_processing/streams/vpi_stream.h"
-#include "flyStereo/image_processing/vpi_check.h"
 #include "flyStereo/types/umat.h"
 #include "flyStereo/types/umat_vpiarray.h"
 #include "flyStereo/types/umat_vpiimage.h"
+#include "flyStereo/types/vpi_check.h"
 #include "vpi/Array.h"
 #include "vpi/CUDAInterop.h"
 #include "vpi/Image.h"
@@ -205,7 +205,6 @@ class PyrLkVpiGpu : public OpticalFlowBase<PyrLkVpiGpu, VpiStream> {
   }
 
   const static uint8_t success_value = 0;
-  using stream_type = VpiStream;
 
  private:
   void calc_opt_flow(VPIStream& stream, const UMatVpiImage& prev_image, const UMatVpiImage& curr_image,

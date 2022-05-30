@@ -1,5 +1,6 @@
+#pragma once
 #include "flyStereo/image_processing/streams/stream_base.h"
-#include "flyStereo/image_processing/vpi_check.h"
+#include "flyStereo/types/vpi_check.h"
 #include "vpi/Stream.h"
 
 class VpiStream : public OptFlowStreamBase<VpiStream> {

@@ -4,23 +4,24 @@
 #include <random>
 
 #include "Eigen/Dense"
+#include "flyStereo/image_processing/cv_backend.h"
+#include "flyStereo/image_processing/vpi_backend.h"
 #include "flyStereo/utility.h"
 #include "opencv2/calib3d.hpp"
 #include "opencv2/core/cuda.hpp"
 #include "opencv2/core/eigen.hpp"
 #include "opencv2/imgproc.hpp"
 #include "opencv2/video/tracking.hpp"
-// #include "opengv/types.hpp"
 #include "spdlog/spdlog.h"
 
 // Debug includes
 #include "flyStereo/debug_video_recorder.h"
 
 // Debug test function
-template <typename OptFlowCalculator = PyrLkCvGpu>
+template <typename IpBackend = VpiBackend::flow_type>
 double print_percent_status(UMat<uint8_t> &status) {
   int counter = std::accumulate(status.frame().begin(), status.frame().end(), 0, [](int sum, uint8_t val) {
-    if (val == OptFlowCalculator::success_value) {
+    if (val == IpBackend::flow_type::success_value) {
       return sum + 1;
     } else {
       return sum;
@@ -56,14 +57,14 @@ struct ImageProcessorConstants {
 
 debug_video_recorder debug_record(true);
 
-template <typename OptFlowCalculator>
-ImageProcessor<OptFlowCalculator>::ImageProcessor(float rate_limit_fps, const YAML::Node &stereo_calibration,
-                                                  cv::Matx33d R_imu_cam0)
+template <typename IpBackend>
+ImageProcessor<IpBackend>::ImageProcessor(float rate_limit_fps, const YAML::Node &stereo_calibration,
+                                          cv::Matx33d R_imu_cam0)
     : ImageProcessor(rate_limit_fps, StereoCalibration(stereo_calibration), R_imu_cam0) {}
 
-template <typename OptFlowCalculator>
-ImageProcessor<OptFlowCalculator>::ImageProcessor(float rate_limit_fps, StereoCalibration stereo_calibration,
-                                                  cv::Matx33d R_imu_cam0)
+template <typename IpBackend>
+ImageProcessor<IpBackend>::ImageProcessor(float rate_limit_fps, StereoCalibration stereo_calibration,
+                                          cv::Matx33d R_imu_cam0)
     : rate_limit_fps_(rate_limit_fps),
       is_rate_limiting_(rate_limit_fps > 0.f),
       stereo_cal_(stereo_calibration),
@@ -89,31 +90,32 @@ ImageProcessor<OptFlowCalculator>::ImageProcessor(float rate_limit_fps, StereoCa
   ids_pts_detected_.reserve(max_pts);
 }
 
-template <typename OptFlowCalculator>
-ImageProcessor<OptFlowCalculator>::~ImageProcessor() {}
+template <typename IpBackend>
+ImageProcessor<IpBackend>::~ImageProcessor() {}
 
-template <typename OptFlowCalculator>
-void ImageProcessor<OptFlowCalculator>::Init() {
+template <typename IpBackend>
+void ImageProcessor<IpBackend>::Init() {
   detector_ptr_ = cv::cuda::createGoodFeaturesToTrackDetector(CV_8U, ImageProcessorConstants::max_corners,
                                                               ImageProcessorConstants::quality_level,
                                                               ImageProcessorConstants::min_dist);
 
-  d_opt_flow_cam0_ = OptFlowCalculator(ImageProcessorConstants::window_size, ImageProcessorConstants::max_pyramid_level,
-                                       ImageProcessorConstants::max_iters, ImageProcessorConstants::use_initial_flow);
+  d_opt_flow_cam0_ =
+      typename IpBackend::flow_type(ImageProcessorConstants::window_size, ImageProcessorConstants::max_pyramid_level,
+                                    ImageProcessorConstants::max_iters, ImageProcessorConstants::use_initial_flow);
   d_opt_flow_stereo_t0_ =
-      OptFlowCalculator(ImageProcessorConstants::window_size, ImageProcessorConstants::max_pyramid_level,
-                        ImageProcessorConstants::max_iters, ImageProcessorConstants::use_initial_flow);
+      typename IpBackend::flow_type(ImageProcessorConstants::window_size, ImageProcessorConstants::max_pyramid_level,
+                                    ImageProcessorConstants::max_iters, ImageProcessorConstants::use_initial_flow);
   d_opt_flow_stereo_t1_ =
-      OptFlowCalculator(ImageProcessorConstants::window_size, ImageProcessorConstants::max_pyramid_level,
-                        ImageProcessorConstants::max_iters, ImageProcessorConstants::use_initial_flow);
+      typename IpBackend::flow_type(ImageProcessorConstants::window_size, ImageProcessorConstants::max_pyramid_level,
+                                    ImageProcessorConstants::max_iters, ImageProcessorConstants::use_initial_flow);
   fps_limit_inv_ =
       std::chrono::round<std::chrono::system_clock::duration>(std::chrono::duration<double>(1. / rate_limit_fps_));
 }
 
-template <typename OptFlowCalculator>
-int ImageProcessor<OptFlowCalculator>::UpdatePointsViaImu(const UMatVpiArray<cv::Vec2f> &current_pts,
-                                                          const cv::Matx33d &rotation, const cv::Matx33d &camera_matrix,
-                                                          UMatVpiArray<cv::Vec2f> &updated_pts) {
+template <typename IpBackend>
+int ImageProcessor<IpBackend>::UpdatePointsViaImu(const UMatVpiArray<cv::Vec2f> &current_pts,
+                                                  const cv::Matx33d &rotation, const cv::Matx33d &camera_matrix,
+                                                  UMatVpiArray<cv::Vec2f> &updated_pts) {
   if (current_pts.frame().rows != 1 && current_pts.frame().channels() != 2) {
     throw std::runtime_error("ImageProcessor::UpdatePointsViaImu: current_pts must be 1xNx2");
   }
@@ -134,9 +136,9 @@ int ImageProcessor<OptFlowCalculator>::UpdatePointsViaImu(const UMatVpiArray<cv:
   return 0;
 }
 
-template <typename OptFlowCalculator>
-TrackedImagePoints ImageProcessor<OptFlowCalculator>::OuputTrackedPoints(const std::vector<mavlink_imu_t> &imu_msgs,
-                                                                         const cv::Matx33f &rotation_t0_t1_cam0) {
+template <typename IpBackend>
+TrackedImagePoints ImageProcessor<IpBackend>::OuputTrackedPoints(const std::vector<mavlink_imu_t> &imu_msgs,
+                                                                 const cv::Matx33f &rotation_t0_t1_cam0) {
   const cv::Size pts_size = pts_t_c0_t0_.frame().size();
   if (pts_size != pts_t_c0_t1_.frame().size() || pts_size != pts_t_c1_t0_.frame().size() ||
       pts_size != pts_t_c1_t1_.frame().size() || pts_size.height != 1 ||
@@ -155,8 +157,8 @@ TrackedImagePoints ImageProcessor<OptFlowCalculator>::OuputTrackedPoints(const s
                             imu_msgs, rotation_t0_t1_cam0_eigen);
 }
 
-template <typename OptFlowCalculator>
-void ImageProcessor<OptFlowCalculator>::detect(const UMat<uint8_t> &mask) {
+template <typename IpBackend>
+void ImageProcessor<IpBackend>::detect(const UMat<uint8_t> &mask) {
   // Detect new features to match for the next iteration
   DetectNewFeatures<cv::cuda::CornersDetector>(detector_ptr_, d_frame_cam0_t1_, mask, pts_d_c0_t1_, detector_stream_);
   // Match the detected features in the second camera
@@ -186,12 +188,12 @@ void ImageProcessor<OptFlowCalculator>::detect(const UMat<uint8_t> &mask) {
   // // END DEBUG CODE
 
   if (pts_d_c0_t1_.frame().cols != 0) {
-    MarkPointsOutOfFrame(status, pts_d_c1_t1_, d_frame_cam1_t1_.size(), OptFlowCalculator::success_value);
-    RemovePoints(status, OptFlowCalculator::success_value, pts_d_c0_t1_, pts_d_c1_t1_);
+    MarkPointsOutOfFrame(status, pts_d_c1_t1_, d_frame_cam1_t1_.size(), IpBackend::flow_type::success_value);
+    RemovePoints(status, IpBackend::flow_type::success_value, pts_d_c0_t1_, pts_d_c1_t1_);
 
     auto counter = 0;
     std::for_each(status.frame().begin(), status.frame().end(), [&counter](auto &status_row) {
-      if (status_row == OptFlowCalculator::success_value) {
+      if (status_row == IpBackend::flow_type::success_value) {
         counter++;
       }
     });
@@ -207,15 +209,14 @@ void ImageProcessor<OptFlowCalculator>::detect(const UMat<uint8_t> &mask) {
   }
 }
 
-template <typename OptFlowCalculator>
-void ImageProcessor<OptFlowCalculator>::track() {}
+template <typename IpBackend>
+void ImageProcessor<IpBackend>::track() {}
 
 // TODO make a check that the object is initialized before starting
-template <typename OptFlowCalculator>
-int ImageProcessor<OptFlowCalculator>::process_image(UMat<uint8_t> &d_frame_cam0_t1_umat,
-                                                     UMat<uint8_t> &d_frame_cam1_t1_umat,
-                                                     const std::vector<mavlink_imu_t> &imu_msgs,
-                                                     uint64_t current_frame_time, TrackedImagePoints &tracked_points) {
+template <typename IpBackend>
+int ImageProcessor<IpBackend>::process_image(UMat<uint8_t> &d_frame_cam0_t1_umat, UMat<uint8_t> &d_frame_cam1_t1_umat,
+                                             const std::vector<mavlink_imu_t> &imu_msgs, uint64_t current_frame_time,
+                                             TrackedImagePoints &tracked_points) {
   d_frame_cam0_t1_ = std::move(d_frame_cam0_t1_umat);
   d_frame_cam1_t1_ = std::move(d_frame_cam1_t1_umat);
 
@@ -236,10 +237,10 @@ int ImageProcessor<OptFlowCalculator>::process_image(UMat<uint8_t> &d_frame_cam0
     UMatVpiArray<uint8_t> bin_status;
     BinAndMarkPoints(pts_t_c0_t0_, ids_pts_tracked_, d_frame_cam0_t1_.size(),
                      cv::Size(ImageProcessorConstants::bins_width, ImageProcessorConstants::bins_height),
-                     ImageProcessorConstants::max_pts_in_bin, bin_status, OptFlowCalculator::success_value);
+                     ImageProcessorConstants::max_pts_in_bin, bin_status, IpBackend::flow_type::success_value);
 
     auto tmp_pts = pts_t_c0_t0_.frame().cols;
-    RemovePoints(bin_status, OptFlowCalculator::success_value, pts_t_c0_t0_, pts_t_c1_t0_, ids_pts_tracked_);
+    RemovePoints(bin_status, IpBackend::flow_type::success_value, pts_t_c0_t0_, pts_t_c1_t0_, ids_pts_tracked_);
     std::cout << "Num pts before binning " << tmp_pts << " num pts after binning " << pts_t_c0_t0_.frame().cols
               << std::endl;
   }
@@ -285,9 +286,9 @@ int ImageProcessor<OptFlowCalculator>::process_image(UMat<uint8_t> &d_frame_cam0
     // // // END DEBUG CODE
 
     {
-      MarkPointsOutOfFrame(status, pts_t_c0_t1_, d_frame_cam0_t1_.size(), OptFlowCalculator::success_value);
+      MarkPointsOutOfFrame(status, pts_t_c0_t1_, d_frame_cam0_t1_.size(), IpBackend::flow_type::success_value);
 
-      RemovePoints(status, OptFlowCalculator::success_value, pts_t_c0_t0_, pts_t_c0_t1_, pts_t_c1_t0_,
+      RemovePoints(status, IpBackend::flow_type::success_value, pts_t_c0_t0_, pts_t_c0_t1_, pts_t_c1_t0_,
                    ids_pts_tracked_);
       // // DEBUG CODE
       //   std::vector<cv::Point2f> pts_t0;
@@ -340,7 +341,7 @@ int ImageProcessor<OptFlowCalculator>::process_image(UMat<uint8_t> &d_frame_cam0
     if (ret_val == 0) {
       // std::cout << "t pts before " << pts_t_c0_t1_.frame().cols << std::endl;
       // std::cout << "t pts after " << pts_t_c0_t1_.frame().cols << std::endl;
-      RemovePoints(status, OptFlowCalculator::success_value, pts_t_c0_t0_, pts_t_c0_t1_, pts_t_c1_t0_, pts_t_c1_t1_,
+      RemovePoints(status, IpBackend::flow_type::success_value, pts_t_c0_t0_, pts_t_c0_t1_, pts_t_c1_t0_, pts_t_c1_t1_,
                    ids_pts_tracked_);
     } else {
       throw std::runtime_error("Error in stereo matching");
@@ -396,11 +397,11 @@ int ImageProcessor<OptFlowCalculator>::process_image(UMat<uint8_t> &d_frame_cam0
   return 0;
 }
 
-template <typename OptFlowCalculator>
-int ImageProcessor<OptFlowCalculator>::StereoMatch(OptFlowCalculator &opt, UMatVpiImage &d_frame_cam0,
-                                                   UMatVpiImage &d_frame_cam1, UMatVpiArray<cv::Vec2f> &pts_cam0,
-                                                   UMatVpiArray<cv::Vec2f> &pts_cam1, UMatVpiArray<uint8_t> &status,
-                                                   OptFlowCalculator::stream_type &stream) {
+template <typename IpBackend>
+int ImageProcessor<IpBackend>::StereoMatch(IpBackend::flow_type &opt, UMatVpiImage &d_frame_cam0,
+                                           UMatVpiImage &d_frame_cam1, UMatVpiArray<cv::Vec2f> &pts_cam0,
+                                           UMatVpiArray<cv::Vec2f> &pts_cam1, UMatVpiArray<uint8_t> &status,
+                                           IpBackend::stream_type &stream) {
   if (pts_cam0.frame().empty()) {
     return -1;
   }
@@ -460,7 +461,7 @@ int ImageProcessor<OptFlowCalculator>::StereoMatch(OptFlowCalculator &opt, UMatV
     return -1;
   }
 
-  MarkPointsOutOfFrame(status, pts_cam1, d_frame_cam1.size(), OptFlowCalculator::success_value);
+  MarkPointsOutOfFrame(status, pts_cam1, d_frame_cam1.size(), IpBackend::flow_type::success_value);
 
   std::vector<cv::Point2f> tracked_pts_cam0_t1_undistorted(0);
   std::vector<cv::Point2f> tracked_pts_cam1_t1_undistorted(0);
@@ -483,7 +484,7 @@ int ImageProcessor<OptFlowCalculator>::StereoMatch(OptFlowCalculator &opt, UMatV
 
   auto &status_f = status.frame();
   for (size_t i = 0; i < epilines.size(); i++) {
-    if (status_f(0, i) != OptFlowCalculator::success_value) {
+    if (status_f(0, i) != IpBackend::flow_type::success_value) {
       continue;
     }
 
@@ -493,15 +494,15 @@ int ImageProcessor<OptFlowCalculator>::StereoMatch(OptFlowCalculator &opt, UMatV
     double error = fabs(pt1.dot(epilines[i]));
 
     if (error > ImageProcessorConstants::stereo_threshold) {
-      status_f(0, i) = !OptFlowCalculator::success_value;
+      status_f(0, i) = !IpBackend::flow_type::success_value;
     }
   }
   return 0;
 }
 
-template <typename OptFlowCalculator>
-auto ImageProcessor<OptFlowCalculator>::GetInputMaskFromPoints(const UMatVpiArray<cv::Vec2f> &d_input_corners,
-                                                               const cv::Size frame_size) -> UMat<uint8_t> {
+template <typename IpBackend>
+auto ImageProcessor<IpBackend>::GetInputMaskFromPoints(const UMatVpiArray<cv::Vec2f> &d_input_corners,
+                                                       const cv::Size frame_size) -> UMat<uint8_t> {
   UMat<uint8_t> mask(frame_size);
   mask.frame().setTo(1);
   double mask_box_size = 15.0;
@@ -528,15 +529,15 @@ auto ImageProcessor<OptFlowCalculator>::GetInputMaskFromPoints(const UMatVpiArra
   return mask;
 }
 
-template <typename OptFlowCalculator>
+template <typename IpBackend>
 template <typename T>
-void ImageProcessor<OptFlowCalculator>::DetectNewFeatures(const cv::Ptr<T> &detector_ptr, const UMatVpiImage &d_frame,
-                                                          const UMat<uint8_t> &mask, UMatVpiArray<cv::Vec2f> &d_output,
-                                                          OptFlowCalculator::stream_type &stream) {
+void ImageProcessor<IpBackend>::DetectNewFeatures(const cv::Ptr<T> &detector_ptr, const UMatVpiImage &d_frame,
+                                                  const UMat<uint8_t> &mask, UMatVpiArray<cv::Vec2f> &d_output,
+                                                  IpBackend::stream_type &stream) {
   // Detect new features
   cv::cuda::GpuMat tmp_output;
   // TODO implement VPI detector
-  if constexpr (std::is_same<typename OptFlowCalculator::stream_type, cv::cuda::Stream>::value) {
+  if constexpr (std::is_same<typename IpBackend::stream_type, cv::cuda::Stream>::value) {
     detector_ptr->detect(d_frame.d_frame(), tmp_output, mask.d_frame(), stream);
   } else {
     detector_ptr->detect(d_frame.d_frame(), tmp_output, mask.d_frame());
@@ -545,7 +546,7 @@ void ImageProcessor<OptFlowCalculator>::DetectNewFeatures(const cv::Ptr<T> &dete
   d_output = tmp_output;
 }
 
-template class ImageProcessor<PyrLkCvGpu>;
+template class ImageProcessor<CvBackend>;
 #ifdef WITH_VPI
-template class ImageProcessor<PyrLkVpiGpu>;
+template class ImageProcessor<VpiBackend>;
 #endif

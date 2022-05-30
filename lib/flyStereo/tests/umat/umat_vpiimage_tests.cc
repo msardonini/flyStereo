@@ -1,9 +1,9 @@
 #include <utility>
 #include <vector>
 
-#include "flyStereo/image_processing/vpi_check.h"
 #include "flyStereo/tests/umat/umat_test_helpers.h"
 #include "flyStereo/types/umat_vpiimage.h"
+#include "flyStereo/types/vpi_check.h"
 #include "gtest/gtest.h"
 #include "opencv2/core/core.hpp"
 #include "vpi/Array.h"
