@@ -1,4 +1,8 @@
 #pragma once
+
+#include <stdexcept>
+
+#include "cuda_runtime.h"
 #include "vpi/Types.h"
 
 static inline void check_status(VPIStatus status) {

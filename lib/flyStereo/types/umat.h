@@ -233,7 +233,7 @@ class UMat {
       d_frame_ = cv::cuda::GpuMat(frame_.size().height, num_cols, get_type(), reinterpret_cast<T *>(unified_ptr_));
     }
   }
-  void *data() { return unified_ptr_; }
+  void *data() const { return unified_ptr_; }
 
   /**
    * @brief Convienence function for getting the size of the UMat
@@ -251,8 +251,8 @@ class UMat {
   void init(const cv::Size2i frame_size) {
     // Unified memory
     cudaMallocManaged(&unified_ptr_, frame_size.area() * sizeof(T));
-    frame_ = cv::Mat_<T>(frame_size.height, frame_size.width, reinterpret_cast<T *>(unified_ptr_));
-    d_frame_ = cv::cuda::GpuMat(frame_size.height, frame_size.width, get_type(), reinterpret_cast<T *>(unified_ptr_));
+    frame_ = cv::Mat_<T>(frame_size.height, frame_size.width, static_cast<T *>(unified_ptr_));
+    d_frame_ = cv::cuda::GpuMat(frame_size.height, frame_size.width, get_type(), static_cast<T *>(unified_ptr_));
   }
 
   /**

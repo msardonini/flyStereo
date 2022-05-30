@@ -78,8 +78,7 @@ bool check_pts(const UMat<U> &umat, const std::unordered_map<cv::Point2i, U> pts
   bool ret_val = true;
   ret_val &= check_pts(umat.frame(), pts);
 
-  cv::Mat_<U> tmp;
-  umat.d_frame().download(tmp);
-  ret_val &= check_pts(tmp, pts);
+  ret_val &= (umat.frame().data == umat.d_frame().data);
+  ret_val &= (umat.frame().data == umat.data());
   return ret_val;
 }

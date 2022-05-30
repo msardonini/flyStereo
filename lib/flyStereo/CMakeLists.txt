@@ -81,7 +81,6 @@ if (${WITH_VPI})
 target_compile_options(fly_stereo_lib
   PRIVATE
     -Wall
-    # -pg
 )
 
 SET(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -pg")

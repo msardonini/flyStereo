@@ -21,13 +21,16 @@ set(CMAKE_CXX_STANDARD 20)
 # set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # set(CMAKE_CXX_EXTENSIONS OFF)
 
-add_subdirectory(external)
-
-
 if (COVERAGE)
   SET(CMAKE_CXX_FLAGS "-g -O0 -fprofile-arcs -ftest-coverage ${CMAKE_CXX_FLAGS}")
 	SET(CMAKE_C_FLAGS "-g -O0 -fprofile-arcs -ftest-coverage ${CMAKE_C_FLAGS}")
 endif()
+
+
+
+add_subdirectory(external)
+
+
 
 
 add_subdirectory(lib)

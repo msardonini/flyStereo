@@ -101,11 +101,27 @@ class UMatVpiArray : public UMat<T> {
    * @param mat The input cv::Mat
    * @return UMatVpiArray
    */
-  UMatVpiArray operator=(const cv::Mat& mat) {
+  UMatVpiArray& operator=(const cv::Mat& mat) {
     UMat<T>::operator=(mat);
     init(mat.size());
     return *this;
   }
+
+  /**
+   * @brief Construct a new UMatVpiArray with a UMat
+   *
+   * @param umat The input UMat
+   * @return UMatVpiArray
+   */
+  UMatVpiArray(const UMat<T>& umat) : UMat<T>(umat) { init(umat.frame().size()); }
+
+  /**
+   * @brief Construct a new UMatVpiArray with a UMat using the move constructor
+   *
+   * @param umat The input UMat
+   * @return UMatVpiArray
+   */
+  UMatVpiArray(UMat<T>&& umat) : UMat<T>(std::move(umat)) { init(this->size()); }
 
   /**
    * @brief Construct a new UMatVpiArray with a UMat
@@ -157,6 +173,18 @@ class UMatVpiArray : public UMat<T> {
    */
   const VPIArray& vpi_array() const { return vpi_array_; }
 
+  void lock() const {
+    if (vpi_array_) {
+      check_status(vpiArrayLock(vpi_array_, VPI_LOCK_READ_WRITE));
+    }
+  }
+
+  void unlock() const {
+    if (vpi_array_) {
+      check_status(vpiArrayUnlock(vpi_array_));
+    }
+  }
+
  protected:
   /**
    * @brief Initialize the UMatVpiArray object with the given size.
@@ -173,11 +201,20 @@ class UMatVpiArray : public UMat<T> {
     }
     // All arrays must have the same capacity. Reallocate the underlying data if needed
     if (!this->unified_ptr_ || this->set_capacity_ != umat_vpiarray_capacity) {
-      if (this->unified_ptr_) {
-        cudaFree(this->unified_ptr_);
-      }
+      void* old_ptr = this->unified_ptr_;
       cudaMallocManaged(&this->unified_ptr_, umat_vpiarray_capacity * sizeof(T));
       this->set_capacity_ = umat_vpiarray_capacity;
+
+      // If there was data in our old buffer, copy it over and free it
+      if (old_ptr) {
+        std::copy(static_cast<T*>(old_ptr), static_cast<T*>(old_ptr) + this->size().width,
+                  static_cast<T*>(this->unified_ptr_));
+        cudaFree(old_ptr);
+      }
+
+      // Redefine the opencv frames to use the new pointer
+      this->frame_ = cv::Mat_<T>(size.height, size.width, static_cast<T*>(this->unified_ptr_));
+      this->d_frame_ = cv::cuda::GpuMat(size.height, size.width, this->get_type(), static_cast<T*>(this->unified_ptr_));
     }
 
     // Set cols_, the pointer to the size (number of utilized elements) of the array
@@ -203,7 +240,8 @@ class UMatVpiArray : public UMat<T> {
     if (vpi_array_) {
       check_status(vpiArraySetWrapper(vpi_array_, &array_data));
     } else {
-      check_status(vpiArrayCreateWrapper(&array_data, VPI_BACKEND_CUDA, &vpi_array_));
+      check_status(vpiArrayCreateWrapper(&array_data, VPI_BACKEND_CUDA | VPI_EXCLUSIVE_STREAM_ACCESS, &vpi_array_));
+      lock();
     }
   }
 

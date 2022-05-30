@@ -6,5 +6,6 @@ target_include_directories(thread_pool
     thread-pool
 )
 
-
-include(cmake-gtest-coverage-example/cmake/modules/CodeCoverage.cmake)
+if (COVERAGE)
+  include(cmake-gtest-coverage-example/cmake/modules/CodeCoverage.cmake)
+endif()

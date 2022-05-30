@@ -111,6 +111,49 @@ class OptFlowVpiGpu : public OptFlowBase<OptFlowVpiGpu, OptFlowVpiStream> {
     initialized_ = true;
   }
 
+  void calc(UMatVpiImage& prev_image, UMatVpiImage& curr_image, UMatVpiArray<cv::Vec2f>& prev_pts,
+            UMatVpiArray<cv::Vec2f>& curr_pts, UMatVpiArray<uint8_t>& status, OptFlowVpiStream* stream = nullptr) {
+    if (!initialized_) {
+      init(prev_image.frame().size());
+    }
+
+    // If the user has not initialized status to the right size, do it now
+    if (status.frame().size() != curr_pts.frame().size()) {
+      status = UMatVpiArray<uint8_t>(curr_pts.frame().size());
+    }
+
+    prev_image.unlock();
+    curr_image.unlock();
+    prev_pts.unlock();
+    curr_pts.unlock();
+    status.unlock();
+
+    // If the user has provided a stream, run asynchronously
+    if (stream != nullptr && 0) {
+      calc_opt_flow(stream->stream, prev_image, curr_image, prev_pts, curr_pts, status);
+    } else {
+      calc_opt_flow(stream_, prev_image, curr_image, prev_pts, curr_pts, status);
+      check_status(vpiStreamSync(stream_));
+    }
+    prev_image.lock();
+    curr_image.lock();
+    prev_pts.lock();
+    curr_pts.lock();
+    status.lock();
+
+    // // DEBUG
+    // UMatVpiImage curr_image_tmp(curr_image);
+    // curr_image = curr_image_tmp;
+    // UMatVpiImage prev_image_tmp(prev_image);
+    // prev_image = prev_image_tmp;
+    // UMatVpiArray<cv::Vec2f> curr_pts_tmp(curr_pts);
+    // curr_pts = curr_pts_tmp;
+    // UMatVpiArray<cv::Vec2f> prev_pts_tmp(prev_pts);
+    // prev_pts = prev_pts_tmp;
+    // UMatVpiArray<uint8_t> status_tmp(status);
+    // status = status_tmp;
+  }
+
   void calc(const UMat<uint8_t>& prev_image, const UMat<uint8_t>& curr_image, const UMat<cv::Vec2f>& prev_pts,
             UMat<cv::Vec2f>& curr_pts, UMat<uint8_t>& status, OptFlowVpiStream* stream = nullptr) {
     return calc(prev_image.d_frame(), curr_image.d_frame(), prev_pts, curr_pts, status, stream);
@@ -136,7 +179,14 @@ class OptFlowVpiGpu : public OptFlowBase<OptFlowVpiGpu, OptFlowVpiStream> {
     //             << ", " << curr_pts.frame()(i)[1] << ")" << std::endl;
     // }
 
-    calc(prev_image, curr_image, prev_pts, curr_pts, status, stream);
+    // Convert to VPI format
+    // const UMatVpiImage prev_image_vpi(prev_image);
+    // const UMatVpiImage curr_image_vpi(curr_image);
+    // const UMatVpiArray<cv::Vec2f> prev_pts_vpi(prev_pts);
+    // UMatVpiArray<cv::Vec2f> curr_pts_vpi(curr_pts);
+    // UMatVpiArray<uint8_t> status_vpi(status);
+
+    // calc(prev_image_vpi, curr_image_vpi, prev_pts_vpi, curr_pts_vpi, status_vpi, stream);
 
     // // Print first 10 points
     // std::cout << "After PyrLK: " << std::endl;
@@ -152,26 +202,6 @@ class OptFlowVpiGpu : public OptFlowBase<OptFlowVpiGpu, OptFlowVpiStream> {
     // umat_to_vpi_array(prev_pts, prev_pts_);
     // umat_to_vpi_array(curr_pts, curr_pts_);
     // umat_to_vpi_array(status, status_);
-  }
-
-  void calc(const UMatVpiImage& prev_image, const UMatVpiImage& curr_image, const UMatVpiArray<cv::Vec2f>& prev_pts,
-            UMatVpiArray<cv::Vec2f>& curr_pts, UMatVpiArray<uint8_t>& status, OptFlowVpiStream* stream = nullptr) {
-    if (!initialized_) {
-      init(prev_image.frame().size());
-    }
-
-    // If the user has not initialized status to the right size, do it now
-    if (status.frame().size() != curr_pts.frame().size()) {
-      status = UMatVpiArray<uint8_t>(curr_pts.frame().size());
-    }
-
-    // If the user has provided a stream, run asynchronously
-    if (stream != nullptr && 0) {
-      calc_opt_flow(stream->stream, prev_image, curr_image, prev_pts, curr_pts, status);
-    } else {
-      calc_opt_flow(stream_, prev_image, curr_image, prev_pts, curr_pts, status);
-      check_status(vpiStreamSync(stream_));
-    }
   }
 
   const static uint8_t success_value = 0;

@@ -155,6 +155,18 @@ class UMatVpiImage : public UMat<uint8_t> {
    */
   const VPIImage& vpi_frame() const { return vpi_frame_; }
 
+  void lock() const {
+    if (vpi_frame_) {
+      vpiImageLock(vpi_frame_, VPI_LOCK_READ_WRITE);
+    }
+  }
+
+  void unlock() const {
+    if (vpi_frame_) {
+      vpiImageUnlock(vpi_frame_);
+    }
+  }
+
  protected:
   /**
    * @brief Initialize the UMatVpiImage object with the given size.
@@ -188,7 +200,9 @@ class UMatVpiImage : public UMat<uint8_t> {
       }
     }
 
-    check_status(vpiImageCreateWrapper(&img_data, nullptr, VPI_BACKEND_CUDA, &vpi_frame_));
+    check_status(
+        vpiImageCreateWrapper(&img_data, nullptr, VPI_BACKEND_CUDA | VPI_EXCLUSIVE_STREAM_ACCESS, &vpi_frame_));
+    lock();
   }
 
   VPIImage vpi_frame_ = nullptr;

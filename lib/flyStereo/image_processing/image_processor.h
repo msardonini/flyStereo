@@ -54,9 +54,9 @@ class ImageProcessor {
   auto UpdatePointsViaImu(const UMatVpiArray<cv::Vec2f> &current_pts, const cv::Matx33d &rotation,
                           const cv::Matx33d &camera_matrix, UMatVpiArray<cv::Vec2f> &updated_pts) -> int;
 
-  int StereoMatch(OptFlowCalculator &opt, const UMatVpiImage &d_frame_cam0, const UMatVpiImage &d_frame_cam1,
-                  const UMatVpiArray<cv::Vec2f> &pts_cam0, UMatVpiArray<cv::Vec2f> &pts_cam1,
-                  UMatVpiArray<uint8_t> &status, OptFlowCalculator::stream_type &stream);
+  int StereoMatch(OptFlowCalculator &opt, UMatVpiImage &d_frame_cam0, UMatVpiImage &d_frame_cam1,
+                  UMatVpiArray<cv::Vec2f> &pts_cam0, UMatVpiArray<cv::Vec2f> &pts_cam1, UMatVpiArray<uint8_t> &status,
+                  OptFlowCalculator::stream_type &stream);
 
   // template <typename OptFlowCalculator>
   // int ImageProcessor<OptFlowCalculator>::StereoMatch(OptFlowCalculator &opt, const UMatVpiImage &d_frame_cam0,
