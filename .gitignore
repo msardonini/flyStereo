@@ -9,3 +9,4 @@ matlab/*m~
 .devcontainer**
 **gmon.out
 **.jpg
+**.avi
