@@ -186,6 +186,17 @@ class UMatVpiArray : public UMat<T> {
     }
   }
 
+  /**
+   * @brief Synchronize the opencv wrapper objects. This is required after a VPI call has changed the underlying size of
+   * the array
+   */
+  void sync_cv_wrapper() {
+    if (*cols_ != this->size().width) {
+      this->frame_ = cv::Mat_<T>(1, *cols_, static_cast<T*>(this->unified_ptr_));
+      this->d_frame_ = cv::cuda::GpuMat(1, *cols_, this->get_type(), static_cast<T*>(this->unified_ptr_));
+    }
+  }
+
  protected:
   /**
    * @brief Initialize the UMatVpiArray object with the given size.

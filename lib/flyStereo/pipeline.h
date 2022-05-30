@@ -5,6 +5,7 @@
 
 #include "flyStereo/image_processing/cv_backend.h"
 #include "flyStereo/image_processing/image_processor.h"
+#include "flyStereo/image_processing/vpi_backend.h"
 #include "flyStereo/sensor_io/mavlink_reader.h"
 #include "flyStereo/sensor_io/sensor_interface.h"
 #include "flyStereo/vio.h"
@@ -33,7 +34,7 @@ class Pipeline {
 
   MavlinkReader mavlink_reader_;
   SensorInterface sensor_interface_;
-  ImageProcessor<CvBackend> image_processor_;
+  ImageProcessor<VpiBackend> image_processor_;
   Vio vio_;
 
   bool draw_points_to_frame_ = true;

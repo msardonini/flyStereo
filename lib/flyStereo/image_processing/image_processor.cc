@@ -160,7 +160,11 @@ TrackedImagePoints ImageProcessor<IpBackend>::OuputTrackedPoints(const std::vect
 template <typename IpBackend>
 void ImageProcessor<IpBackend>::detect(const UMat<uint8_t> &mask) {
   // Detect new features to match for the next iteration
-  DetectNewFeatures<cv::cuda::CornersDetector>(detector_ptr_, d_frame_cam0_t1_, mask, pts_d_c0_t1_, detector_stream_);
+  // DetectNewFeatures<cv::cuda::CornersDetector>(detector_ptr_, d_frame_cam0_t1_, mask, pts_d_c0_t1_,
+  // detector_stream_);
+
+  detector_.detect(d_frame_cam0_t1_, mask, pts_d_c0_t1_, &detector_stream_);
+
   // Match the detected features in the second camera
 
   // std::cout << "c1 dets " << pts_d_c1_t1_.frame() << std::endl;
@@ -546,7 +550,7 @@ void ImageProcessor<IpBackend>::DetectNewFeatures(const cv::Ptr<T> &detector_ptr
   d_output = tmp_output;
 }
 
-template class ImageProcessor<CvBackend>;
+// template class ImageProcessor<CvBackend>;
 #ifdef WITH_VPI
 template class ImageProcessor<VpiBackend>;
 #endif

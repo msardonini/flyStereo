@@ -65,6 +65,8 @@ class ImageProcessor {
   // Algorithm state
   unsigned int current_id_ = 0;  // The id of the last tracked point TODO CHANGE NAME
   cv::Ptr<cv::cuda::CornersDetector> detector_ptr_;
+  IpBackend::detector_type detector_;
+
   IpBackend::flow_type d_opt_flow_cam0_;
   IpBackend::flow_type d_opt_flow_stereo_t0_;
   IpBackend::flow_type d_opt_flow_stereo_t1_;
