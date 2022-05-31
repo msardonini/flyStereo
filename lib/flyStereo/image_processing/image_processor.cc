@@ -55,8 +55,6 @@ struct ImageProcessorConstants {
   static constexpr double ransac_threshold = 10.0;
 };
 
-debug_video_recorder debug_record(true);
-
 template <typename IpBackend>
 ImageProcessor<IpBackend>::ImageProcessor(float rate_limit_fps, const YAML::Node &stereo_calibration,
                                           cv::Matx33d R_imu_cam0)
@@ -160,16 +158,16 @@ TrackedImagePoints ImageProcessor<IpBackend>::OuputTrackedPoints(const std::vect
 template <typename IpBackend>
 void ImageProcessor<IpBackend>::detect(const UMat<uint8_t> &mask) {
   // Detect new features to match for the next iteration
-  // DetectNewFeatures<cv::cuda::CornersDetector>(detector_ptr_, d_frame_cam0_t1_, mask, pts_d_c0_t1_,
+  // DetectNewFeatures<cv::cuda::CornersDetector>(detector_ptr_, frame_cam0_t1_, mask, pts_d_c0_t1_,
   // detector_stream_);
 
-  detector_.detect(d_frame_cam0_t1_, mask, pts_d_c0_t1_, &detector_stream_);
+  detector_.detect(frame_cam0_t1_, mask, pts_d_c0_t1_, &detector_stream_);
 
   // Match the detected features in the second camera
 
   // std::cout << "c1 dets " << pts_d_c1_t1_.frame() << std::endl;
   UMatVpiArray<uint8_t> status = UMatVpiArray<uint8_t>(pts_d_c0_t1_.frame().size());
-  StereoMatch(d_opt_flow_stereo_t1_, d_frame_cam0_t1_, d_frame_cam1_t1_, pts_d_c0_t1_, pts_d_c1_t1_, status,
+  StereoMatch(d_opt_flow_stereo_t1_, frame_cam0_t1_, frame_cam1_t1_, pts_d_c0_t1_, pts_d_c1_t1_, status,
               detector_stream_);
   detector_stream_.sync();
 
@@ -181,18 +179,18 @@ void ImageProcessor<IpBackend>::detect(const UMat<uint8_t> &mask) {
   //     pts_d_c0_t1_.d_frame().download(pts_t0);
   //   }
   //   // debug_record.DrawPts(mask.frame() * 255, 0, {});
-  //   debug_record.DrawPts(d_frame_cam0_t1_.frame(), 0, pts_t0);
+  //   debug_record.DrawPts(frame_cam0_t1_.frame(), 0, pts_t0);
   //   std::vector<cv::Point2f> pts_t1;
   //   if (pts_d_c1_t1_.d_frame().cols > 0) {
   //     pts_d_c1_t1_.d_frame().download(pts_t1);
   //   }
-  //   debug_record.DrawPts(d_frame_cam1_t1_.frame(), 1, pts_t1);
+  //   debug_record.DrawPts(frame_cam1_t1_.frame(), 1, pts_t1);
   //   debug_record.WriteFrame();
   // }
   // // END DEBUG CODE
 
   if (pts_d_c0_t1_.frame().cols != 0) {
-    MarkPointsOutOfFrame(status, pts_d_c1_t1_, d_frame_cam1_t1_.size(), IpBackend::flow_type::success_value);
+    MarkPointsOutOfFrame(status, pts_d_c1_t1_, frame_cam1_t1_.size(), IpBackend::flow_type::success_value);
     RemovePoints(status, IpBackend::flow_type::success_value, pts_d_c0_t1_, pts_d_c1_t1_);
 
     auto counter = 0;
@@ -218,11 +216,11 @@ void ImageProcessor<IpBackend>::track() {}
 
 // TODO make a check that the object is initialized before starting
 template <typename IpBackend>
-int ImageProcessor<IpBackend>::process_image(UMat<uint8_t> &d_frame_cam0_t1_umat, UMat<uint8_t> &d_frame_cam1_t1_umat,
+int ImageProcessor<IpBackend>::process_image(UMat<uint8_t> &frame_cam0_t1_umat, UMat<uint8_t> &frame_cam1_t1_umat,
                                              const std::vector<mavlink_imu_t> &imu_msgs, uint64_t current_frame_time,
                                              TrackedImagePoints &tracked_points) {
-  d_frame_cam0_t1_ = std::move(d_frame_cam0_t1_umat);
-  d_frame_cam1_t1_ = std::move(d_frame_cam1_t1_umat);
+  frame_cam0_t1_ = std::move(frame_cam0_t1_umat);
+  frame_cam1_t1_ = std::move(frame_cam1_t1_umat);
 
   cv::Matx33f rotation_t0_t1_cam0;
   cv::Matx33f rotation_t0_t1_cam1;
@@ -239,7 +237,7 @@ int ImageProcessor<IpBackend>::process_image(UMat<uint8_t> &d_frame_cam0_t1_umat
   if (pts_t_c0_t0_.frame().cols > 2) {
     // Vector to indicate whether a point should be deleted or kept after binning
     UMatVpiArray<uint8_t> bin_status;
-    BinAndMarkPoints(pts_t_c0_t0_, ids_pts_tracked_, d_frame_cam0_t1_.size(),
+    BinAndMarkPoints(pts_t_c0_t0_, ids_pts_tracked_, frame_cam0_t1_.size(),
                      cv::Size(ImageProcessorConstants::bins_width, ImageProcessorConstants::bins_height),
                      ImageProcessorConstants::max_pts_in_bin, bin_status, IpBackend::flow_type::success_value);
 
@@ -263,12 +261,12 @@ int ImageProcessor<IpBackend>::process_image(UMat<uint8_t> &d_frame_cam0_t1_umat
   if (!pts_t_c0_t0_.frame().empty()) {
     UMatVpiArray<uint8_t> status = UMatVpiArray<uint8_t>(pts_t_c0_t0_.frame().size());
 
-    // UMat<uint8_t> d_frame_cam0_t0_copy(d_frame_cam0_t0_);
-    // UMat<uint8_t> d_frame_cam0_t1_copy(d_frame_cam0_t1);
+    // UMat<uint8_t> frame_cam0_t0_copy(frame_cam0_t0_);
+    // UMat<uint8_t> frame_cam0_t1_copy(frame_cam0_t1);
 
     // auto copy_1 = pts_t_c0_t0_.clone();
-    d_opt_flow_cam0_.calc(d_frame_cam0_t0_, d_frame_cam0_t1_, pts_t_c0_t0_, pts_t_c0_t1_, status, &tracker_stream_);
-    // d_opt_flow_cam0_.calc(d_frame_cam0_t0_, d_frame_cam0_t1, pts_t_c0_t0_, pts_t_c0_t1_, status, tracker_stream_);
+    d_opt_flow_cam0_.calc(frame_cam0_t0_, frame_cam0_t1_, pts_t_c0_t0_, pts_t_c0_t1_, status, &tracker_stream_);
+    // d_opt_flow_cam0_.calc(frame_cam0_t0_, frame_cam0_t1, pts_t_c0_t0_, pts_t_c0_t1_, status, tracker_stream_);
     tracker_stream_.sync();
 
     // // DEBUG CODE
@@ -278,19 +276,19 @@ int ImageProcessor<IpBackend>::process_image(UMat<uint8_t> &d_frame_cam0_t1_umat
     //   if (pts_t_c0_t0_.frame().cols > 0) {
     //     pts_t_c0_t0_.d_frame().download(pts_t0);
     //   }
-    //   debug_record.DrawPts(d_frame_cam0_t0_.frame(), 0, pts_t0);
+    //   debug_record.DrawPts(frame_cam0_t0_.frame(), 0, pts_t0);
 
     //   std::vector<cv::Point2f> pts_t1;
     //   if (pts_t_c0_t1_.d_frame().cols > 0) {
     //     pts_t_c0_t1_.d_frame().download(pts_t1);
     //   }
-    //   debug_record.DrawPts(d_frame_cam0_t1_.frame(), 1, pts_t1);
+    //   debug_record.DrawPts(frame_cam0_t1_.frame(), 1, pts_t1);
     //   debug_record.WriteFrame();
     // }
     // // // END DEBUG CODE
 
     {
-      MarkPointsOutOfFrame(status, pts_t_c0_t1_, d_frame_cam0_t1_.size(), IpBackend::flow_type::success_value);
+      MarkPointsOutOfFrame(status, pts_t_c0_t1_, frame_cam0_t1_.size(), IpBackend::flow_type::success_value);
 
       RemovePoints(status, IpBackend::flow_type::success_value, pts_t_c0_t0_, pts_t_c0_t1_, pts_t_c1_t0_,
                    ids_pts_tracked_);
@@ -301,21 +299,21 @@ int ImageProcessor<IpBackend>::process_image(UMat<uint8_t> &d_frame_cam0_t1_umat
       //     if (pts_t_c0_t0_.frame().cols > 0) {
       //       pts_t_c0_t0_.d_frame().download(pts_t0);
       //     }
-      //     debug_record.DrawPts(d_frame_cam0_t0_.frame(), 0, pts_t0);
+      //     debug_record.DrawPts(frame_cam0_t0_.frame(), 0, pts_t0);
 
       //     std::vector<cv::Point2f> pts_t1;
       //     if (pts_t_c0_t1_.d_frame().cols > 0) {
       //       pts_t_c0_t1_.d_frame().download(pts_t1);
       //     }
-      //     debug_record.DrawPts(d_frame_cam0_t1_.frame(), 1, pts_t1);
+      //     debug_record.DrawPts(frame_cam0_t1_.frame(), 1, pts_t1);
       //     debug_record.WriteFrame();
       //   }
       //   // // END
     }
 
     // Match the points from camera 0 to camera 1
-    int ret_val = StereoMatch(d_opt_flow_stereo_t0_, d_frame_cam0_t1_, d_frame_cam1_t1_, pts_t_c0_t1_, pts_t_c1_t1_,
-                              status, tracker_stream_);
+    int ret_val = StereoMatch(d_opt_flow_stereo_t0_, frame_cam0_t1_, frame_cam1_t1_, pts_t_c0_t1_, pts_t_c1_t1_, status,
+                              tracker_stream_);
     // tracker_stream_.sync();
     // // DEBUG CODE
     // std::vector<cv::Point2f> pts_t0;
@@ -324,7 +322,7 @@ int ImageProcessor<IpBackend>::process_image(UMat<uint8_t> &d_frame_cam0_t1_umat
     //   if (pts_t_c0_t1_.frame().cols > 0) {
     //     pts_t_c0_t1_.d_frame().download(pts_t0);
     //   }
-    //   debug_record.DrawPts(d_frame_cam0_t1.frame(), 0, pts_t0);
+    //   debug_record.DrawPts(frame_cam0_t1.frame(), 0, pts_t0);
     // }
     // // std::vector<cv::Point2f> pts_t1_debug;
     // // points_[t_c0_t1].download(pts_t1_debug);
@@ -336,7 +334,7 @@ int ImageProcessor<IpBackend>::process_image(UMat<uint8_t> &d_frame_cam0_t1_umat
     //   if (pts_t_c1_t1_.d_frame().cols > 0) {
     //     pts_t_c1_t1_.d_frame().download(pts_t1);
     //   }
-    //   debug_record.DrawPts(d_frame_cam1_t1.frame(), 1, pts_t1);
+    //   debug_record.DrawPts(frame_cam1_t1.frame(), 1, pts_t1);
     //   debug_record.WriteFrame();
     // }
     // // END DEBUG CODE
@@ -361,7 +359,7 @@ int ImageProcessor<IpBackend>::process_image(UMat<uint8_t> &d_frame_cam0_t1_umat
     }
   }
 
-  auto mask = GetInputMaskFromPoints(pts_t_c0_t1_, d_frame_cam0_t1_.size());
+  auto mask = GetInputMaskFromPoints(pts_t_c0_t1_, frame_cam0_t1_.size());
 
   detect(mask);
   std::cout << "points detected " << pts_d_c0_t1_.size() << std::endl;
@@ -370,9 +368,12 @@ int ImageProcessor<IpBackend>::process_image(UMat<uint8_t> &d_frame_cam0_t1_umat
     tracked_points = OuputTrackedPoints(imu_msgs, rotation_t0_t1_cam0);
   }
 
+  // Plot output if enabled
+  { plot_points_overlay_2x1(frame_cam0_t1_, {pts_t_c0_t1_}, frame_cam1_t1_, {pts_t_c1_t1_}); }
+
   // Set the current t1 values to t0 for the next iteration
-  std::swap(d_frame_cam0_t1_, d_frame_cam0_t0_);
-  std::swap(d_frame_cam1_t1_, d_frame_cam1_t0_);
+  std::swap(frame_cam0_t1_, frame_cam0_t0_);
+  std::swap(frame_cam1_t1_, frame_cam1_t0_);
 
   pts_t_c0_t0_ = std::move(pts_t_c0_t1_);
   pts_t_c0_t1_ = UMatVpiArray<cv::Vec2f>(cv::Size(0, 1));
@@ -402,8 +403,8 @@ int ImageProcessor<IpBackend>::process_image(UMat<uint8_t> &d_frame_cam0_t1_umat
 }
 
 template <typename IpBackend>
-int ImageProcessor<IpBackend>::StereoMatch(IpBackend::flow_type &opt, UMatVpiImage &d_frame_cam0,
-                                           UMatVpiImage &d_frame_cam1, UMatVpiArray<cv::Vec2f> &pts_cam0,
+int ImageProcessor<IpBackend>::StereoMatch(IpBackend::flow_type &opt, UMatVpiImage &frame_cam0,
+                                           UMatVpiImage &frame_cam1, UMatVpiArray<cv::Vec2f> &pts_cam0,
                                            UMatVpiArray<cv::Vec2f> &pts_cam1, UMatVpiArray<uint8_t> &status,
                                            IpBackend::stream_type &stream) {
   if (pts_cam0.frame().empty()) {
@@ -428,7 +429,7 @@ int ImageProcessor<IpBackend>::StereoMatch(IpBackend::flow_type &opt, UMatVpiIma
     throw std::runtime_error("Projected points have wrong dimensions");
   }
 
-  opt.calc(d_frame_cam0, d_frame_cam1, pts_cam0, pts_cam1, status, &stream);
+  opt.calc(frame_cam0, frame_cam1, pts_cam0, pts_cam1, status, &stream);
 
   stream.sync();
 
@@ -444,7 +445,7 @@ int ImageProcessor<IpBackend>::StereoMatch(IpBackend::flow_type &opt, UMatVpiIma
   //     pts_cam0.d_frame().download(pts_t0);
   //   }
   //   cv::Mat draw_frame1;
-  //   d_frame_cam0.download(draw_frame1);
+  //   frame_cam0.download(draw_frame1);
   //   debug_record.DrawPts(draw_frame1, 0, pts_t0);
 
   //   // SECOND FRAME
@@ -453,7 +454,7 @@ int ImageProcessor<IpBackend>::StereoMatch(IpBackend::flow_type &opt, UMatVpiIma
   //     pts_cam1.d_frame().download(pts_t1);
   //   }
   //   cv::Mat draw_frame2;
-  //   d_frame_cam1.download(draw_frame2);
+  //   frame_cam1.download(draw_frame2);
   //   debug_record.DrawPts(draw_frame2, 1, pts_t1);
   //   debug_record.WriteFrame();
   // }
@@ -465,7 +466,7 @@ int ImageProcessor<IpBackend>::StereoMatch(IpBackend::flow_type &opt, UMatVpiIma
     return -1;
   }
 
-  MarkPointsOutOfFrame(status, pts_cam1, d_frame_cam1.size(), IpBackend::flow_type::success_value);
+  MarkPointsOutOfFrame(status, pts_cam1, frame_cam1.size(), IpBackend::flow_type::success_value);
 
   std::vector<cv::Point2f> tracked_pts_cam0_t1_undistorted(0);
   std::vector<cv::Point2f> tracked_pts_cam1_t1_undistorted(0);

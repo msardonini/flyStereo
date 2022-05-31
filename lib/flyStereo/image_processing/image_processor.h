@@ -31,15 +31,14 @@ class ImageProcessor {
 
   void Init();
 
-  auto process_image(UMat<uint8_t> &d_frame_cam0, UMat<uint8_t> &d_frame_cam1,
-                     const std::vector<mavlink_imu_t> &imu_data, uint64_t current_frame_time,
-                     TrackedImagePoints &points) -> int;
+  auto process_image(UMat<uint8_t> &frame_cam0, UMat<uint8_t> &frame_cam1, const std::vector<mavlink_imu_t> &imu_data,
+                     uint64_t current_frame_time, TrackedImagePoints &points) -> int;
 
  private:
   auto UpdatePointsViaImu(const UMatVpiArray<cv::Vec2f> &current_pts, const cv::Matx33d &rotation,
                           const cv::Matx33d &camera_matrix, UMatVpiArray<cv::Vec2f> &updated_pts) -> int;
 
-  int StereoMatch(IpBackend::flow_type &opt, UMatVpiImage &d_frame_cam0, UMatVpiImage &d_frame_cam1,
+  int StereoMatch(IpBackend::flow_type &opt, UMatVpiImage &frame_cam0, UMatVpiImage &frame_cam1,
                   UMatVpiArray<cv::Vec2f> &pts_cam0, UMatVpiArray<cv::Vec2f> &pts_cam1, UMatVpiArray<uint8_t> &status,
                   IpBackend::stream_type &stream);
 
@@ -75,10 +74,10 @@ class ImageProcessor {
 
   std::chrono::time_point<std::chrono::system_clock> prev_time_end_;
   std::chrono::system_clock::duration fps_limit_inv_;
-  UMatVpiImage d_frame_cam0_t0_;
-  UMatVpiImage d_frame_cam1_t0_;
-  UMatVpiImage d_frame_cam0_t1_;
-  UMatVpiImage d_frame_cam1_t1_;
+  UMatVpiImage frame_cam0_t0_;
+  UMatVpiImage frame_cam1_t0_;
+  UMatVpiImage frame_cam0_t1_;
+  UMatVpiImage frame_cam1_t1_;
 
   // Points to track
   UMatVpiArray<cv::Vec2f> pts_t_c0_t0_;  //< Tracked points in camera 0 frame at time t0

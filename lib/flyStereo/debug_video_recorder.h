@@ -2,81 +2,92 @@
 
 #include <memory>
 
+#include "flyStereo/types/umat.h"
 #include "opencv2/core.hpp"
 #include "opencv2/highgui.hpp"
+#include "opencv2/imgproc.hpp"
 #include "opencv2/videoio.hpp"
 
-struct debug_video_recorder {
-  debug_video_recorder(bool write_to_screen = false) : write_to_screen(write_to_screen) {}
-  std::unique_ptr<cv::VideoWriter> writer;
-  cv::Mat frame_local0;
-  cv::Mat frame_local1;
-  bool write_to_screen;
+#ifdef FLYSTEREO_VISUALIZE_DEBUG_VIDEO
+constexpr bool FLYSTEREO_VISUALIZE_DEBUG_VIDEO_ENABLED = true;
+#else
+constexpr bool FLYSTEREO_VISUALIZE_DEBUG_VIDEO_ENABLED = false;
+#endif
 
-  void DrawPts(cv::Mat frame, int frame_num, std::vector<cv::Point2f> blue_pts, std::vector<cv::Point2f> green_pts = {},
-               std::vector<cv::Point2f> red_pts = {}, std::vector<cv::Point2f> cyan_pts = {}) {
-    cv::Mat frame_local;
-    if (frame_num == 1) {
-      frame_local1 = frame.clone();
-      cv::cvtColor(frame_local1, frame_local1, cv::COLOR_GRAY2BGR);
-      frame_local = frame_local1;
-    } else {
-      frame_local0 = frame.clone();
-      cv::cvtColor(frame_local0, frame_local0, cv::COLOR_GRAY2BGR);
-      frame_local = frame_local0;
-    }
+std::unique_ptr<cv::VideoWriter> writer;
+std::vector<cv::Scalar> colors{CV_RGB(0, 0, 255), CV_RGB(0, 255, 0), CV_RGB(255, 0, 0), CV_RGB(0, 255, 255)};
 
-    int myradius = 5;
-    // Draw blue points
-    for (size_t i = 0; i < blue_pts.size(); i++) {
-      cv::Scalar color = CV_RGB(0, 0, 255);
-      circle(frame_local, cv::Point(blue_pts[i].x, blue_pts[i].y), myradius, color, -1, 8, 0);
-    }
+template <bool enable = FLYSTEREO_VISUALIZE_DEBUG_VIDEO_ENABLED>
+void draw_points_to_frame(cv::Mat& image, const UMat<cv::Vec2f>& points, cv::Scalar color, int radius = 5) {
+  if constexpr (!enable) {
+    return;
+  }
+  const auto& points_mat = points.frame();
+  std::for_each(points_mat.begin(), points_mat.end(), [&](const cv::Vec2f& point) {
+    cv::circle(image, cv::Point(point[0], point[1]), radius, color, -1, cv::FILLED);
+  });
+}
 
-    // Draw green points
-    for (size_t i = 0; i < green_pts.size(); i++) {
-      cv::Scalar color = CV_RGB(0, 255, 0);
-      circle(frame_local, cv::Point(green_pts[i].x, green_pts[i].y), myradius, color, -1, 8, 0);
-    }
-
-    // Draw red points
-    for (size_t i = 0; i < red_pts.size(); i++) {
-      cv::Scalar color = CV_RGB(255, 0, 0);
-      circle(frame_local, cv::Point(red_pts[i].x, red_pts[i].y), myradius, color, -1, 8, 0);
-    }
-
-    // Draw cyan points
-    for (size_t i = 0; i < cyan_pts.size(); i++) {
-      cv::Scalar color = CV_RGB(0, 255, 255);
-      circle(frame_local, cv::Point(cyan_pts[i].x, cyan_pts[i].y), myradius, color, -1, 8, 0);
-    }
+template <typename point_type, bool enable = FLYSTEREO_VISUALIZE_DEBUG_VIDEO_ENABLED>
+void draw(cv::Mat& image, std::initializer_list<point_type>& points) {
+  if constexpr (!enable) {
+    return;
   }
 
-  void WriteFrame() {
-    cv::Mat concat_frame;
-    cv::hconcat(frame_local0, frame_local1, concat_frame);
+  if (points.size() > colors.size()) {
+    throw std::runtime_error("Not enough colors to draw all the different points!");
+  }
 
-    // Draw a vertical line to show the separation between the two cameras
-    cv::line(concat_frame, cv::Point(concat_frame.cols / 2, 0), cv::Point(concat_frame.cols / 2, concat_frame.rows),
-             cv::Scalar(0, 255, 0), 1, 8, 0);
+  int counter = 0;
+  std::for_each(points.begin(), points.end(),
+                [&](const UMat<cv::Vec2f>& points_mat) { draw_points_to_frame(image, points_mat, colors[counter++]); });
+}
 
-    // std::cout << "Size " << frame_local0.size() << std::endl;
-    // std::cout << "Size " << frame_local1.size() << std::endl;
-    // std::cout << "Size " << concat_frame.size() << std::endl;
-
-    if (write_to_screen) {
-      cv::imshow("frame", concat_frame);
-      cv::waitKey(0);
+template <bool enable = FLYSTEREO_VISUALIZE_DEBUG_VIDEO_ENABLED>
+void export_frame(const cv::Mat& frame, bool write_to_screen = true) {
+  if constexpr (!enable) {
+    return;
+  }
+  if (write_to_screen) {
+    cv::imshow("frame", frame);
+    cv::waitKey(0);
+  } else {
+    if (!writer) {
+      writer = std::make_unique<cv::VideoWriter>("./debug_video.avi", cv::VideoWriter::fourcc('M', 'J', 'P', 'G'), 2,
+                                                 frame.size(), true);
+    }
+    if (writer->isOpened()) {
+      writer->write(frame);
     } else {
-      if (!writer) {
-        writer = std::make_unique<cv::VideoWriter>("./debug_video.avi", cv::VideoWriter::fourcc('M', 'J', 'P', 'G'), 2,
-                                                   concat_frame.size(), true);
-      }
-      if (writer->isOpened()) {
-        writer->write(concat_frame);
-      } else {
-        std::cerr << "failed to open video!!\n";
-      }
+      std::cerr << "failed to open video!!\n";
     }
   }
-};
+}
+
+template <typename point_type, bool enable = FLYSTEREO_VISUALIZE_DEBUG_VIDEO_ENABLED>
+void plot_points_overlay_2x1(const UMat<uint8_t>& image0, std::initializer_list<point_type> points0,
+                             const UMat<uint8_t>& image1, std::initializer_list<point_type> points1) {
+  if constexpr (!enable) {
+    return;
+  }
+
+  auto image_points0 = std::make_pair(image0, points0);
+  cv::Mat image0_color;
+  cv::cvtColor(image0.frame(), image0_color, cv::COLOR_GRAY2BGR);
+
+  auto image_points1 = std::make_pair(image1, points1);
+  cv::Mat image1_color;
+  cv::cvtColor(image1.frame(), image1_color, cv::COLOR_GRAY2BGR);
+
+  draw(image0_color, points0);
+  draw(image1_color, points1);
+
+  cv::Mat concat_frame;
+  cv::hconcat(image0_color, image1_color, concat_frame);
+
+  // Draw a vertical line to show the separation between the two cameras
+  cv::line(concat_frame, cv::Point(concat_frame.cols / 2, 0), cv::Point(concat_frame.cols / 2, concat_frame.rows),
+           cv::Scalar(0, 255, 0), 1, 8, 0);
+
+  export_frame(concat_frame);
+}

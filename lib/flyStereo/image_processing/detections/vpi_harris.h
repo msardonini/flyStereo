@@ -38,6 +38,9 @@ class VpiHarris : public DetectionsBase<VpiHarris, VpiStream> {
     check_status(vpiStreamCreate(VPI_BACKEND_CUDA, &stream_));
     check_status(vpiCreateHarrisCornerDetector(VPI_BACKEND_CUDA, frame_size.width, frame_size.height, &payload_));
     check_status(vpiInitHarrisCornerDetectorParams(&params_));
+    params_.blockSize = 7;
+    params_.gradientSize = 7;
+
     check_status(vpiArrayCreate(array_capacity, VPI_ARRAY_TYPE_U32, VPI_BACKEND_CUDA, &out_scores_));
     initialized_ = true;
   }

@@ -9,6 +9,7 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
 option(WITH_VPI ON)
 option(FLYSTEREO_WITH_VIZ "Compile with viz tools, requires GTK and opencv with viz" OFF)
+option(FLYSTEREO_PLOT "Plot the images as the program runs" OFF)
 option(COVERAGE "Compile with code coverage" OFF)
 option(VERBOSE "Compile with verbosity" OFF)
 

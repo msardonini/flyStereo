@@ -70,13 +70,22 @@ target_link_libraries(fly_stereo_lib
 )
 
 if (${WITH_VPI})
- target_compile_definitions(fly_stereo_lib
-  PUBLIC
-    WITH_VPI)
+  target_compile_definitions(fly_stereo_lib
+    PUBLIC
+      WITH_VPI
+  )
   target_link_libraries(fly_stereo_lib
     PUBLIC
-      vpi)
-  endif()
+      vpi
+  )
+endif()
+
+if (FLYSTEREO_PLOT)
+  target_compile_definitions(fly_stereo_lib
+    PUBLIC
+      FLYSTEREO_VISUALIZE_DEBUG_VIDEO
+    )
+endif()
 
 target_compile_options(fly_stereo_lib
   PRIVATE
