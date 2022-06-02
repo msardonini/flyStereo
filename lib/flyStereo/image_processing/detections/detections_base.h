@@ -3,7 +3,7 @@
 #include "flyStereo/types/umat_vpiarray.h"
 #include "flyStereo/types/umat_vpiimage.h"
 
-template <typename E, typename StreamType>
+template <typename E, typename StreamType, UMatDerivative ImageType, UMatDerivative ArrayType>
 class DetectionsBase {
  public:
   using derived_type = E;
@@ -12,8 +12,7 @@ class DetectionsBase {
   const derived_type& derived_cast() const& noexcept;
   derived_type derived_cast() && noexcept;
 
-  void detect(const UMatVpiImage& image, const UMat<uint8_t>& mask, UMatVpiArray<cv::Vec2f>& detections,
-              StreamType* stream = nullptr) {
+  void detect(const ImageType& image, const ImageType& mask, ArrayType& detections, StreamType* stream = nullptr) {
     return derived_cast().impl(image, mask, detections, stream);
   }
 

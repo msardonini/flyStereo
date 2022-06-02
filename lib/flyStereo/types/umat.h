@@ -1,10 +1,13 @@
 #pragma once
 
+#include <concepts>
 #include <iostream>
 
 #include "cuda_runtime.h"
+#include "flyStereo/types/vpi_check.h"
 #include "opencv2/core/core.hpp"
 #include "opencv2/core/cuda.hpp"
+
 /**
  * @brief Unified memory matrix class.
  *
@@ -12,6 +15,8 @@
 template <typename T>
 class UMat {
  public:
+  using value_type = T;
+
   /**
    * @brief Allow default constructor.
    *
@@ -52,7 +57,7 @@ class UMat {
    */
   UMat operator=(const UMat &umat) {
     if (unified_ptr_) {
-      cudaFree(unified_ptr_);
+      check_status(cudaFree(unified_ptr_));
     }
     init(umat.frame().size());
     if (!umat.frame().empty()) {
@@ -69,7 +74,7 @@ class UMat {
    */
   UMat operator=(UMat &&umat) {
     if (unified_ptr_) {
-      cudaFree(unified_ptr_);
+      check_status(cudaFree(unified_ptr_));
     }
     unified_ptr_ = umat.unified_ptr_;
     frame_ = umat.frame_;
@@ -121,7 +126,7 @@ class UMat {
     // Resize the frame if it is not the same size, reallocate memory if needed
     if (frame.size() != frame_.size()) {
       if (unified_ptr_ != nullptr) {
-        cudaFree(unified_ptr_);
+        check_status(cudaFree(unified_ptr_));
       }
       init(frame.size());
     }
@@ -141,7 +146,7 @@ class UMat {
     // Resize the frame if it is not the same size, reallocate memory if needed
     if (frame.size() != frame_.size()) {
       if (unified_ptr_ != nullptr) {
-        cudaFree(unified_ptr_);
+        check_status(cudaFree(unified_ptr_));
       }
       init(frame.size());
     }
@@ -157,7 +162,7 @@ class UMat {
    */
   ~UMat() {
     if (unified_ptr_ != nullptr) {
-      cudaFree(unified_ptr_);
+      check_status(cudaFree(unified_ptr_));
     }
   }
 
@@ -250,7 +255,7 @@ class UMat {
    */
   void init(const cv::Size2i frame_size) {
     // Unified memory
-    cudaMallocManaged(&unified_ptr_, frame_size.area() * sizeof(T));
+    check_status(cudaMallocManaged(&unified_ptr_, frame_size.area() * sizeof(T)));
     frame_ = cv::Mat_<T>(frame_size.height, frame_size.width, static_cast<T *>(unified_ptr_));
     d_frame_ = cv::cuda::GpuMat(frame_size.height, frame_size.width, get_type(), static_cast<T *>(unified_ptr_));
   }
@@ -312,3 +317,11 @@ class UMat {
   cv::Mat_<T> frame_;            //< The frame_, non-ownding matrix
   void *unified_ptr_ = nullptr;  //< Pointer to the unified memory
 };
+
+/**
+ * @brief Concept that defines the base class for all points classes supported by this library
+ *
+ * @tparam T The datatype that derives from UMat<cv::Vec2f>
+ */
+template <typename T>
+concept UMatDerivative = std::derived_from<T, UMat<typename T::value_type>>;

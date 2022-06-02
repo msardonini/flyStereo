@@ -16,8 +16,7 @@
  * @param status The status of the points, typically returned from calcOpticalFlowPyrLK
  * @param points The points to modify
  */
-inline void RemovePoints(const UMatVpiArray<uint8_t> &status, const uint8_t success_value,
-                         UMatVpiArray<cv::Vec2f> &points) {
+inline void RemovePoints(const UMat<uint8_t> &status, const uint8_t success_value, UMat<cv::Vec2f> &points) {
   auto &points_frame = points.frame();
   auto &status_frame = status.frame();
   // Check to make sure the points match
@@ -37,7 +36,7 @@ inline void RemovePoints(const UMatVpiArray<uint8_t> &status, const uint8_t succ
 }
 
 template <typename T>
-inline void RemovePoints(const UMatVpiArray<uint8_t> &status, const uint8_t success_value, std::vector<T> &points) {
+inline void RemovePoints(const UMat<uint8_t> &status, const uint8_t success_value, std::vector<T> &points) {
   const auto &status_frame = status.frame();
 
   if (static_cast<int>(points.size()) != status_frame.cols) {
@@ -55,7 +54,7 @@ inline void RemovePoints(const UMatVpiArray<uint8_t> &status, const uint8_t succ
 }
 
 template <typename... Args>
-inline void RemovePoints(const UMatVpiArray<uint8_t> &status, const uint8_t success_value, Args &... args) {
+inline void RemovePoints(const UMat<uint8_t> &status, const uint8_t success_value, Args &... args) {
   (RemovePoints(status, success_value, args), ...);
 }
 
@@ -131,7 +130,7 @@ inline bool BinAndMarkPoints(const UMat<cv::Vec2f> points, const std::vector<uns
     if (it->second.size() >= max_pts_in_bin) {
       // Sort each vector in the grid by the age of the point (done by ID) lower IDs are older points
       std::sort(it->second.begin(), it->second.end(),
-                [](auto const &a, auto const &b) { return std::get<1>(a) > std::get<1>(b); });
+                [](auto const &a, auto const &b) { return std::get<1>(a) < std::get<1>(b); });
 
       // Mark the points that should be deleted
       for (size_t i = max_pts_in_bin; i < it->second.size(); i++) {

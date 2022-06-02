@@ -45,11 +45,6 @@ struct ImageProcessorConstants {
   static constexpr unsigned int bins_height = 15;
   static constexpr unsigned int max_pts_in_bin = 1;
 
-  // goodFeraturesToTrack
-  static constexpr int max_corners = 300;
-  static constexpr float quality_level = 0.15f;
-  static constexpr float min_dist = 15.f;
-
   // Thresholds
   static constexpr double stereo_threshold = 45.0;
   static constexpr double ransac_threshold = 10.0;
@@ -67,14 +62,14 @@ ImageProcessor<IpBackend>::ImageProcessor(float rate_limit_fps, StereoCalibratio
       is_rate_limiting_(rate_limit_fps > 0.f),
       stereo_cal_(stereo_calibration),
       R_imu_cam0_(R_imu_cam0) {
-  pts_t_c0_t0_ = UMatVpiArray<cv::Vec2f>(cv::Size(0, 1));
-  pts_t_c0_t1_ = UMatVpiArray<cv::Vec2f>(cv::Size(0, 1));
-  pts_t_c1_t0_ = UMatVpiArray<cv::Vec2f>(cv::Size(0, 1));
-  pts_t_c1_t1_ = UMatVpiArray<cv::Vec2f>(cv::Size(0, 1));
-  pts_d_c0_t0_ = UMatVpiArray<cv::Vec2f>(cv::Size(0, 1));
-  pts_d_c0_t1_ = UMatVpiArray<cv::Vec2f>(cv::Size(0, 1));
-  pts_d_c1_t0_ = UMatVpiArray<cv::Vec2f>(cv::Size(0, 1));
-  pts_d_c1_t1_ = UMatVpiArray<cv::Vec2f>(cv::Size(0, 1));
+  pts_t_c0_t0_ = typename IpBackend::array_type(cv::Size(0, 1));
+  pts_t_c0_t1_ = typename IpBackend::array_type(cv::Size(0, 1));
+  pts_t_c1_t0_ = typename IpBackend::array_type(cv::Size(0, 1));
+  pts_t_c1_t1_ = typename IpBackend::array_type(cv::Size(0, 1));
+  pts_d_c0_t0_ = typename IpBackend::array_type(cv::Size(0, 1));
+  pts_d_c0_t1_ = typename IpBackend::array_type(cv::Size(0, 1));
+  pts_d_c1_t0_ = typename IpBackend::array_type(cv::Size(0, 1));
+  pts_d_c1_t1_ = typename IpBackend::array_type(cv::Size(0, 1));
 
   // cv::Matx33f stereo_cal_.R_cam0_cam1 = stereo_cal_.R_cam0_cam1;
   R_imu_cam1_ = R_imu_cam0_ * cv::Matx33f(stereo_cal_.R_cam0_cam1);
@@ -93,9 +88,9 @@ ImageProcessor<IpBackend>::~ImageProcessor() {}
 
 template <typename IpBackend>
 void ImageProcessor<IpBackend>::Init() {
-  detector_ptr_ = cv::cuda::createGoodFeaturesToTrackDetector(CV_8U, ImageProcessorConstants::max_corners,
-                                                              ImageProcessorConstants::quality_level,
-                                                              ImageProcessorConstants::min_dist);
+  // detector_ptr_ = cv::cuda::createGoodFeaturesToTrackDetector(CV_8U, ImageProcessorConstants::max_corners,
+  //                                                             ImageProcessorConstants::quality_level,
+  //                                                             ImageProcessorConstants::min_dist);
 
   d_opt_flow_cam0_ =
       typename IpBackend::flow_type(ImageProcessorConstants::window_size, ImageProcessorConstants::max_pyramid_level,
@@ -111,9 +106,9 @@ void ImageProcessor<IpBackend>::Init() {
 }
 
 template <typename IpBackend>
-int ImageProcessor<IpBackend>::UpdatePointsViaImu(const UMatVpiArray<cv::Vec2f> &current_pts,
-                                                  const cv::Matx33d &rotation, const cv::Matx33d &camera_matrix,
-                                                  UMatVpiArray<cv::Vec2f> &updated_pts) {
+int ImageProcessor<IpBackend>::UpdatePointsViaImu(const IpBackend::array_type &current_pts, const cv::Matx33d &rotation,
+                                                  const cv::Matx33d &camera_matrix,
+                                                  IpBackend::array_type &updated_pts) {
   if (current_pts.frame().rows != 1 && current_pts.frame().channels() != 2) {
     throw std::runtime_error("ImageProcessor::UpdatePointsViaImu: current_pts must be 1xNx2");
   }
@@ -369,20 +364,24 @@ int ImageProcessor<IpBackend>::process_image(UMat<uint8_t> &frame_cam0_t1_umat, 
   }
 
   // Plot output if enabled
-  { plot_points_overlay_2x1(frame_cam0_t1_, {pts_t_c0_t1_}, frame_cam1_t1_, {pts_t_c1_t1_}); }
+  { plot_points_overlay_2x1(frame_cam0_t1_, {pts_d_c0_t1_}, frame_cam1_t1_, {pts_d_c1_t1_}); }
+  {
+    plot_points_overlay_2x2(frame_cam0_t0_, {pts_t_c0_t0_}, frame_cam1_t0_, {pts_t_c1_t0_}, frame_cam0_t1_,
+                            {pts_t_c0_t1_}, frame_cam1_t1_, {pts_t_c1_t1_});
+  }
 
   // Set the current t1 values to t0 for the next iteration
   std::swap(frame_cam0_t1_, frame_cam0_t0_);
   std::swap(frame_cam1_t1_, frame_cam1_t0_);
 
   pts_t_c0_t0_ = std::move(pts_t_c0_t1_);
-  pts_t_c0_t1_ = UMatVpiArray<cv::Vec2f>(cv::Size(0, 1));
+  pts_t_c0_t1_ = typename IpBackend::array_type(cv::Size(0, 1));
   pts_t_c1_t0_ = std::move(pts_t_c1_t1_);
-  pts_t_c1_t1_ = UMatVpiArray<cv::Vec2f>(cv::Size(0, 1));
+  pts_t_c1_t1_ = typename IpBackend::array_type(cv::Size(0, 1));
   // pts_d_c0_t0_ = std::move(pts_d_c0_t1_);
-  // pts_d_c0_t1_ = UMatVpiArray<cv::Vec2f>(cv::Size(0, 1));
+  // pts_d_c0_t1_ = IpBackend::array_type(cv::Size(0, 1));
   // pts_d_c1_t0_ = std::move(pts_d_c1_t1_);
-  // pts_d_c1_t1_ = UMatVpiArray<cv::Vec2f>(cv::Size(0, 1));
+  // pts_d_c1_t1_ = IpBackend::array_type(cv::Size(0, 1));
 
   // spdlog::trace("ip dts, data: {}, lk1: {}, det: {}, log {}", (t_data - t_start).count() / 1E6,
   //               (t_lk1 - t_data).count() / 1E6, (t_det - t_lk1).count() / 1E6, (t_log - t_det).count() / 1E6);
@@ -403,9 +402,9 @@ int ImageProcessor<IpBackend>::process_image(UMat<uint8_t> &frame_cam0_t1_umat, 
 }
 
 template <typename IpBackend>
-int ImageProcessor<IpBackend>::StereoMatch(IpBackend::flow_type &opt, UMatVpiImage &frame_cam0,
-                                           UMatVpiImage &frame_cam1, UMatVpiArray<cv::Vec2f> &pts_cam0,
-                                           UMatVpiArray<cv::Vec2f> &pts_cam1, UMatVpiArray<uint8_t> &status,
+int ImageProcessor<IpBackend>::StereoMatch(IpBackend::flow_type &opt, IpBackend::image_type &frame_cam0,
+                                           IpBackend::image_type &frame_cam1, IpBackend::array_type &pts_cam0,
+                                           IpBackend::array_type &pts_cam1, UMatVpiArray<uint8_t> &status,
                                            IpBackend::stream_type &stream) {
   if (pts_cam0.frame().empty()) {
     return -1;
@@ -506,7 +505,7 @@ int ImageProcessor<IpBackend>::StereoMatch(IpBackend::flow_type &opt, UMatVpiIma
 }
 
 template <typename IpBackend>
-auto ImageProcessor<IpBackend>::GetInputMaskFromPoints(const UMatVpiArray<cv::Vec2f> &d_input_corners,
+auto ImageProcessor<IpBackend>::GetInputMaskFromPoints(const IpBackend::array_type &d_input_corners,
                                                        const cv::Size frame_size) -> UMat<uint8_t> {
   UMat<uint8_t> mask(frame_size);
   mask.frame().setTo(1);
@@ -536,8 +535,8 @@ auto ImageProcessor<IpBackend>::GetInputMaskFromPoints(const UMatVpiArray<cv::Ve
 
 template <typename IpBackend>
 template <typename T>
-void ImageProcessor<IpBackend>::DetectNewFeatures(const cv::Ptr<T> &detector_ptr, const UMatVpiImage &d_frame,
-                                                  const UMat<uint8_t> &mask, UMatVpiArray<cv::Vec2f> &d_output,
+void ImageProcessor<IpBackend>::DetectNewFeatures(const cv::Ptr<T> &detector_ptr, const IpBackend::image_type &d_frame,
+                                                  const UMat<uint8_t> &mask, IpBackend::array_type &d_output,
                                                   IpBackend::stream_type &stream) {
   // Detect new features
   cv::cuda::GpuMat tmp_output;
@@ -551,7 +550,7 @@ void ImageProcessor<IpBackend>::DetectNewFeatures(const cv::Ptr<T> &detector_ptr
   d_output = tmp_output;
 }
 
-// template class ImageProcessor<CvBackend>;
+template class ImageProcessor<CvBackend>;
 #ifdef WITH_VPI
 template class ImageProcessor<VpiBackend>;
 #endif

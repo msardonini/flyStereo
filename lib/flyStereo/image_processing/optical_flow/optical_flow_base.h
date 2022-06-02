@@ -1,7 +1,8 @@
 #pragma once
 #include "flyStereo/types/umat.h"
 
-template <typename E, typename StreamType>
+template <typename E, typename StreamType, UMatDerivative image_type, UMatDerivative array_type,
+          UMatDerivative status_type>
 class OpticalFlowBase {
  public:
   using derived_type = E;
@@ -10,9 +11,9 @@ class OpticalFlowBase {
   const derived_type& derived_cast() const& noexcept;
   derived_type derived_cast() && noexcept;
 
-  void calc(const UMat<uint8_t>& prev_image, const UMat<uint8_t>& curr_image, const UMat<cv::Vec2f>& prev_pts,
-            UMat<cv::Vec2f>& curr_pts, StreamType* stream) {
-    return derived_cast().calc(prev_image, curr_image, prev_pts, curr_pts);
+  void calc(const image_type& prev_image, const image_type& curr_image, const array_type& prev_pts,
+            array_type& curr_pts, status_type& status, StreamType* stream) {
+    return derived_cast().calc(prev_image, curr_image, prev_pts, curr_pts, status, stream);
   }
 
  protected:

@@ -204,7 +204,7 @@ TEST_F(ImageProcessingTestFixture, test2) {
                  });
 
   StereoCalibration stereo_calibration(K_cam0, K_cam1, {}, {}, R, T);
-  ImageProcessor<VpiBackend> image_processor(0, stereo_calibration, cv::Matx33d::eye());
+  ImageProcessor<CvBackend> image_processor(0, stereo_calibration, cv::Matx33d::eye());
   image_processor.Init();
 
   std::list<uint64_t> latencies;

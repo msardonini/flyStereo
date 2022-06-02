@@ -17,61 +17,8 @@
 
 constexpr auto max_num_keypoints = 10000;
 
-inline void umat_to_vpi_image(const UMat<uint8_t>& umat, VPIImage& vpi_image) {
-  return umat_to_vpi_image(umat.d_frame(), vpi_image);
-}
-
-inline void umat_to_vpi_image(const cv::cuda::GpuMat& mat, VPIImage& vpi_image) {
-  VPIImageData img_data;
-  memset(&img_data, 0, sizeof(img_data));
-
-  img_data.bufferType = VPI_IMAGE_BUFFER_CUDA_PITCH_LINEAR;
-  img_data.buffer.pitch.numPlanes = 1;
-  img_data.buffer.pitch.format = VPI_IMAGE_FORMAT_U8;
-  img_data.buffer.pitch.planes[0].width = mat.cols;
-  img_data.buffer.pitch.planes[0].height = mat.rows;
-  img_data.buffer.pitch.planes[0].pitchBytes = mat.step;
-  img_data.buffer.pitch.planes[0].data = mat.data;
-  img_data.buffer.pitch.planes[0].pixelType = VPI_PIXEL_TYPE_U8;
-
-  if (vpi_image == nullptr) {
-    check_status(vpiImageCreateWrapper(&img_data, nullptr, VPI_BACKEND_CUDA, &vpi_image));
-  } else {
-    check_status(vpiImageSetWrapper(vpi_image, &img_data));
-  }
-}
-
-template <typename T>
-inline void umat_to_vpi_array(const UMat<T>& umat, VPIArray& vpi_array) {
-  // const cv::cuda::GpuMat& gpuMat = umat.d_frame();
-
-  // VPIArrayData array_data = {};
-  // memset(&array_data, 0, sizeof(array_data));
-
-  // array_data.bufferType = VPI_ARRAY_BUFFER_CUDA_AOS;
-  // array_data.buffer.aos.capacity = max_num_keypoints;
-  // array_data.buffer.aos.data = gpuMat.data;
-  // array_data.buffer.aos.sizePointer = const_cast<int*>(umat.get_cols());
-  // array_data.buffer.aos.strideBytes = sizeof(T);
-  // if constexpr (std::is_same_v<T, uint8_t>) {
-  //   array_data.buffer.aos.type = VPI_ARRAY_TYPE_U8;
-  // } else if (std::is_same_v<T, cv::Vec2f>) {
-  //   array_data.buffer.aos.type = VPI_ARRAY_TYPE_KEYPOINT;
-  // }
-
-  // if (vpi_array == nullptr) {
-  //   check_status(vpiArrayCreateWrapper(&array_data, VPI_BACKEND_CUDA, &vpi_array));
-  // } else {
-  //   int size;
-  //   vpiArrayGetSize(vpi_array, &size);
-  //   std::cout << "exsiting size " << size << std::endl;
-  //   std::cout << "new size " << (int)*umat.get_cols() << std::endl;
-
-  //   check_status(vpiArraySetWrapper(vpi_array, &array_data));
-  // }
-}
-
-class PyrLkVpiGpu : public OpticalFlowBase<PyrLkVpiGpu, VpiStream> {
+class PyrLkVpiGpu
+    : public OpticalFlowBase<PyrLkVpiGpu, VpiStream, UMatVpiImage, UMatVpiArray<cv::Vec2f>, UMatVpiArray<uint8_t>> {
  public:
   PyrLkVpiGpu() = default;
 

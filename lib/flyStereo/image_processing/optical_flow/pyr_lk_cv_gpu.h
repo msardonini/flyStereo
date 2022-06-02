@@ -7,7 +7,7 @@
 #include "opencv2/core/cuda.hpp"
 #include "opencv2/cudaoptflow.hpp"
 
-class PyrLkCvGpu : public OpticalFlowBase<PyrLkCvGpu, CvStream> {
+class PyrLkCvGpu : public OpticalFlowBase<PyrLkCvGpu, CvStream, UMat<uint8_t>, UMat<cv::Vec2f>, UMat<uint8_t>> {
  public:
   PyrLkCvGpu(int window_size = 21, int max_pyramid_level = 3, int max_iters = 30, bool use_initial_flow = false) {
     opt_flow_ptr_ = cv::cuda::SparsePyrLKOpticalFlow::create(cv::Size(window_size, window_size), max_pyramid_level,

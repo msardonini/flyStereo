@@ -11,7 +11,8 @@ ARGS="--env DISPLAY \
   --env DDS_DOMAIN_ID=$DDS_DOMAIN_ID \
   --network=host \
   --cap-add=SYS_PTRACE \
-  --cap-add=SYS_ADMIN
+  --cap-add=SYS_ADMIN \
+  --name=flystereo \
   --ipc=host\
   --security-opt seccomp=unconfined \
   --gpus all \

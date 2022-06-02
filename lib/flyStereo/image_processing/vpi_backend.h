@@ -8,4 +8,7 @@ struct VpiBackend {
   using flow_type = PyrLkVpiGpu;
   using detector_type = VpiHarris;
   using stream_type = VpiStream;
+  using image_type = UMatVpiImage;
+  using array_type = UMatVpiArray<cv::Vec2f>;
+  using status_type = UMatVpiArray<uint8_t>;
 };

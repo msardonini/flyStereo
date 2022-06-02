@@ -10,7 +10,7 @@
 
 constexpr int array_capacity = 5000;
 
-class VpiHarris : public DetectionsBase<VpiHarris, VpiStream> {
+class VpiHarris : public DetectionsBase<VpiHarris, VpiStream, UMatVpiImage, UMatVpiArray<cv::Vec2f>> {
  public:
   VpiHarris() = default;
 

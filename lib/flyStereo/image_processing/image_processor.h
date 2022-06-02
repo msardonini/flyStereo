@@ -35,20 +35,20 @@ class ImageProcessor {
                      uint64_t current_frame_time, TrackedImagePoints &points) -> int;
 
  private:
-  auto UpdatePointsViaImu(const UMatVpiArray<cv::Vec2f> &current_pts, const cv::Matx33d &rotation,
-                          const cv::Matx33d &camera_matrix, UMatVpiArray<cv::Vec2f> &updated_pts) -> int;
+  auto UpdatePointsViaImu(const IpBackend::array_type &current_pts, const cv::Matx33d &rotation,
+                          const cv::Matx33d &camera_matrix, IpBackend::array_type &updated_pts) -> int;
 
-  int StereoMatch(IpBackend::flow_type &opt, UMatVpiImage &frame_cam0, UMatVpiImage &frame_cam1,
-                  UMatVpiArray<cv::Vec2f> &pts_cam0, UMatVpiArray<cv::Vec2f> &pts_cam1, UMatVpiArray<uint8_t> &status,
+  int StereoMatch(IpBackend::flow_type &opt, IpBackend::image_type &frame_cam0, IpBackend::image_type &frame_cam1,
+                  IpBackend::array_type &pts_cam0, IpBackend::array_type &pts_cam1, UMatVpiArray<uint8_t> &status,
                   IpBackend::stream_type &stream);
 
-  auto GetInputMaskFromPoints(const UMatVpiArray<cv::Vec2f> &d_input_corners, const cv::Size frame_size)
-      -> UMat<uint8_t>;
+  auto GetInputMaskFromPoints(const IpBackend::array_type &d_input_corners, const cv::Size frame_size) -> UMat<uint8_t>;
 
   // cv::cuda::FastFeatureDetector or cv::cuda::CornersDetector
   template <typename T>
-  auto DetectNewFeatures(const cv::Ptr<T> &detector_ptr, const UMatVpiImage &d_frame, const UMat<uint8_t> &mask,
-                         UMatVpiArray<cv::Vec2f> &d_output, IpBackend::stream_type &stream) -> void;
+  auto DetectNewFeatures(const cv::Ptr<T> &detector_ptr, const IpBackend::image_type &d_frame,
+                         const UMat<uint8_t> &mask, IpBackend::array_type &d_output, IpBackend::stream_type &stream)
+      -> void;
 
   auto OuputTrackedPoints(const std::vector<mavlink_imu_t> &imu_msgs, const cv::Matx33f &rotation_t0_t1_cam0)
       -> TrackedImagePoints;
@@ -63,7 +63,6 @@ class ImageProcessor {
 
   // Algorithm state
   unsigned int current_id_ = 0;  // The id of the last tracked point TODO CHANGE NAME
-  cv::Ptr<cv::cuda::CornersDetector> detector_ptr_;
   IpBackend::detector_type detector_;
 
   IpBackend::flow_type d_opt_flow_cam0_;
@@ -74,20 +73,20 @@ class ImageProcessor {
 
   std::chrono::time_point<std::chrono::system_clock> prev_time_end_;
   std::chrono::system_clock::duration fps_limit_inv_;
-  UMatVpiImage frame_cam0_t0_;
-  UMatVpiImage frame_cam1_t0_;
-  UMatVpiImage frame_cam0_t1_;
-  UMatVpiImage frame_cam1_t1_;
+  IpBackend::image_type frame_cam0_t0_;
+  IpBackend::image_type frame_cam1_t0_;
+  IpBackend::image_type frame_cam0_t1_;
+  IpBackend::image_type frame_cam1_t1_;
 
   // Points to track
-  UMatVpiArray<cv::Vec2f> pts_t_c0_t0_;  //< Tracked points in camera 0 frame at time t0
-  UMatVpiArray<cv::Vec2f> pts_t_c0_t1_;  //< Tracked points in camera 0 frame at time t1
-  UMatVpiArray<cv::Vec2f> pts_t_c1_t0_;  //< Tracked points in camera 1 frame at time t0
-  UMatVpiArray<cv::Vec2f> pts_t_c1_t1_;  //< Tracked points in camera 1 frame at time t1
-  UMatVpiArray<cv::Vec2f> pts_d_c0_t0_;  //< Detected points in camera 0 frame at time t0
-  UMatVpiArray<cv::Vec2f> pts_d_c0_t1_;  //< Detected points in camera 0 frame at time t1
-  UMatVpiArray<cv::Vec2f> pts_d_c1_t0_;  //< Detected points in camera 1 frame at time t0
-  UMatVpiArray<cv::Vec2f> pts_d_c1_t1_;  //< Detected points in camera 1 frame at time t1
+  IpBackend::array_type pts_t_c0_t0_;  //< Tracked points in camera 0 frame at time t0
+  IpBackend::array_type pts_t_c0_t1_;  //< Tracked points in camera 0 frame at time t1
+  IpBackend::array_type pts_t_c1_t0_;  //< Tracked points in camera 1 frame at time t0
+  IpBackend::array_type pts_t_c1_t1_;  //< Tracked points in camera 1 frame at time t1
+  IpBackend::array_type pts_d_c0_t0_;  //< Detected points in camera 0 frame at time t0
+  IpBackend::array_type pts_d_c0_t1_;  //< Detected points in camera 0 frame at time t1
+  IpBackend::array_type pts_d_c1_t0_;  //< Detected points in camera 1 frame at time t0
+  IpBackend::array_type pts_d_c1_t1_;  //< Detected points in camera 1 frame at time t1
 
   // IDs of the points
   std::vector<uint32_t> ids_pts_tracked_;
