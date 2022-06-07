@@ -250,8 +250,8 @@ int SensorInterface::GenerateImuXform(const std::vector<mavlink_imu_t> &imu_msgs
   }
 
   std::cout << " delta_rpy_imu: " << delta_rpy_imu << std::endl;
-  rotation_t0_t1_cam0 = utility::eulerAnglesToRotationMatrix<float>(R_imu_cam0 * delta_rpy_imu);
-  rotation_t0_t1_cam1 = utility::eulerAnglesToRotationMatrix<float>(R_imu_cam1 * delta_rpy_imu);
+  rotation_t0_t1_cam0 = utility::eulerAnglesToRotationMatrix(R_imu_cam0 * delta_rpy_imu);
+  rotation_t0_t1_cam1 = utility::eulerAnglesToRotationMatrix(R_imu_cam1 * delta_rpy_imu);
   // std::cout << "delta_rpy_imu: " << delta_rpy_imu << std::endl;
   return 0;
 }

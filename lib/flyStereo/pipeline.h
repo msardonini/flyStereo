@@ -34,7 +34,7 @@ class Pipeline {
 
   MavlinkReader mavlink_reader_;
   SensorInterface sensor_interface_;
-  ImageProcessor<VpiBackend> image_processor_;
+  ImageProcessor<CvBackend> image_processor_;
   Vio vio_;
 
   bool draw_points_to_frame_ = true;

@@ -16,7 +16,7 @@
  * @param status The status of the points, typically returned from calcOpticalFlowPyrLK
  * @param points The points to modify
  */
-inline void RemovePoints(const UMat<uint8_t> &status, const uint8_t success_value, UMat<cv::Vec2f> &points) {
+inline void RemovePointsImpl(const UMat<uint8_t> &status, const uint8_t success_value, UMat<cv::Vec2f> &points) {
   auto &points_frame = points.frame();
   auto &status_frame = status.frame();
   // Check to make sure the points match
@@ -36,7 +36,7 @@ inline void RemovePoints(const UMat<uint8_t> &status, const uint8_t success_valu
 }
 
 template <typename T>
-inline void RemovePoints(const UMat<uint8_t> &status, const uint8_t success_value, std::vector<T> &points) {
+inline void RemovePointsImpl(const UMat<uint8_t> &status, const uint8_t success_value, std::vector<T> &points) {
   const auto &status_frame = status.frame();
 
   if (static_cast<int>(points.size()) != status_frame.cols) {
@@ -55,7 +55,7 @@ inline void RemovePoints(const UMat<uint8_t> &status, const uint8_t success_valu
 
 template <typename... Args>
 inline void RemovePoints(const UMat<uint8_t> &status, const uint8_t success_value, Args &... args) {
-  (RemovePoints(status, success_value, args), ...);
+  (RemovePointsImpl(status, success_value, args), ...);
 }
 
 inline void MarkPointsOutOfFrame(UMat<uint8_t> &status, const UMat<cv::Vec2f> &points, const cv::Size &frame_size,

@@ -115,6 +115,8 @@ void plot_points_overlay_2x1(const UMat<uint8_t>& image0, std::initializer_list<
   cv::line(concat_frame, cv::Point(concat_frame.cols / 2, 0), cv::Point(concat_frame.cols / 2, concat_frame.rows),
            cv::Scalar(0, 255, 0), 1, 8, 0);
 
+  cv::imwrite("test.png", image0.frame());
+
   export_frame(concat_frame, true, "2x1");
 }
 

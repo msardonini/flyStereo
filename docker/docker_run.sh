@@ -2,6 +2,7 @@
 
 ARGS="--env DISPLAY \
   -v /tmp/.X11-unix:/tmp/.X11-unix:rw \
+  -v /mnt/storage/fly_stereo/:/mnt/storage/fly_stereo:ro \
   --device /dev/dri \
   --env XAUTHORITY=$XAUTHORITY \
   --env DISPLAY=$DISPLAY \

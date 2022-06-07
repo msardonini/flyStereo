@@ -8,11 +8,34 @@
 #include "opencv2/core/core.hpp"
 #include "opencv2/core/cuda.hpp"
 
+template <typename T>
+concept MemoryHandler = requires(T t) {
+  { t.malloc(std::size_t{}) }
+  ->std::same_as<void *>;
+  { t.free(std::declval<void *>()) }
+  ->std::same_as<void>;
+};
+
+struct CudaMemAllocator {
+  static void *malloc(std::size_t size) {
+    void *ptr;
+    check_status(cudaMallocManaged(&ptr, size));
+    return ptr;
+  }
+
+  static void free(void *ptr) { check_status(cudaFree(ptr)); }
+};
+
+struct MemAllocator {
+  static void *malloc(std::size_t size) { return malloc(size); }
+  static void free(void *ptr) { free(ptr); }
+};
+
 /**
  * @brief Unified memory matrix class.
  *
  */
-template <typename T>
+template <typename T, MemoryHandler MemoryHandlerT = CudaMemAllocator>
 class UMat {
  public:
   using value_type = T;
@@ -57,7 +80,7 @@ class UMat {
    */
   UMat operator=(const UMat &umat) {
     if (unified_ptr_) {
-      check_status(cudaFree(unified_ptr_));
+      MemoryHandlerT::free(unified_ptr_);
     }
     init(umat.frame().size());
     if (!umat.frame().empty()) {
@@ -74,7 +97,7 @@ class UMat {
    */
   UMat operator=(UMat &&umat) {
     if (unified_ptr_) {
-      check_status(cudaFree(unified_ptr_));
+      MemoryHandlerT::free(unified_ptr_);
     }
     unified_ptr_ = umat.unified_ptr_;
     frame_ = umat.frame_;
@@ -126,7 +149,7 @@ class UMat {
     // Resize the frame if it is not the same size, reallocate memory if needed
     if (frame.size() != frame_.size()) {
       if (unified_ptr_ != nullptr) {
-        check_status(cudaFree(unified_ptr_));
+        MemoryHandlerT::free(unified_ptr_);
       }
       init(frame.size());
     }
@@ -146,7 +169,7 @@ class UMat {
     // Resize the frame if it is not the same size, reallocate memory if needed
     if (frame.size() != frame_.size()) {
       if (unified_ptr_ != nullptr) {
-        check_status(cudaFree(unified_ptr_));
+        MemoryHandlerT::free(unified_ptr_);
       }
       init(frame.size());
     }
@@ -162,7 +185,7 @@ class UMat {
    */
   ~UMat() {
     if (unified_ptr_ != nullptr) {
-      check_status(cudaFree(unified_ptr_));
+      MemoryHandlerT::free(unified_ptr_);
     }
   }
 
@@ -255,7 +278,7 @@ class UMat {
    */
   void init(const cv::Size2i frame_size) {
     // Unified memory
-    check_status(cudaMallocManaged(&unified_ptr_, frame_size.area() * sizeof(T)));
+    unified_ptr_ = MemoryHandlerT::malloc(frame_size.area() * sizeof(T));
     frame_ = cv::Mat_<T>(frame_size.height, frame_size.width, static_cast<T *>(unified_ptr_));
     d_frame_ = cv::cuda::GpuMat(frame_size.height, frame_size.width, get_type(), static_cast<T *>(unified_ptr_));
   }

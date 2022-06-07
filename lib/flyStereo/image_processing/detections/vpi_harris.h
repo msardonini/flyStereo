@@ -44,7 +44,7 @@ class VpiHarris : public DetectionsBase<VpiHarris, VpiStream, UMatVpiImage, UMat
     check_status(vpiArrayCreate(array_capacity, VPI_ARRAY_TYPE_U32, VPI_BACKEND_CUDA, &out_scores_));
     initialized_ = true;
   }
-  bool initialized_;
+  bool initialized_ = false;
   VPIPayload payload_;
   VPIStream stream_;
   VPIHarrisCornerDetectorParams params_;

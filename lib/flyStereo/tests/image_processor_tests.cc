@@ -18,10 +18,12 @@
 #include "opencv2/core/core.hpp"
 #include "opencv2/highgui.hpp"
 #include "opencv2/imgproc.hpp"
+#include "opencv2/viz.hpp"
 
 constexpr uint32_t kSeed = 40;  // Constant seed, lucky number
 
-constexpr float height_off_ground_m = 1.7;
+constexpr int32_t grid_size_ground_plane_widgets = 10;
+constexpr float height_off_ground_m = 1;
 constexpr uint32_t num_pts_x = 33;
 constexpr uint32_t num_pts_y = 33;
 constexpr uint32_t area_width_m = 4;
@@ -29,10 +31,10 @@ constexpr uint32_t area_height_m = 4;
 constexpr float ground_plane_noise_coeff = 0.01;
 
 constexpr uint32_t num_images = 100;
-constexpr float max_camera_rotation_rad = 0.0;
+constexpr float max_camera_rotation_rad = 0.01;
 
 const uint32_t circle_radius = 2;
-const cv::Size image_size(1000, 1000);
+const cv::Size image_size(1280, 780);
 
 // TODO: add min/max values for the noise
 static inline float gen_noise(const float min_val, const float max_val) {
@@ -67,7 +69,33 @@ static inline std::vector<cv::Point3f> get_ground_points_vec(const std::vector<s
 
 class ImageProcessingTestFixture : public ::testing::Test {
  public:
-  ImageProcessingTestFixture() {
+  ImageProcessingTestFixture() : my_window_("Test Window") {
+    my_window_.spinOnce(1, true);
+
+    cv::viz::Camera cam0(K_cam0, image_size);
+    my_window_.setCamera(cam0);
+
+    {
+      const cv::Size size_in_viz(2, 2);
+      auto ground_plane_image = cv::imread("/root/flyStereo/test.png");
+      for (auto row = -grid_size_ground_plane_widgets / 2; row < grid_size_ground_plane_widgets / 2; ++row) {
+        for (auto col = -grid_size_ground_plane_widgets / 2; col < grid_size_ground_plane_widgets / 2; ++col) {
+          ground_plane_widgets_.emplace_back(ground_plane_image.clone(), size_in_viz);
+          my_window_.showWidget(std::string("Ground Plane") + std::to_string(ground_plane_widgets_.size()),
+                                ground_plane_widgets_.back());
+          my_window_.setWidgetPose(
+              std::string("Ground Plane") + std::to_string(ground_plane_widgets_.size()),
+              cv::Affine3f(cv::Vec3f(0, 0, 0),
+                           cv::Vec3f(col * size_in_viz.width, row * size_in_viz.height, height_off_ground_m)));
+          // my_window_.setWidgetPose(std::string("Ground Plane") + std::to_string(ground_plane_widgets_.size()),
+          //                          cv::Affine3f(cv::Vec3f(0, 0, 0), cv::Vec3f(0, 0, 1000)));
+        }
+      }
+    }
+
+    auto temp_camera = my_window_.getCamera();
+    auto viewer_pose = my_window_.getViewerPose();
+
     // Generate a set of points to act as the ground plane
     std::srand(kSeed);
     ground_plane_points.reserve(num_pts_x * num_pts_y);
@@ -80,7 +108,7 @@ class ImageProcessingTestFixture : public ::testing::Test {
             gen_noise(-ground_plane_noise_coeff, ground_plane_noise_coeff) +
                 static_cast<float>(j * area_height_m) / num_pts_y,
             gen_noise(-ground_plane_noise_coeff, ground_plane_noise_coeff) + height_off_ground_m);
-        ground_plane_point_intensities.emplace_back(gen_noise(100.f, 255.f));
+        ground_plane_point_intensities.emplace_back(gen_noise(50.f, 255.f));
       }
     }
 
@@ -98,7 +126,7 @@ class ImageProcessingTestFixture : public ::testing::Test {
       const float pitch = (static_cast<float>(std::rand()) / RAND_MAX - 0.5f) * 2.f * max_camera_rotation_rad;
       const float roll = (static_cast<float>(std::rand()) / RAND_MAX - 0.5f) * 2.f * max_camera_rotation_rad;
       const cv::Vec<float, 3> euler_angles(pitch, roll, 0.f);
-      const auto rotation = utility::eulerAnglesToRotationMatrix<float>(euler_angles);
+      const auto rotation = utility::eulerAnglesToRotationMatrix(euler_angles);
 
       const cv::Vec<float, 3> translation(static_cast<double>(i * area_width_m) / num_images,
                                           static_cast<double>(i * area_height_m) / num_images, 0.f);
@@ -112,8 +140,8 @@ class ImageProcessingTestFixture : public ::testing::Test {
       mavlink_imu_t imu_msg = gen_empty_msg();
       imu_msg.timestamp_us = 1E6f * (i - 1);
       imu_msg.time_since_trigger_us = 0;
-      imu_msg.gyroXYZ[0] = roll;
-      imu_msg.gyroXYZ[1] = pitch;
+      imu_msg.gyroXYZ[0] = roll - imu_msgs.back().roll;
+      imu_msg.gyroXYZ[1] = pitch - imu_msgs.back().pitch;
       imu_msg.gyroXYZ[2] = 0.f;
       imu_msgs.emplace_back(imu_msg);
     }
@@ -123,12 +151,12 @@ class ImageProcessingTestFixture : public ::testing::Test {
     points_cam1.reserve(num_images);
     for (auto i = 0; i < num_images; i++) {
       // Generate the xform to cam0
-      auto cam0_xform_inv = camera_trajectory[i].inv();
+      auto cam0_xform_inv = camera_trajectory[i];
       std::vector<cv::Point2f> cam0_image_point_coords;
       cv::projectPoints(ground_plane_points, cam0_xform_inv.rvec(), cam0_xform_inv.translation(), K_cam0, cv::noArray(),
                         cam0_image_point_coords);
 
-      auto cam1_xform = cam0_xform_inv.concatenate(cv::Affine3f(R, T));
+      auto cam1_xform = cam0_xform_inv.concatenate(cv::Affine3f(R, T).inv());
 
       std::vector<cv::Point2f> cam1_image_point_coords;
       cv::projectPoints(ground_plane_points, cam1_xform.rvec(), cam1_xform.translation(), K_cam1, cv::noArray(),
@@ -172,7 +200,19 @@ class ImageProcessingTestFixture : public ::testing::Test {
         cv::circle(cam1_image, pt.first, circle_radius, pt.second, circle_radius);
       }
 
-      images.emplace_back(cam0_image, cam1_image);
+      my_window_.setViewerPose(cam0_xform_inv);
+      auto cam0_image_viz = my_window_.getScreenshot();
+      cv::cvtColor(cam0_image_viz, cam0_image_viz, cv::COLOR_BGR2GRAY);
+
+      // cv::viz::Camera cam1(K_cam1, image_size);
+      // my_window_.setCamera(cam1);
+      my_window_.setViewerPose(cam1_xform);
+      auto cam1_image_viz = my_window_.getScreenshot();
+      cv::cvtColor(cam1_image_viz, cam1_image_viz, cv::COLOR_BGR2GRAY);
+
+      images.emplace_back(cam0_image_viz, cam1_image_viz);
+
+      // images.emplace_back(cam0_image, cam1_image);
     }
   }
 
@@ -192,6 +232,9 @@ class ImageProcessingTestFixture : public ::testing::Test {
   std::vector<std::vector<std::pair<cv::Point2f, uint8_t>>>
       points_cam1;                                  //< Ground plane points in each image, in cam1 frame
   std::vector<std::pair<cv::Mat, cv::Mat>> images;  //< Images, cam0 and cam1
+
+  cv::viz::Viz3d my_window_;                           //< Vizualization window
+  std::list<cv::viz::WImage3D> ground_plane_widgets_;  //< Vizualization widget
 };
 
 TEST_F(ImageProcessingTestFixture, test2) {

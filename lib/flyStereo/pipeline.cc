@@ -1,6 +1,7 @@
 #include "flyStereo/pipeline.h"
 
 #include "flyStereo/sensor_io/image_sink.h"
+#include "flyStereo/utility.h"
 #include "flyStereo/visualization/draw_to_image.h"
 #include "spdlog/spdlog.h"
 
@@ -9,8 +10,9 @@ static constexpr unsigned int max_consecutive_missed_frames = 10;
 Pipeline::Pipeline(const YAML::Node &params, const YAML::Node &stereo_calibration)
     : params_(params),
       image_processor_(15, stereo_calibration,
-                       cv::Matx33d(params["R_cam0_imu"].as<std::vector<double>>().data())),  // TODO: fix
-      vio_(StereoCalibration(stereo_calibration), cv::Matx33d(params["R_cam0_imu"].as<std::vector<double>>().data())) {}
+                       utility::eulerAnglesToRotationMatrix(params["R_imu_cam0"].as<std::vector<double>>())),
+      vio_(StereoCalibration(stereo_calibration),
+           utility::eulerAnglesToRotationMatrix(params["R_imu_cam0"].as<std::vector<double>>())) {}
 
 Pipeline::~Pipeline() {
   // Shutdown the pipeline, this will stop the threads
@@ -67,8 +69,8 @@ void Pipeline::imu_thread() {
 void Pipeline::run() {
   auto consecutive_missed_frames = 0u;
 
-  ImageSink cam0_sink(params_);
-  ImageSink cam1_sink(params_);
+  ImageSink cam0_sink(params_["ImageSinkCam0"]);
+  ImageSink cam1_sink(params_["ImageSinkCam1"]);
 
   while (is_running_.load()) {
     // Read the frames and check for errors
@@ -116,25 +118,25 @@ void Pipeline::run() {
      * Output Images to the sink, if requested
      *********************************************************************/
 
-    if (cam0_sink) {
-      UMat<cv::Vec3b> show_frame_color;
-      UMat<uint8_t> show_frame(d_frame_cam0_t1);
-      cv::cvtColor(show_frame.frame(), show_frame_color.frame(), cv::COLOR_GRAY2BGR);
-      if (draw_points_to_frame_) {
-        DrawPoints(tracked_image_points.cam0_t1, show_frame_color.frame());
-      }
-      // DrawPoints(debug_pts, show_frame);
-      cam0_sink.SendFrame(show_frame_color);
-    }
+    // if (cam0_sink) {
+    //   UMat<cv::Vec3b> show_frame_color(d_frame_cam0_t1.size());
+    //   UMat<uint8_t> show_frame(d_frame_cam0_t1);
+    //   cv::cvtColor(show_frame.frame(), show_frame_color.frame(), cv::COLOR_GRAY2BGR);
+    //   if (draw_points_to_frame_) {
+    //     DrawPoints(tracked_image_points.cam0_t1, show_frame_color.frame());
+    //   }
+    //   // DrawPoints(debug_pts, show_frame);
+    //   cam0_sink.SendFrame(show_frame_color);
+    // }
 
-    if (cam1_sink) {
-      UMat<cv::Vec3b> show_frame_color;
-      UMat<uint8_t> show_frame = d_frame_cam1_t1.frame().clone();
-      cv::cvtColor(show_frame.frame(), show_frame_color.frame(), cv::COLOR_GRAY2BGR);
-      if (draw_points_to_frame_) {
-        DrawPoints(tracked_image_points.cam1_t1, show_frame_color.frame());
-      }
-      cam1_sink.SendFrame(show_frame_color);
-    }
+    // if (cam1_sink) {
+    //   UMat<cv::Vec3b> show_frame_color(d_frame_cam1_t1.size());
+    //   UMat<uint8_t> show_frame = d_frame_cam1_t1.frame().clone();
+    //   cv::cvtColor(show_frame.frame(), show_frame_color.frame(), cv::COLOR_GRAY2BGR);
+    //   if (draw_points_to_frame_) {
+    //     DrawPoints(tracked_image_points.cam1_t1, show_frame_color.frame());
+    //   }
+    //   cam1_sink.SendFrame(show_frame_color);
+    // }
   }
 }
