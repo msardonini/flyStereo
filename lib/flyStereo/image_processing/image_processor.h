@@ -31,29 +31,31 @@ class ImageProcessor {
 
   void Init();
 
-  auto process_image(UMat<uint8_t> &frame_cam0, UMat<uint8_t> &frame_cam1, const std::vector<mavlink_imu_t> &imu_data,
-                     uint64_t current_frame_time, TrackedImagePoints &points) -> int;
+  auto process_image(cv::Mat_<uint8_t> &frame_cam0, cv::Mat_<uint8_t> &frame_cam1,
+                     const std::vector<mavlink_imu_t> &imu_data, uint64_t current_frame_time,
+                     TrackedImagePoints &points) -> int;
 
  private:
   auto UpdatePointsViaImu(const IpBackend::array_type &current_pts, const cv::Matx33d &rotation,
                           const cv::Matx33d &camera_matrix, IpBackend::array_type &updated_pts) -> int;
 
   int StereoMatch(IpBackend::flow_type &opt, IpBackend::image_type &frame_cam0, IpBackend::image_type &frame_cam1,
-                  IpBackend::array_type &pts_cam0, IpBackend::array_type &pts_cam1, UMatVpiArray<uint8_t> &status,
+                  IpBackend::array_type &pts_cam0, IpBackend::array_type &pts_cam1, IpBackend::status_type &status,
                   IpBackend::stream_type &stream);
 
-  auto GetInputMaskFromPoints(const IpBackend::array_type &d_input_corners, const cv::Size frame_size) -> UMat<uint8_t>;
+  auto GetInputMaskFromPoints(const IpBackend::array_type &d_input_corners, const cv::Size frame_size)
+      -> IpBackend::image_type;
 
   // cv::cuda::FastFeatureDetector or cv::cuda::CornersDetector
   template <typename T>
   auto DetectNewFeatures(const cv::Ptr<T> &detector_ptr, const IpBackend::image_type &d_frame,
-                         const UMat<uint8_t> &mask, IpBackend::array_type &d_output, IpBackend::stream_type &stream)
-      -> void;
+                         const IpBackend::image_type &mask, IpBackend::array_type &d_output,
+                         IpBackend::stream_type &stream) -> void;
 
   auto OuputTrackedPoints(const std::vector<mavlink_imu_t> &imu_msgs, const cv::Matx33f &rotation_t0_t1_cam0)
       -> TrackedImagePoints;
 
-  auto detect(const UMat<uint8_t> &mask) -> void;
+  auto detect(const IpBackend::image_type &mask) -> void;
   auto track() -> void;
 
   std::atomic<bool> is_running_;

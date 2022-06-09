@@ -102,7 +102,7 @@ void Pipeline::run() {
 
     // Process the frames
     TrackedImagePoints tracked_image_points;
-    if (image_processor_.process_image(d_frame_cam0_t1, d_frame_cam1_t1, imu_msgs, current_time,
+    if (image_processor_.process_image(d_frame_cam0_t1.frame(), d_frame_cam1_t1.frame(), imu_msgs, current_time,
                                        tracked_image_points)) {
       spdlog::warn("error in image processor");
       continue;

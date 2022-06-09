@@ -37,7 +37,7 @@ void draw_points_to_frame(cv::Mat& image, std::initializer_list<point_type>& poi
 
   int radius = 5;
   int counter = 0;
-  auto draw_func = [&](cv::Mat& image, const UMat<cv::Vec2f>& points, cv::Scalar color) {
+  auto draw_func = [&](cv::Mat& image, const point_type& points, cv::Scalar color) {
     const auto& points_mat = points.frame();
     std::for_each(points_mat.begin(), points_mat.end(), [&](const cv::Vec2f& point) {
       cv::circle(image, cv::Point(point[0], point[1]), radius, color, -1, cv::FILLED);
@@ -45,7 +45,7 @@ void draw_points_to_frame(cv::Mat& image, std::initializer_list<point_type>& poi
   };
 
   std::for_each(points.begin(), points.end(),
-                [&](const UMat<cv::Vec2f>& points_mat) { draw_func(image, points_mat, colors[counter++]); });
+                [&](const point_type& points_mat) { draw_func(image, points_mat, colors[counter++]); });
 }
 
 /**
@@ -89,9 +89,9 @@ void export_frame(const cv::Mat& frame, bool write_to_screen = true, std::string
  * @tparam point_type The data type of the points
  * @tparam enable true if this function is enabled, false otherwise
  */
-template <UMatDerivative point_type, bool enable = FLYSTEREO_VISUALIZE_DEBUG_VIDEO_ENABLED>
-void plot_points_overlay_2x1(const UMat<uint8_t>& image0, std::initializer_list<point_type> points0,
-                             const UMat<uint8_t>& image1, std::initializer_list<point_type> points1) {
+template <UMatDerivative image_type, UMatDerivative point_type, bool enable = FLYSTEREO_VISUALIZE_DEBUG_VIDEO_ENABLED>
+void plot_points_overlay_2x1(const image_type& image0, std::initializer_list<point_type> points0,
+                             const image_type& image1, std::initializer_list<point_type> points1) {
   if constexpr (!enable) {
     return;
   }
@@ -120,11 +120,11 @@ void plot_points_overlay_2x1(const UMat<uint8_t>& image0, std::initializer_list<
   export_frame(concat_frame, true, "2x1");
 }
 
-template <UMatDerivative point_type, bool enable = FLYSTEREO_VISUALIZE_DEBUG_VIDEO_ENABLED>
-void plot_points_overlay_2x2(const UMat<uint8_t>& image0, std::initializer_list<point_type> points0,
-                             const UMat<uint8_t>& image1, std::initializer_list<point_type> points1,
-                             const UMat<uint8_t>& image2, std::initializer_list<point_type> points2,
-                             const UMat<uint8_t>& image3, std::initializer_list<point_type> points3) {
+template <UMatDerivative image_type, UMatDerivative point_type, bool enable = FLYSTEREO_VISUALIZE_DEBUG_VIDEO_ENABLED>
+void plot_points_overlay_2x2(const image_type& image0, std::initializer_list<point_type> points0,
+                             const image_type& image1, std::initializer_list<point_type> points1,
+                             const image_type& image2, std::initializer_list<point_type> points2,
+                             const image_type& image3, std::initializer_list<point_type> points3) {
   if constexpr (!enable) {
     return;
   }

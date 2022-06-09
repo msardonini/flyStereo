@@ -16,7 +16,8 @@
  * @param status The status of the points, typically returned from calcOpticalFlowPyrLK
  * @param points The points to modify
  */
-inline void RemovePointsImpl(const UMat<uint8_t> &status, const uint8_t success_value, UMat<cv::Vec2f> &points) {
+template <UMatDerivative StatusType, UMatDerivative PointsType>
+inline void RemovePointsImpl(const StatusType &status, const uint8_t success_value, PointsType &points) {
   auto &points_frame = points.frame();
   auto &status_frame = status.frame();
   // Check to make sure the points match
@@ -35,8 +36,8 @@ inline void RemovePointsImpl(const UMat<uint8_t> &status, const uint8_t success_
   points.decrease_num_cols(point_index);
 }
 
-template <typename T>
-inline void RemovePointsImpl(const UMat<uint8_t> &status, const uint8_t success_value, std::vector<T> &points) {
+template <UMatDerivative StatusType, typename T>
+inline void RemovePointsImpl(const StatusType &status, const uint8_t success_value, std::vector<T> &points) {
   const auto &status_frame = status.frame();
 
   if (static_cast<int>(points.size()) != status_frame.cols) {
@@ -53,12 +54,13 @@ inline void RemovePointsImpl(const UMat<uint8_t> &status, const uint8_t success_
   points.resize(point_index);
 }
 
-template <typename... Args>
-inline void RemovePoints(const UMat<uint8_t> &status, const uint8_t success_value, Args &... args) {
+template <UMatDerivative StatusType, typename... Args>
+inline void RemovePoints(const StatusType &status, const uint8_t success_value, Args &... args) {
   (RemovePointsImpl(status, success_value, args), ...);
 }
 
-inline void MarkPointsOutOfFrame(UMat<uint8_t> &status, const UMat<cv::Vec2f> &points, const cv::Size &frame_size,
+template <UMatDerivative StatusType, UMatDerivative PointsType>
+inline void MarkPointsOutOfFrame(StatusType &status, const PointsType &points, const cv::Size &frame_size,
                                  const uint8_t success_value) {
   const auto &points_frame = points.frame();
   auto &status_frame = status.frame();
@@ -77,13 +79,14 @@ inline void MarkPointsOutOfFrame(UMat<uint8_t> &status, const UMat<cv::Vec2f> &p
   }
 }
 
-inline UMat<cv::Vec2f> AppendUMatColwise(const UMat<cv::Vec2f> &mat1, const UMat<cv::Vec2f> &mat2) {
+template <UMatDerivative MatType>
+inline MatType AppendUMatColwise(const MatType &mat1, const MatType &mat2) {
   const auto &mat1_f = mat1.frame();
   const auto &mat2_f = mat2.frame();
 
   // Edge case: if the matrices are empty, return an empty matrix
   if (mat1_f.cols == 0 && mat2_f.cols == 0) {
-    return UMat<cv::Vec2f>(cv::Size(0, 1));
+    return MatType(cv::Size(0, 1));
   }
 
   // Check edge cases where one of the UMats is empty
@@ -97,7 +100,7 @@ inline UMat<cv::Vec2f> AppendUMatColwise(const UMat<cv::Vec2f> &mat1, const UMat
     throw std::runtime_error("Cannot append cols, the number of rows do not match");
   }
 
-  UMat<cv::Vec2f> new_umat(cv::Size2i(mat1_f.cols + mat2_f.cols, mat1_f.rows));
+  MatType new_umat(cv::Size2i(mat1_f.cols + mat2_f.cols, mat1_f.rows));
 
   cv::Range range_rows(0, mat1_f.rows);
   cv::Range range_cols1(0, mat1_f.cols);
@@ -108,9 +111,10 @@ inline UMat<cv::Vec2f> AppendUMatColwise(const UMat<cv::Vec2f> &mat1, const UMat
   return new_umat;
 }
 
-inline bool BinAndMarkPoints(const UMat<cv::Vec2f> points, const std::vector<unsigned int> point_ids,
+template <UMatDerivative StatusType, UMatDerivative PointsType>
+inline bool BinAndMarkPoints(const PointsType points, const std::vector<unsigned int> point_ids,
                              const cv::Size &framesize, const cv::Size bins_size, const unsigned int max_pts_in_bin,
-                             UMat<uint8_t> &status, const uint8_t success_value) {
+                             StatusType &status, const uint8_t success_value) {
   const auto &points_f = points.frame();
   status = cv::Mat_<uint8_t>(1, points_f.cols, success_value);
 

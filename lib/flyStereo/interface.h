@@ -100,6 +100,18 @@ struct TrackedImagePoints {
         imu_pts(imu_pts),
         R_t0_t1_cam0(R_t0_t1_cam0) {}
 
+  TrackedImagePoints(uint64_t timestamp_us, std::vector<unsigned int> ids, cv::Mat_<cv::Vec2f> cam0_t0,
+                     cv::Mat_<cv::Vec2f> cam0_t1, cv::Mat_<cv::Vec2f> cam1_t0, cv::Mat_<cv::Vec2f> cam1_t1,
+                     std::vector<mavlink_imu_t> imu_pts, Eigen::Matrix3f R_t0_t1_cam0)
+      : timestamp_us(timestamp_us),
+        ids(ids),
+        cam0_t0(cam0_t0),
+        cam0_t1(cam0_t1),
+        cam1_t0(cam1_t0),
+        cam1_t1(cam1_t1),
+        imu_pts(imu_pts),
+        R_t0_t1_cam0(R_t0_t1_cam0) {}
+
   /**
    * @brief Member function to extract the timestamp in seconds as a double
    *

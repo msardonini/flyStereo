@@ -6,11 +6,6 @@
 #include "opencv2/core/cuda.hpp"
 #include "opencv2/cudaimgproc.hpp"
 
-// Algorithm Constants
-static constexpr int max_corners = 300;
-static constexpr float quality_level = 0.15f;
-static constexpr float min_dist = 15.f;
-
 class CvGoodFeaturesToTrack : public DetectionsBase<CvGoodFeaturesToTrack, CvStream, UMat<uint8_t>, UMat<cv::Vec2f>> {
  public:
   CvGoodFeaturesToTrack() = default;
@@ -31,10 +26,15 @@ class CvGoodFeaturesToTrack : public DetectionsBase<CvGoodFeaturesToTrack, CvStr
 
  private:
   void init(cv::Size frame_size) {
-    detector_ptr_ = cv::cuda::createGoodFeaturesToTrackDetector(CV_8U, max_corners, quality_level, min_dist);
+    detector_ptr_ = cv::cuda::createGoodFeaturesToTrackDetector(CV_8U, max_corners_, quality_level_, min_dist_);
     initialized_ = true;
   }
 
   bool initialized_ = false;
   cv::Ptr<cv::cuda::CornersDetector> detector_ptr_;
+
+  // Algorithm Constants
+  static constexpr int max_corners_ = 300;
+  static constexpr float quality_level_ = 0.15f;
+  static constexpr float min_dist_ = 15.f;
 };

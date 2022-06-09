@@ -5,6 +5,7 @@
 
 #include "Eigen/Dense"
 #include "flyStereo/image_processing/cv_backend.h"
+#include "flyStereo/image_processing/cv_cpu_backend.h"
 #include "flyStereo/image_processing/vpi_backend.h"
 #include "flyStereo/utility.h"
 #include "opencv2/calib3d.hpp"
@@ -18,8 +19,8 @@
 #include "flyStereo/debug_video_recorder.h"
 
 // Debug test function
-template <typename IpBackend = VpiBackend::flow_type>
-double print_percent_status(UMat<uint8_t> &status) {
+template <typename IpBackend = VpiBackend>
+double print_percent_status(typename IpBackend::image_type &status) {
   int counter = std::accumulate(status.frame().begin(), status.frame().end(), 0, [](int sum, uint8_t val) {
     if (val == IpBackend::flow_type::success_value) {
       return sum + 1;
@@ -146,12 +147,12 @@ TrackedImagePoints ImageProcessor<IpBackend>::OuputTrackedPoints(const std::vect
   Eigen::Matrix3f rotation_t0_t1_cam0_eigen;
   cv::cv2eigen(rotation_t0_t1_cam0, rotation_t0_t1_cam0_eigen);
 
-  return TrackedImagePoints(timestamp_us, ids_pts_tracked_, pts_t_c0_t0_, pts_t_c0_t1_, pts_t_c1_t0_, pts_t_c1_t1_,
-                            imu_msgs, rotation_t0_t1_cam0_eigen);
+  return TrackedImagePoints(timestamp_us, ids_pts_tracked_, pts_t_c0_t0_.frame(), pts_t_c0_t1_.frame(),
+                            pts_t_c1_t0_.frame(), pts_t_c1_t1_.frame(), imu_msgs, rotation_t0_t1_cam0_eigen);
 }
 
 template <typename IpBackend>
-void ImageProcessor<IpBackend>::detect(const UMat<uint8_t> &mask) {
+void ImageProcessor<IpBackend>::detect(const IpBackend::image_type &mask) {
   // Detect new features to match for the next iteration
   // DetectNewFeatures<cv::cuda::CornersDetector>(detector_ptr_, frame_cam0_t1_, mask, pts_d_c0_t1_,
   // detector_stream_);
@@ -161,7 +162,7 @@ void ImageProcessor<IpBackend>::detect(const UMat<uint8_t> &mask) {
   // Match the detected features in the second camera
 
   // std::cout << "c1 dets " << pts_d_c1_t1_.frame() << std::endl;
-  UMatVpiArray<uint8_t> status = UMatVpiArray<uint8_t>(pts_d_c0_t1_.frame().size());
+  typename IpBackend::status_type status(pts_d_c0_t1_.frame().size());
   StereoMatch(d_opt_flow_stereo_t1_, frame_cam0_t1_, frame_cam1_t1_, pts_d_c0_t1_, pts_d_c1_t1_, status,
               detector_stream_);
   detector_stream_.sync();
@@ -211,7 +212,8 @@ void ImageProcessor<IpBackend>::track() {}
 
 // TODO make a check that the object is initialized before starting
 template <typename IpBackend>
-int ImageProcessor<IpBackend>::process_image(UMat<uint8_t> &frame_cam0_t1_umat, UMat<uint8_t> &frame_cam1_t1_umat,
+int ImageProcessor<IpBackend>::process_image(cv::Mat_<uint8_t> &frame_cam0_t1_umat,
+                                             cv::Mat_<uint8_t> &frame_cam1_t1_umat,
                                              const std::vector<mavlink_imu_t> &imu_msgs, uint64_t current_frame_time,
                                              TrackedImagePoints &tracked_points) {
   frame_cam0_t1_ = std::move(frame_cam0_t1_umat);
@@ -231,7 +233,7 @@ int ImageProcessor<IpBackend>::process_image(UMat<uint8_t> &frame_cam0_t1_umat, 
   // Remove the points the exceed the binning threshold
   if (pts_t_c0_t0_.frame().cols > 2) {
     // Vector to indicate whether a point should be deleted or kept after binning
-    UMatVpiArray<uint8_t> bin_status;
+    typename IpBackend::status_type bin_status;
     BinAndMarkPoints(pts_t_c0_t0_, ids_pts_tracked_, frame_cam0_t1_.size(),
                      cv::Size(ImageProcessorConstants::bins_width, ImageProcessorConstants::bins_height),
                      ImageProcessorConstants::max_pts_in_bin, bin_status, IpBackend::flow_type::success_value);
@@ -254,7 +256,7 @@ int ImageProcessor<IpBackend>::process_image(UMat<uint8_t> &frame_cam0_t1_umat, 
 
   // Apply the optical flow from the previous frame to the current frame
   if (!pts_t_c0_t0_.frame().empty()) {
-    UMatVpiArray<uint8_t> status = UMatVpiArray<uint8_t>(pts_t_c0_t0_.frame().size());
+    typename IpBackend::status_type status(pts_t_c0_t0_.frame().size());
 
     // UMat<uint8_t> frame_cam0_t0_copy(frame_cam0_t0_);
     // UMat<uint8_t> frame_cam0_t1_copy(frame_cam0_t1);
@@ -404,7 +406,7 @@ int ImageProcessor<IpBackend>::process_image(UMat<uint8_t> &frame_cam0_t1_umat, 
 template <typename IpBackend>
 int ImageProcessor<IpBackend>::StereoMatch(IpBackend::flow_type &opt, IpBackend::image_type &frame_cam0,
                                            IpBackend::image_type &frame_cam1, IpBackend::array_type &pts_cam0,
-                                           IpBackend::array_type &pts_cam1, UMatVpiArray<uint8_t> &status,
+                                           IpBackend::array_type &pts_cam1, IpBackend::status_type &status,
                                            IpBackend::stream_type &stream) {
   if (pts_cam0.frame().empty()) {
     return -1;
@@ -506,8 +508,8 @@ int ImageProcessor<IpBackend>::StereoMatch(IpBackend::flow_type &opt, IpBackend:
 
 template <typename IpBackend>
 auto ImageProcessor<IpBackend>::GetInputMaskFromPoints(const IpBackend::array_type &d_input_corners,
-                                                       const cv::Size frame_size) -> UMat<uint8_t> {
-  UMat<uint8_t> mask(frame_size);
+                                                       const cv::Size frame_size) -> IpBackend::image_type {
+  typename IpBackend::image_type mask(frame_size);
   mask.frame().setTo(1);
   double mask_box_size = 15.0;
 
@@ -536,7 +538,7 @@ auto ImageProcessor<IpBackend>::GetInputMaskFromPoints(const IpBackend::array_ty
 template <typename IpBackend>
 template <typename T>
 void ImageProcessor<IpBackend>::DetectNewFeatures(const cv::Ptr<T> &detector_ptr, const IpBackend::image_type &d_frame,
-                                                  const UMat<uint8_t> &mask, IpBackend::array_type &d_output,
+                                                  const IpBackend::image_type &mask, IpBackend::array_type &d_output,
                                                   IpBackend::stream_type &stream) {
   // Detect new features
   cv::cuda::GpuMat tmp_output;
@@ -551,6 +553,7 @@ void ImageProcessor<IpBackend>::DetectNewFeatures(const cv::Ptr<T> &detector_ptr
 }
 
 template class ImageProcessor<CvBackend>;
+template class ImageProcessor<CvCpuBackend>;
 #ifdef WITH_VPI
 template class ImageProcessor<VpiBackend>;
 #endif

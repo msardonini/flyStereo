@@ -1,6 +1,7 @@
 #pragma once
 
 #include <concepts>
+#include <cstdlib>
 #include <iostream>
 
 #include "cuda_runtime.h"
@@ -27,8 +28,8 @@ struct CudaMemAllocator {
 };
 
 struct MemAllocator {
-  static void *malloc(std::size_t size) { return malloc(size); }
-  static void free(void *ptr) { free(ptr); }
+  static void *malloc(std::size_t size) { return std::malloc(size); }
+  static void free(void *ptr) { std::free(ptr); }
 };
 
 /**
@@ -39,6 +40,7 @@ template <typename T, MemoryHandler MemoryHandlerT = CudaMemAllocator>
 class UMat {
  public:
   using value_type = T;
+  using memory_handler_type = MemoryHandlerT;
 
   /**
    * @brief Allow default constructor.
@@ -347,4 +349,12 @@ class UMat {
  * @tparam T The datatype that derives from UMat<cv::Vec2f>
  */
 template <typename T>
-concept UMatDerivative = std::derived_from<T, UMat<typename T::value_type>>;
+concept UMatDerivative = std::derived_from<T, UMat<typename T::value_type, typename T::memory_handler_type>>;
+
+/**
+ * @brief Alias for CPU only umat. This type is useful for hardware without an nvidia gpu
+ *
+ * @tparam T
+ */
+template <typename T>
+using UMatCpu = UMat<T, MemAllocator>;
