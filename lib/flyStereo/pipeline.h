@@ -11,6 +11,7 @@
 #include "flyStereo/vio.h"
 #include "yaml-cpp/yaml.h"
 
+template <typename IpBackend>
 class Pipeline {
  public:
   Pipeline(const YAML::Node &params, const YAML::Node &stereo_calibration);
@@ -34,8 +35,8 @@ class Pipeline {
 
   MavlinkReader mavlink_reader_;
   SensorInterface sensor_interface_;
-  ImageProcessor<CvBackend> image_processor_;
-  Vio vio_;
+  ImageProcessor<IpBackend> image_processor_;
+  Vio<IpBackend> vio_;
 
   bool draw_points_to_frame_ = true;
 };

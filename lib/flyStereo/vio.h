@@ -16,6 +16,7 @@ struct vio_t {
   Eigen::Quaterniond quat;
 };
 
+template <typename IpBackend>
 class Vio {
  public:
   // Constructor with config params
@@ -23,13 +24,13 @@ class Vio {
       const cv::Vec3d &vio_calibration = cv::Vec3d(0., 0., 0.));
   ~Vio();
 
-  int ProcessPoints(const TrackedImagePoints &pts, vio_t &vio);
+  int ProcessPoints(const TrackedImagePoints<IpBackend> &pts, vio_t &vio);
 
  private:
   inline unsigned int Modulo(int value, unsigned m);
   // int SaveInliers(std::vector<int> inliers, std::vector<int> pt_ids, opengv::points_t pts);
 
-  int CalculatePoseUpdate(const TrackedImagePoints &pts, const Eigen::Matrix3d &imu_rotation, cv::Affine3d &pose_update,
+  int CalculatePoseUpdate(const TrackedImagePoints<IpBackend> &pts, cv::Affine3d &pose_update,
                           std::vector<cv::Point3d> *inlier_pts);
 
   int ProcessImu(const std::vector<mavlink_imu_t> &imu_pts);

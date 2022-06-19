@@ -10,8 +10,6 @@
 #include "flyStereo/sensor_io/sensor_interface.h"
 #include "flyStereo/stereo_calibration.h"
 #include "flyStereo/timed_logger.hpp"
-#include "flyStereo/types/umat_vpiarray.h"
-#include "flyStereo/types/umat_vpiimage.h"
 #include "yaml-cpp/yaml.h"
 
 template <typename IpBackend>
@@ -33,7 +31,7 @@ class ImageProcessor {
 
   auto process_image(cv::Mat_<uint8_t> &frame_cam0, cv::Mat_<uint8_t> &frame_cam1,
                      const std::vector<mavlink_imu_t> &imu_data, uint64_t current_frame_time,
-                     TrackedImagePoints &points) -> int;
+                     TrackedImagePoints<IpBackend> &points) -> int;
 
  private:
   auto UpdatePointsViaImu(const IpBackend::array_type &current_pts, const cv::Matx33d &rotation,
@@ -53,7 +51,7 @@ class ImageProcessor {
                          IpBackend::stream_type &stream) -> void;
 
   auto OuputTrackedPoints(const std::vector<mavlink_imu_t> &imu_msgs, const cv::Matx33f &rotation_t0_t1_cam0)
-      -> TrackedImagePoints;
+      -> TrackedImagePoints<IpBackend>;
 
   auto detect(const IpBackend::image_type &mask) -> void;
   auto track() -> void;

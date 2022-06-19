@@ -1,7 +1,5 @@
 #pragma once
 #include "flyStereo/types/umat.h"
-#include "flyStereo/types/umat_vpiarray.h"
-#include "flyStereo/types/umat_vpiimage.h"
 
 template <typename E, typename StreamType, UMatDerivative ImageType, UMatDerivative ArrayType>
 class DetectionsBase {

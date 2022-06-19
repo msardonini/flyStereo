@@ -11,13 +11,19 @@ target_link_libraries(fly_stereo_tests
   gtest_main
 )
 
-# Build Tests
-add_executable(fly_stereo_umat_tests
-  umat/umat_test_helpers.cc
-  umat/umat_vpiimage_tests.cc
-  umat/umat_vpiarray_tests.cc
-  umat/umat_tests.cc
-)
+
+if (WITH_VPI)
+  set(VPI_TEST_SRCS
+    umat/umat_vpiimage_tests.cc
+    umat/umat_vpiarray_tests.cc)
+endif()
+
+ # Build Tests
+ add_executable(fly_stereo_umat_tests
+ umat/umat_tests.cc
+ umat/umat_test_helpers.cc
+ ${VPI_TEST_SRCS}
+ )
 
 target_link_libraries(fly_stereo_umat_tests
   fly_stereo_lib

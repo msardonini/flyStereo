@@ -11,22 +11,15 @@
 #include "opencv2/calib3d.hpp"
 #include "opencv2/core/eigen.hpp"
 #include "opencv2/imgproc.hpp"
-// #include "opengv/absolute_pose/NoncentralAbsoluteAdapter.hpp"
-// #include "opengv/absolute_pose/methods.hpp"
-// #include "opengv/point_cloud/PointCloudAdapter.hpp"
-// #include "opengv/point_cloud/methods.hpp"
-// #include "opengv/relative_pose/CentralRelativeAdapter.hpp"
-// #include "opengv/sac/Ransac.hpp"
-// #include "opengv/sac_problems/absolute_pose/AbsolutePoseSacProblem.hpp"
-// #include "opengv/sac_problems/point_cloud/PointCloudSacProblem.hpp"
-// #include "opengv/triangulation/methods.hpp"
-// #include "spdlog/fmt/ostr.h"  // To print out Eigen objects
+#include "flyStereo/image_processing/cv_backend.h"
+#include "flyStereo/image_processing/cv_cpu_backend.h"
 #include "spdlog/spdlog.h"
 
 constexpr unsigned int history_size = 10;
 constexpr unsigned int min_num_matches = 25;
 // Constructor with config params
-Vio::Vio(const StereoCalibration &stereo_calibration, const cv::Matx33d &R_imu_cam0, const cv::Vec3d &vio_calibration)
+template <typename IpBackend>
+Vio<IpBackend>::Vio(const StereoCalibration &stereo_calibration, const cv::Matx33d &R_imu_cam0, const cv::Vec3d &vio_calibration)
     : stereo_cal_(stereo_calibration) {
   // // If we have recording enabled, initialize the logging files
   // if (input_params["record_mode"] && input_params["record_mode"]["enable"].as<bool>() &&
@@ -71,9 +64,11 @@ Vio::Vio(const StereoCalibration &stereo_calibration, const cv::Matx33d &R_imu_c
   // writer_ = std::make_unique<liblas::Writer> (*ofs_.get(), *header_.get());
 }
 
-Vio::~Vio() {}
+template <typename IpBackend>
+Vio<IpBackend>::~Vio() {}
 
-int Vio::ProcessPoints(const TrackedImagePoints &pts, vio_t &vio) {
+template <typename IpBackend>
+int Vio<IpBackend>::ProcessPoints(const TrackedImagePoints<IpBackend> &pts, vio_t &vio) {
   // If this is our first update, set our initial pose by the rotation of the imu
 
   // Calculate the updated pose
@@ -111,7 +106,7 @@ int Vio::ProcessPoints(const TrackedImagePoints &pts, vio_t &vio) {
 
   cv::Affine3d pose_update_cam0;
   std::vector<cv::Point3d> inliers;
-  if (CalculatePoseUpdate(pts, pts.R_t0_t1_cam0.cast<double>(), pose_update_cam0, &inliers)) {
+  if (CalculatePoseUpdate(pts, pose_update_cam0, &inliers)) {
     spdlog::warn("Error in CalculatePoseUpdate");
     return -1;
   }
@@ -163,7 +158,7 @@ int Vio::ProcessPoints(const TrackedImagePoints &pts, vio_t &vio) {
   return 0;
 }
 
-// int Vio::ProcessImu(const std::vector<mavlink_imu_t> &imu_pts) {
+// int Vio<IpBackend>::ProcessImu(const std::vector<mavlink_imu_t> &imu_pts) {
 //   for (int i = 0; i < imu_pts.size(); i++) {
 //     Eigen::Matrix3f m(Eigen::AngleAxisf(imu_pts[i].roll, Eigen::Vector3f::UnitX())
 //       * Eigen::AngleAxisf(imu_pts[i].pitch,  Eigen::Vector3f::UnitY())
@@ -188,7 +183,8 @@ int Vio::ProcessPoints(const TrackedImagePoints &pts, vio_t &vio) {
 //   return 0;
 // }
 
-int Vio::ProcessVio(const cv::Affine3d &pose_body, uint64_t image_timestamp,
+template <typename IpBackend>
+int Vio<IpBackend>::ProcessVio(const cv::Affine3d &pose_body, uint64_t image_timestamp,
                     Eigen::Matrix<double, 6, 1> &output_state) {
   Eigen::Matrix<double, 3, 1> z;
   cv::cv2eigen(pose_body.translation(), z);
@@ -205,7 +201,8 @@ int Vio::ProcessVio(const cv::Affine3d &pose_body, uint64_t image_timestamp,
   return 0;
 }
 
-inline unsigned int Vio::Modulo(int value, unsigned m) {
+template <typename IpBackend>
+inline unsigned int Vio<IpBackend>::Modulo(int value, unsigned m) {
   int mod = value % (int)m;
   if (value < 0) {
     mod += m;
@@ -219,7 +216,8 @@ inline double get_inlier_pct(const std::vector<int> &inliers) {
          inliers.size();
 }
 
-int Vio::CalculatePoseUpdate(const TrackedImagePoints &pts, const Eigen::Matrix3d &imu_rotation,
+template <typename IpBackend>
+int Vio<IpBackend>::CalculatePoseUpdate(const TrackedImagePoints<IpBackend> &pts,
                              cv::Affine3d &pose_update, std::vector<cv::Point3d> *inlier_pts) {
   if (pts.ids.size() < 6ul) {
     spdlog::warn("Not enough points for algorithm!");
@@ -437,8 +435,8 @@ int Vio::CalculatePoseUpdate(const TrackedImagePoints &pts, const Eigen::Matrix3
 
   return 0;
 }
-
-int Vio::Debug_SaveOutput(const Eigen::Matrix4d &pose_update, const Eigen::Matrix3d &R_imu) {
+template <typename IpBackend>
+int Vio<IpBackend>::Debug_SaveOutput(const Eigen::Matrix4d &pose_update, const Eigen::Matrix3d &R_imu) {
   // if (ransac.model_coefficients_(0,3) > 5 || ransac.model_coefficients_(1,3) > 5 || ransac.model_coefficients_(2,3) >
   // 5) {
   if (1) {
@@ -478,7 +476,7 @@ int Vio::Debug_SaveOutput(const Eigen::Matrix4d &pose_update, const Eigen::Matri
   return 0;
 }
 
-// int Vio::SaveInliers(std::vector<int> inliers, std::vector<int> pt_ids, opengv::points_t pts) {
+// int Vio<IpBackend>::SaveInliers(std::vector<int> inliers, std::vector<int> pt_ids, opengv::points_t pts) {
 //   // Remove the duplicate points
 //   unsigned int num_pts = pts.size();
 //   for (unsigned int i = 0; i < inliers.size(); i++) {
@@ -529,3 +527,12 @@ int Vio::Debug_SaveOutput(const Eigen::Matrix4d &pose_update, const Eigen::Matri
 
 //   return -5;
 // }
+
+
+
+
+template class Vio<CvBackend>;
+template class Vio<CvCpuBackend>;
+#ifdef WITH_VPI
+template class Vio<VpiBackend>;
+#endif

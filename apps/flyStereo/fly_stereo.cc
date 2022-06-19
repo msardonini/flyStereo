@@ -12,6 +12,7 @@
 #include <thread>
 
 #include "flyStereo/image_processing/image_processor.h"
+#include "flyStereo/image_processing/cv_backend.h"
 #include "flyStereo/pipeline.h"
 #include "flyStereo/sensor_io/mavlink_reader.h"
 #include "flyStereo/vio.h"
@@ -20,7 +21,7 @@
 #include "spdlog/spdlog.h"
 #include "yaml-cpp/yaml.h"
 
-static Pipeline *pipeline_global = nullptr;
+static Pipeline<CvBackend> *pipeline_global = nullptr;
 
 void SignalHandler(int signal_num) {
   std::cout << "Received control+c, shutting down" << std::endl;
@@ -121,7 +122,7 @@ int main(int argc, char *argv[]) {
   }
 
   // Initialize the pipeline
-  Pipeline pipeline(fly_stereo_params, fly_stereo_params["stereo_calibration"]);
+  Pipeline<CvBackend> pipeline(fly_stereo_params, fly_stereo_params["stereo_calibration"]);
   pipeline.Init();
   pipeline_global = &pipeline;
 

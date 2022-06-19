@@ -3,7 +3,6 @@
 #include <map>
 
 #include "flyStereo/types/umat.h"
-#include "flyStereo/types/umat_vpiarray.h"
 #include "opencv2/core.hpp"
 #include "opencv2/cudafeatures2d.hpp"
 #include "opencv2/cudaimgproc.hpp"
@@ -55,7 +54,7 @@ inline void RemovePointsImpl(const StatusType &status, const uint8_t success_val
 }
 
 template <UMatDerivative StatusType, typename... Args>
-inline void RemovePoints(const StatusType &status, const uint8_t success_value, Args &... args) {
+inline void RemovePoints(const StatusType &status, const uint8_t success_value, Args &...args) {
   (RemovePointsImpl(status, success_value, args), ...);
 }
 

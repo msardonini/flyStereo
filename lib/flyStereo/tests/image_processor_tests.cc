@@ -248,9 +248,9 @@ TEST_F(ImageProcessingTestFixture, test2) {
   image_processor.Init();
 
   std::list<uint64_t> latencies;
-  Vio vio(stereo_calibration, cv::Matx33d::eye());
+  Vio<CvCpuBackend> vio(stereo_calibration, cv::Matx33d::eye());
   for (auto frame = 0; frame < num_images; frame++) {
-    TrackedImagePoints tracked_image_points;
+    TrackedImagePoints<CvCpuBackend> tracked_image_points;
     auto start = std::chrono::high_resolution_clock::now();
     cv::Mat_<uint8_t> first = images[frame].first;
     cv::Mat_<uint8_t> second = images[frame].second;

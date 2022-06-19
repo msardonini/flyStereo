@@ -3,18 +3,21 @@
 #include "flyStereo/sensor_io/image_sink.h"
 #include "flyStereo/utility.h"
 #include "flyStereo/visualization/draw_to_image.h"
+#include "flyStereo/image_processing/cv_backend.h"
 #include "spdlog/spdlog.h"
 
 static constexpr unsigned int max_consecutive_missed_frames = 10;
 
-Pipeline::Pipeline(const YAML::Node &params, const YAML::Node &stereo_calibration)
+template<typename IpBackend>
+Pipeline<IpBackend>::Pipeline(const YAML::Node &params, const YAML::Node &stereo_calibration)
     : params_(params),
       image_processor_(15, stereo_calibration,
                        utility::eulerAnglesToRotationMatrix(params["R_imu_cam0"].as<std::vector<double>>())),
       vio_(StereoCalibration(stereo_calibration),
            utility::eulerAnglesToRotationMatrix(params["R_imu_cam0"].as<std::vector<double>>())) {}
 
-Pipeline::~Pipeline() {
+template<typename IpBackend>
+Pipeline<IpBackend>::~Pipeline() {
   // Shutdown the pipeline, this will stop the threads
   is_running_ = false;
   if (process_thread_.joinable()) {
@@ -25,7 +28,8 @@ Pipeline::~Pipeline() {
   }
 }
 
-void Pipeline::Init() {
+template<typename IpBackend>
+void Pipeline<IpBackend>::Init() {
   // Block until we receive a start command
   if (params_["wait_for_start_command"].as<bool>()) {
     while (is_running_.load()) {
@@ -42,14 +46,16 @@ void Pipeline::Init() {
 
   is_running_ = true;
 
-  imu_thread_ = std::thread(&Pipeline::imu_thread, this);
-  process_thread_ = std::thread(&Pipeline::run, this);
+  imu_thread_ = std::thread(&Pipeline<IpBackend>::imu_thread, this);
+  process_thread_ = std::thread(&Pipeline<IpBackend>::run, this);
 }
 
-void Pipeline::shutdown() { is_running_ = false; }
+template<typename IpBackend>
+void Pipeline<IpBackend>::shutdown() { is_running_ = false; }
 
 // Thread to collect the imu data and disperse it to all objects that need it
-void Pipeline::imu_thread() {
+template<typename IpBackend>
+void Pipeline<IpBackend>::imu_thread() {
   mavlink_reader_.ResetShutdownCmds();
   while (is_running_.load()) {
     mavlink_imu_t attitude;
@@ -66,7 +72,8 @@ void Pipeline::imu_thread() {
   }
 }
 
-void Pipeline::run() {
+template<typename IpBackend>
+void Pipeline<IpBackend>::run() {
   auto consecutive_missed_frames = 0u;
 
   ImageSink cam0_sink(params_["ImageSinkCam0"]);
@@ -101,7 +108,7 @@ void Pipeline::run() {
     consecutive_missed_frames = 0;
 
     // Process the frames
-    TrackedImagePoints tracked_image_points;
+    TrackedImagePoints<IpBackend> tracked_image_points;
     if (image_processor_.process_image(d_frame_cam0_t1.frame(), d_frame_cam1_t1.frame(), imu_msgs, current_time,
                                        tracked_image_points)) {
       spdlog::warn("error in image processor");
@@ -140,3 +147,6 @@ void Pipeline::run() {
     // }
   }
 }
+
+
+template class Pipeline<CvBackend>;

@@ -131,7 +131,7 @@ int ImageProcessor<IpBackend>::UpdatePointsViaImu(const IpBackend::array_type &c
 }
 
 template <typename IpBackend>
-TrackedImagePoints ImageProcessor<IpBackend>::OuputTrackedPoints(const std::vector<mavlink_imu_t> &imu_msgs,
+TrackedImagePoints<IpBackend> ImageProcessor<IpBackend>::OuputTrackedPoints(const std::vector<mavlink_imu_t> &imu_msgs,
                                                                  const cv::Matx33f &rotation_t0_t1_cam0) {
   const cv::Size pts_size = pts_t_c0_t0_.frame().size();
   if (pts_size != pts_t_c0_t1_.frame().size() || pts_size != pts_t_c1_t0_.frame().size() ||
@@ -147,7 +147,7 @@ TrackedImagePoints ImageProcessor<IpBackend>::OuputTrackedPoints(const std::vect
   Eigen::Matrix3f rotation_t0_t1_cam0_eigen;
   cv::cv2eigen(rotation_t0_t1_cam0, rotation_t0_t1_cam0_eigen);
 
-  return TrackedImagePoints(timestamp_us, ids_pts_tracked_, pts_t_c0_t0_.frame(), pts_t_c0_t1_.frame(),
+  return TrackedImagePoints<IpBackend>(timestamp_us, ids_pts_tracked_, pts_t_c0_t0_.frame(), pts_t_c0_t1_.frame(),
                             pts_t_c1_t0_.frame(), pts_t_c1_t1_.frame(), imu_msgs, rotation_t0_t1_cam0_eigen);
 }
 
@@ -215,7 +215,7 @@ template <typename IpBackend>
 int ImageProcessor<IpBackend>::process_image(cv::Mat_<uint8_t> &frame_cam0_t1_umat,
                                              cv::Mat_<uint8_t> &frame_cam1_t1_umat,
                                              const std::vector<mavlink_imu_t> &imu_msgs, uint64_t current_frame_time,
-                                             TrackedImagePoints &tracked_points) {
+                                             TrackedImagePoints<IpBackend> &tracked_points) {
   frame_cam0_t1_ = std::move(frame_cam0_t1_umat);
   frame_cam1_t1_ = std::move(frame_cam1_t1_umat);
 
