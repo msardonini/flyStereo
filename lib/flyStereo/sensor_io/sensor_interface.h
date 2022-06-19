@@ -10,6 +10,7 @@
 #include "flyStereo/sql_logger.h"
 #include "yaml-cpp/yaml.h"
 
+template <typename IpBackend>
 class SensorInterface {
  public:
   SensorInterface();
@@ -18,7 +19,7 @@ class SensorInterface {
   SensorInterface(const SensorInterface &) = delete;
   SensorInterface(SensorInterface &&) = delete;
 
-  int GetSynchronizedData(UMat<uint8_t> &d_frame_cam0, UMat<uint8_t> &d_frame_cam1,
+  int GetSynchronizedData(IpBackend::image_type &d_frame_cam0, IpBackend::image_type &d_frame_cam1,
                           std::vector<mavlink_imu_t> &imu_data, uint64_t &current_frame_time);
 
   int Init(YAML::Node input_params);
@@ -58,3 +59,5 @@ class SensorInterface {
   bool replay_mode_ = false;
   std::unique_ptr<SqlLogger> sql_logger_;
 };
+
+#include "flyStereo/sensor_io/sensor_interface.tpp"

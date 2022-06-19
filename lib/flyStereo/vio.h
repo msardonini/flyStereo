@@ -76,3 +76,5 @@ class Vio {
   KalmanFilter kf_;
   uint64_t last_timestamp_ = 0;
 };
+
+#include "flyStereo/vio.tpp"

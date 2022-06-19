@@ -1,12 +1,8 @@
-#include "flyStereo/image_processing/image_processor.h"
-
 #include <fstream>
 #include <random>
 
 #include "Eigen/Dense"
-#include "flyStereo/image_processing/cv_backend.h"
-#include "flyStereo/image_processing/cv_cpu_backend.h"
-#include "flyStereo/image_processing/vpi_backend.h"
+#include "flyStereo/image_processing/image_processor.h"
 #include "flyStereo/utility.h"
 #include "opencv2/calib3d.hpp"
 #include "opencv2/core/cuda.hpp"
@@ -19,7 +15,7 @@
 #include "flyStereo/debug_video_recorder.h"
 
 // Debug test function
-template <typename IpBackend = VpiBackend>
+template <typename IpBackend>
 double print_percent_status(typename IpBackend::image_type &status) {
   int counter = std::accumulate(status.frame().begin(), status.frame().end(), 0, [](int sum, uint8_t val) {
     if (val == IpBackend::flow_type::success_value) {
@@ -75,17 +71,11 @@ ImageProcessor<IpBackend>::ImageProcessor(float rate_limit_fps, StereoCalibratio
   // cv::Matx33f stereo_cal_.R_cam0_cam1 = stereo_cal_.R_cam0_cam1;
   R_imu_cam1_ = R_imu_cam0_ * cv::Matx33f(stereo_cal_.R_cam0_cam1);
 
-  pose_ = Eigen::Matrix4d::Identity();
-  prev_xform_ = Eigen::Matrix4d::Identity();
-
   const auto max_pts = ImageProcessorConstants::bins_width * ImageProcessorConstants::bins_height *
                        ImageProcessorConstants::max_pts_in_bin;
   ids_pts_tracked_.reserve(max_pts);
   ids_pts_detected_.reserve(max_pts);
 }
-
-template <typename IpBackend>
-ImageProcessor<IpBackend>::~ImageProcessor() {}
 
 template <typename IpBackend>
 void ImageProcessor<IpBackend>::Init() {
@@ -107,14 +97,14 @@ void ImageProcessor<IpBackend>::Init() {
 }
 
 template <typename IpBackend>
-int ImageProcessor<IpBackend>::UpdatePointsViaImu(const IpBackend::array_type &current_pts, const cv::Matx33d &rotation,
-                                                  const cv::Matx33d &camera_matrix,
-                                                  IpBackend::array_type &updated_pts) {
+void ImageProcessor<IpBackend>::UpdatePointsViaImu(const IpBackend::array_type &current_pts,
+                                                   const cv::Matx33d &rotation, const cv::Matx33d &camera_matrix,
+                                                   IpBackend::array_type &updated_pts) {
+  // Sanity Checks
   if (current_pts.frame().rows != 1 && current_pts.frame().channels() != 2) {
     throw std::runtime_error("ImageProcessor::UpdatePointsViaImu: current_pts must be 1xNx2");
-  }
-  if (current_pts.frame().cols == 0) {
-    return -1;
+  } else if (current_pts.frame().cols == 0) {
+    return;
   }
 
   cv::Matx33f H = camera_matrix * rotation.t() * camera_matrix.inv();
@@ -126,13 +116,11 @@ int ImageProcessor<IpBackend>::UpdatePointsViaImu(const IpBackend::array_type &c
   cv::Mat updated_pts_mat;
   cv::convertPointsFromHomogeneous(interface_pts, updated_pts_mat);
   updated_pts = std::move(updated_pts_mat.t());
-
-  return 0;
 }
 
 template <typename IpBackend>
 TrackedImagePoints<IpBackend> ImageProcessor<IpBackend>::OuputTrackedPoints(const std::vector<mavlink_imu_t> &imu_msgs,
-                                                                 const cv::Matx33f &rotation_t0_t1_cam0) {
+                                                                            const cv::Matx33f &rotation_t0_t1_cam0) {
   const cv::Size pts_size = pts_t_c0_t0_.frame().size();
   if (pts_size != pts_t_c0_t1_.frame().size() || pts_size != pts_t_c1_t0_.frame().size() ||
       pts_size != pts_t_c1_t1_.frame().size() || pts_size.height != 1 ||
@@ -148,42 +136,19 @@ TrackedImagePoints<IpBackend> ImageProcessor<IpBackend>::OuputTrackedPoints(cons
   cv::cv2eigen(rotation_t0_t1_cam0, rotation_t0_t1_cam0_eigen);
 
   return TrackedImagePoints<IpBackend>(timestamp_us, ids_pts_tracked_, pts_t_c0_t0_.frame(), pts_t_c0_t1_.frame(),
-                            pts_t_c1_t0_.frame(), pts_t_c1_t1_.frame(), imu_msgs, rotation_t0_t1_cam0_eigen);
+                                       pts_t_c1_t0_.frame(), pts_t_c1_t1_.frame(), imu_msgs, rotation_t0_t1_cam0_eigen);
 }
 
 template <typename IpBackend>
 void ImageProcessor<IpBackend>::detect(const IpBackend::image_type &mask) {
   // Detect new features to match for the next iteration
-  // DetectNewFeatures<cv::cuda::CornersDetector>(detector_ptr_, frame_cam0_t1_, mask, pts_d_c0_t1_,
-  // detector_stream_);
-
   detector_.detect(frame_cam0_t1_, mask, pts_d_c0_t1_, &detector_stream_);
 
   // Match the detected features in the second camera
-
-  // std::cout << "c1 dets " << pts_d_c1_t1_.frame() << std::endl;
   typename IpBackend::status_type status(pts_d_c0_t1_.frame().size());
   StereoMatch(d_opt_flow_stereo_t1_, frame_cam0_t1_, frame_cam1_t1_, pts_d_c0_t1_, pts_d_c1_t1_, status,
               detector_stream_);
   detector_stream_.sync();
-
-  // // DEBUG CODE
-  // bool write_to_debug = true;
-  // if (write_to_debug) {
-  //   std::vector<cv::Point2f> pts_t0;
-  //   if (pts_d_c0_t1_.frame().cols > 0) {
-  //     pts_d_c0_t1_.d_frame().download(pts_t0);
-  //   }
-  //   // debug_record.DrawPts(mask.frame() * 255, 0, {});
-  //   debug_record.DrawPts(frame_cam0_t1_.frame(), 0, pts_t0);
-  //   std::vector<cv::Point2f> pts_t1;
-  //   if (pts_d_c1_t1_.d_frame().cols > 0) {
-  //     pts_d_c1_t1_.d_frame().download(pts_t1);
-  //   }
-  //   debug_record.DrawPts(frame_cam1_t1_.frame(), 1, pts_t1);
-  //   debug_record.WriteFrame();
-  // }
-  // // END DEBUG CODE
 
   if (pts_d_c0_t1_.frame().cols != 0) {
     MarkPointsOutOfFrame(status, pts_d_c1_t1_, frame_cam1_t1_.size(), IpBackend::flow_type::success_value);
@@ -195,7 +160,6 @@ void ImageProcessor<IpBackend>::detect(const IpBackend::image_type &mask) {
         counter++;
       }
     });
-    std::cout << "percent pts " << counter / static_cast<float>(status.frame().cols) << std::endl;
 
     // Fill in the ids vector with our new detected features
     ids_pts_detected_.clear();
@@ -207,22 +171,19 @@ void ImageProcessor<IpBackend>::detect(const IpBackend::image_type &mask) {
   }
 }
 
-template <typename IpBackend>
-void ImageProcessor<IpBackend>::track() {}
-
 // TODO make a check that the object is initialized before starting
 template <typename IpBackend>
-int ImageProcessor<IpBackend>::process_image(cv::Mat_<uint8_t> &frame_cam0_t1_umat,
-                                             cv::Mat_<uint8_t> &frame_cam1_t1_umat,
+int ImageProcessor<IpBackend>::process_image(IpBackend::image_type &&frame_cam0_t1_umat,
+                                             IpBackend::image_type &&frame_cam1_t1_umat,
                                              const std::vector<mavlink_imu_t> &imu_msgs, uint64_t current_frame_time,
                                              TrackedImagePoints<IpBackend> &tracked_points) {
-  frame_cam0_t1_ = std::move(frame_cam0_t1_umat);
-  frame_cam1_t1_ = std::move(frame_cam1_t1_umat);
+  frame_cam0_t1_ = frame_cam0_t1_umat;
+  frame_cam1_t1_ = frame_cam1_t1_umat;
 
   cv::Matx33f rotation_t0_t1_cam0;
   cv::Matx33f rotation_t0_t1_cam1;
-  int retval = SensorInterface::GenerateImuXform(imu_msgs, R_imu_cam0_, R_imu_cam1_, rotation_t0_t1_cam0,
-                                                 current_frame_time, rotation_t0_t1_cam1);
+  int retval = SensorInterface<IpBackend>::GenerateImuXform(imu_msgs, R_imu_cam0_, R_imu_cam1_, rotation_t0_t1_cam0,
+                                                            current_frame_time, rotation_t0_t1_cam1);
 
   // Append the kepypoints from the previous iteration to the tracked points of the current
   // iteration. Points that pass through all the outlier checks will remain as tracked points
@@ -258,83 +219,21 @@ int ImageProcessor<IpBackend>::process_image(cv::Mat_<uint8_t> &frame_cam0_t1_um
   if (!pts_t_c0_t0_.frame().empty()) {
     typename IpBackend::status_type status(pts_t_c0_t0_.frame().size());
 
-    // UMat<uint8_t> frame_cam0_t0_copy(frame_cam0_t0_);
-    // UMat<uint8_t> frame_cam0_t1_copy(frame_cam0_t1);
-
     // auto copy_1 = pts_t_c0_t0_.clone();
     d_opt_flow_cam0_.calc(frame_cam0_t0_, frame_cam0_t1_, pts_t_c0_t0_, pts_t_c0_t1_, status, &tracker_stream_);
     // d_opt_flow_cam0_.calc(frame_cam0_t0_, frame_cam0_t1, pts_t_c0_t0_, pts_t_c0_t1_, status, tracker_stream_);
     tracker_stream_.sync();
-
-    // // DEBUG CODE
-    // std::vector<cv::Point2f> pts_t0;
-    // bool write_to_debug = true;
-    // if (write_to_debug) {
-    //   if (pts_t_c0_t0_.frame().cols > 0) {
-    //     pts_t_c0_t0_.d_frame().download(pts_t0);
-    //   }
-    //   debug_record.DrawPts(frame_cam0_t0_.frame(), 0, pts_t0);
-
-    //   std::vector<cv::Point2f> pts_t1;
-    //   if (pts_t_c0_t1_.d_frame().cols > 0) {
-    //     pts_t_c0_t1_.d_frame().download(pts_t1);
-    //   }
-    //   debug_record.DrawPts(frame_cam0_t1_.frame(), 1, pts_t1);
-    //   debug_record.WriteFrame();
-    // }
-    // // // END DEBUG CODE
 
     {
       MarkPointsOutOfFrame(status, pts_t_c0_t1_, frame_cam0_t1_.size(), IpBackend::flow_type::success_value);
 
       RemovePoints(status, IpBackend::flow_type::success_value, pts_t_c0_t0_, pts_t_c0_t1_, pts_t_c1_t0_,
                    ids_pts_tracked_);
-      // // DEBUG CODE
-      //   std::vector<cv::Point2f> pts_t0;
-      //   bool write_to_debug = true;
-      //   if (write_to_debug) {
-      //     if (pts_t_c0_t0_.frame().cols > 0) {
-      //       pts_t_c0_t0_.d_frame().download(pts_t0);
-      //     }
-      //     debug_record.DrawPts(frame_cam0_t0_.frame(), 0, pts_t0);
-
-      //     std::vector<cv::Point2f> pts_t1;
-      //     if (pts_t_c0_t1_.d_frame().cols > 0) {
-      //       pts_t_c0_t1_.d_frame().download(pts_t1);
-      //     }
-      //     debug_record.DrawPts(frame_cam0_t1_.frame(), 1, pts_t1);
-      //     debug_record.WriteFrame();
-      //   }
-      //   // // END
     }
 
     // Match the points from camera 0 to camera 1
     int ret_val = StereoMatch(d_opt_flow_stereo_t0_, frame_cam0_t1_, frame_cam1_t1_, pts_t_c0_t1_, pts_t_c1_t1_, status,
                               tracker_stream_);
-    // tracker_stream_.sync();
-    // // DEBUG CODE
-    // std::vector<cv::Point2f> pts_t0;
-    // bool write_to_debug = true;
-    // if (write_to_debug) {
-    //   if (pts_t_c0_t1_.frame().cols > 0) {
-    //     pts_t_c0_t1_.d_frame().download(pts_t0);
-    //   }
-    //   debug_record.DrawPts(frame_cam0_t1.frame(), 0, pts_t0);
-    // }
-    // // std::vector<cv::Point2f> pts_t1_debug;
-    // // points_[t_c0_t1].download(pts_t1_debug);
-    // // END DEBUG CODE
-
-    // // // DEBUG CODE
-    // if (write_to_debug) {
-    //   std::vector<cv::Point2f> pts_t1;
-    //   if (pts_t_c1_t1_.d_frame().cols > 0) {
-    //     pts_t_c1_t1_.d_frame().download(pts_t1);
-    //   }
-    //   debug_record.DrawPts(frame_cam1_t1.frame(), 1, pts_t1);
-    //   debug_record.WriteFrame();
-    // }
-    // // END DEBUG CODE
 
     // Remove the outliers from the StereoMatch algorithm
     if (ret_val == 0) {
@@ -366,8 +265,8 @@ int ImageProcessor<IpBackend>::process_image(cv::Mat_<uint8_t> &frame_cam0_t1_um
   }
 
   // Plot output if enabled
-  { plot_points_overlay_2x1(frame_cam0_t1_, {pts_d_c0_t1_}, frame_cam1_t1_, {pts_d_c1_t1_}); }
   {
+    plot_points_overlay_2x1(frame_cam0_t1_, {pts_d_c0_t1_}, frame_cam1_t1_, {pts_d_c1_t1_});
     plot_points_overlay_2x2(frame_cam0_t0_, {pts_t_c0_t0_}, frame_cam1_t0_, {pts_t_c1_t0_}, frame_cam0_t1_,
                             {pts_t_c0_t1_}, frame_cam1_t1_, {pts_t_c1_t1_});
   }
@@ -380,13 +279,6 @@ int ImageProcessor<IpBackend>::process_image(cv::Mat_<uint8_t> &frame_cam0_t1_um
   pts_t_c0_t1_ = typename IpBackend::array_type(cv::Size(0, 1));
   pts_t_c1_t0_ = std::move(pts_t_c1_t1_);
   pts_t_c1_t1_ = typename IpBackend::array_type(cv::Size(0, 1));
-  // pts_d_c0_t0_ = std::move(pts_d_c0_t1_);
-  // pts_d_c0_t1_ = IpBackend::array_type(cv::Size(0, 1));
-  // pts_d_c1_t0_ = std::move(pts_d_c1_t1_);
-  // pts_d_c1_t1_ = IpBackend::array_type(cv::Size(0, 1));
-
-  // spdlog::trace("ip dts, data: {}, lk1: {}, det: {}, log {}", (t_data - t_start).count() / 1E6,
-  //               (t_lk1 - t_data).count() / 1E6, (t_det - t_lk1).count() / 1E6, (t_log - t_det).count() / 1E6);
 
   // Apply the rate limiting
   if (is_rate_limiting_) {
@@ -397,17 +289,14 @@ int ImageProcessor<IpBackend>::process_image(cv::Mat_<uint8_t> &frame_cam0_t1_um
       "fps: {}",
       1.0 / static_cast<std::chrono::duration<double>>((std::chrono::system_clock::now() - prev_time_end_)).count());
   prev_time_end_ = std::chrono::system_clock::now();
-
-  // Wait for the detection thread to finish
-  // detect_future.get();
   return 0;
 }
 
 template <typename IpBackend>
-int ImageProcessor<IpBackend>::StereoMatch(IpBackend::flow_type &opt, IpBackend::image_type &frame_cam0,
-                                           IpBackend::image_type &frame_cam1, IpBackend::array_type &pts_cam0,
-                                           IpBackend::array_type &pts_cam1, IpBackend::status_type &status,
-                                           IpBackend::stream_type &stream) {
+int ImageProcessor<IpBackend>::StereoMatch(IpBackend::flow_type &opt, const IpBackend::image_type &frame_cam0,
+                                           const IpBackend::image_type &frame_cam1,
+                                           const IpBackend::array_type &pts_cam0, IpBackend::array_type &pts_cam1,
+                                           IpBackend::status_type &status, IpBackend::stream_type &stream) {
   if (pts_cam0.frame().empty()) {
     return -1;
   }
@@ -433,33 +322,6 @@ int ImageProcessor<IpBackend>::StereoMatch(IpBackend::flow_type &opt, IpBackend:
   opt.calc(frame_cam0, frame_cam1, pts_cam0, pts_cam1, status, &stream);
 
   stream.sync();
-
-  // std::for_each(status.frame().begin(), status.frame().end(), [](auto &status) { std::cout << ", " << (int)status;
-  // });
-
-  // stream.waitForCompletion();
-  // // DEBUG CODE
-  // bool write_to_debug = true;
-  // if (write_to_debug) {
-  //   std::vector<cv::Point2f> pts_t0;
-  //   if (pts_cam0.frame().cols > 0) {
-  //     pts_cam0.d_frame().download(pts_t0);
-  //   }
-  //   cv::Mat draw_frame1;
-  //   frame_cam0.download(draw_frame1);
-  //   debug_record.DrawPts(draw_frame1, 0, pts_t0);
-
-  //   // SECOND FRAME
-  //   std::vector<cv::Point2f> pts_t1;
-  //   if (pts_cam1.d_frame().cols > 0) {
-  //     pts_cam1.d_frame().download(pts_t1);
-  //   }
-  //   cv::Mat draw_frame2;
-  //   frame_cam1.download(draw_frame2);
-  //   debug_record.DrawPts(draw_frame2, 1, pts_t1);
-  //   debug_record.WriteFrame();
-  // }
-  // // END DEBUG CODE
 
   // Check if we have zero tracked points, this is a corner case and these variables need
   // to be reset to prevent errors in sizing, calc() does not return all zero length vectors
@@ -551,9 +413,3 @@ void ImageProcessor<IpBackend>::DetectNewFeatures(const cv::Ptr<T> &detector_ptr
 
   d_output = tmp_output;
 }
-
-template class ImageProcessor<CvBackend>;
-template class ImageProcessor<CvCpuBackend>;
-#ifdef WITH_VPI
-template class ImageProcessor<VpiBackend>;
-#endif

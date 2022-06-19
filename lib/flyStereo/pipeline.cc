@@ -1,14 +1,14 @@
 #include "flyStereo/pipeline.h"
 
+#include "flyStereo/image_processing/cv_backend.h"
 #include "flyStereo/sensor_io/image_sink.h"
 #include "flyStereo/utility.h"
 #include "flyStereo/visualization/draw_to_image.h"
-#include "flyStereo/image_processing/cv_backend.h"
 #include "spdlog/spdlog.h"
 
 static constexpr unsigned int max_consecutive_missed_frames = 10;
 
-template<typename IpBackend>
+template <typename IpBackend>
 Pipeline<IpBackend>::Pipeline(const YAML::Node &params, const YAML::Node &stereo_calibration)
     : params_(params),
       image_processor_(15, stereo_calibration,
@@ -16,7 +16,7 @@ Pipeline<IpBackend>::Pipeline(const YAML::Node &params, const YAML::Node &stereo
       vio_(StereoCalibration(stereo_calibration),
            utility::eulerAnglesToRotationMatrix(params["R_imu_cam0"].as<std::vector<double>>())) {}
 
-template<typename IpBackend>
+template <typename IpBackend>
 Pipeline<IpBackend>::~Pipeline() {
   // Shutdown the pipeline, this will stop the threads
   is_running_ = false;
@@ -28,7 +28,7 @@ Pipeline<IpBackend>::~Pipeline() {
   }
 }
 
-template<typename IpBackend>
+template <typename IpBackend>
 void Pipeline<IpBackend>::Init() {
   // Block until we receive a start command
   if (params_["wait_for_start_command"].as<bool>()) {
@@ -50,11 +50,13 @@ void Pipeline<IpBackend>::Init() {
   process_thread_ = std::thread(&Pipeline<IpBackend>::run, this);
 }
 
-template<typename IpBackend>
-void Pipeline<IpBackend>::shutdown() { is_running_ = false; }
+template <typename IpBackend>
+void Pipeline<IpBackend>::shutdown() {
+  is_running_ = false;
+}
 
 // Thread to collect the imu data and disperse it to all objects that need it
-template<typename IpBackend>
+template <typename IpBackend>
 void Pipeline<IpBackend>::imu_thread() {
   mavlink_reader_.ResetShutdownCmds();
   while (is_running_.load()) {
@@ -72,7 +74,7 @@ void Pipeline<IpBackend>::imu_thread() {
   }
 }
 
-template<typename IpBackend>
+template <typename IpBackend>
 void Pipeline<IpBackend>::run() {
   auto consecutive_missed_frames = 0u;
 
@@ -81,8 +83,8 @@ void Pipeline<IpBackend>::run() {
 
   while (is_running_.load()) {
     // Read the frames and check for errors
-    UMat<uint8_t> d_frame_cam0_t1;
-    UMat<uint8_t> d_frame_cam1_t1;
+    typename IpBackend::image_type d_frame_cam0_t1;
+    typename IpBackend::image_type d_frame_cam1_t1;
     std::vector<mavlink_imu_t> imu_msgs;
     uint64_t current_time;
 
@@ -147,6 +149,5 @@ void Pipeline<IpBackend>::run() {
     // }
   }
 }
-
 
 template class Pipeline<CvBackend>;

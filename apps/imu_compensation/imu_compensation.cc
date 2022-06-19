@@ -6,6 +6,7 @@
 #include <atomic>
 #include <iostream>
 
+#include "flyStereo/image_processing/cv_backend.h"
 #include "flyStereo/sensor_io/image_sink.h"
 #include "flyStereo/sensor_io/mavlink/fly_stereo/mavlink.h"
 #include "flyStereo/sensor_io/sensor_interface.h"
@@ -44,7 +45,7 @@ int UpdatePointsViaImu(const std::vector<cv::Point3d> &current_pts, const cv::Ma
 }
 
 // Thread to collect the imu data and disperse it to all objects that need it
-void imu_thread(YAML::Node imu_reader_params, SensorInterface *sensor_interface) {
+void imu_thread(YAML::Node imu_reader_params, SensorInterface<CvBackend> *sensor_interface) {
   MavlinkReader mavlink_reader;
   mavlink_reader.Init(imu_reader_params);
 
@@ -84,7 +85,7 @@ int main(int argc, char *argv[]) {
 
   YAML::Node imu_comp_params = YAML::LoadFile(config_file)["flyStereo"];
 
-  SensorInterface sensor_interface;
+  SensorInterface<CvBackend> sensor_interface;
   sensor_interface.Init(imu_comp_params);
 
   // Image Sinks

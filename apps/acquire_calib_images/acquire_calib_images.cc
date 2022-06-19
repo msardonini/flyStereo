@@ -7,6 +7,7 @@
 #include <iostream>
 #include <string>
 
+#include "flyStereo/image_processing/cv_backend.h"
 #include "flyStereo/sensor_io/image_sink.h"
 #include "flyStereo/sensor_io/sensor_interface.h"
 #include "opencv2/core.hpp"
@@ -78,7 +79,7 @@ int main(int argc, char *argv[]) {
 
   YAML::Node params = YAML::LoadFile(config_file)["flyStereo"];
 
-  std::unique_ptr<SensorInterface> sensor_interface = std::make_unique<SensorInterface>();
+  std::unique_ptr<SensorInterface<CvBackend>> sensor_interface = std::make_unique<SensorInterface<CvBackend>>();
   sensor_interface->Init(params);
   ImageSink cam0_sink(params);
   ImageSink cam1_sink(params);

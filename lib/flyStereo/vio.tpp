@@ -11,15 +11,14 @@
 #include "opencv2/calib3d.hpp"
 #include "opencv2/core/eigen.hpp"
 #include "opencv2/imgproc.hpp"
-#include "flyStereo/image_processing/cv_backend.h"
-#include "flyStereo/image_processing/cv_cpu_backend.h"
 #include "spdlog/spdlog.h"
 
 constexpr unsigned int history_size = 10;
 constexpr unsigned int min_num_matches = 25;
 // Constructor with config params
 template <typename IpBackend>
-Vio<IpBackend>::Vio(const StereoCalibration &stereo_calibration, const cv::Matx33d &R_imu_cam0, const cv::Vec3d &vio_calibration)
+Vio<IpBackend>::Vio(const StereoCalibration &stereo_calibration, const cv::Matx33d &R_imu_cam0,
+                    const cv::Vec3d &vio_calibration)
     : stereo_cal_(stereo_calibration) {
   // // If we have recording enabled, initialize the logging files
   // if (input_params["record_mode"] && input_params["record_mode"]["enable"].as<bool>() &&
@@ -185,7 +184,7 @@ int Vio<IpBackend>::ProcessPoints(const TrackedImagePoints<IpBackend> &pts, vio_
 
 template <typename IpBackend>
 int Vio<IpBackend>::ProcessVio(const cv::Affine3d &pose_body, uint64_t image_timestamp,
-                    Eigen::Matrix<double, 6, 1> &output_state) {
+                               Eigen::Matrix<double, 6, 1> &output_state) {
   Eigen::Matrix<double, 3, 1> z;
   cv::cv2eigen(pose_body.translation(), z);
 
@@ -217,8 +216,8 @@ inline double get_inlier_pct(const std::vector<int> &inliers) {
 }
 
 template <typename IpBackend>
-int Vio<IpBackend>::CalculatePoseUpdate(const TrackedImagePoints<IpBackend> &pts,
-                             cv::Affine3d &pose_update, std::vector<cv::Point3d> *inlier_pts) {
+int Vio<IpBackend>::CalculatePoseUpdate(const TrackedImagePoints<IpBackend> &pts, cv::Affine3d &pose_update,
+                                        std::vector<cv::Point3d> *inlier_pts) {
   if (pts.ids.size() < 6ul) {
     spdlog::warn("Not enough points for algorithm!");
     return -1;
@@ -527,12 +526,3 @@ int Vio<IpBackend>::Debug_SaveOutput(const Eigen::Matrix4d &pose_update, const E
 
 //   return -5;
 // }
-
-
-
-
-template class Vio<CvBackend>;
-template class Vio<CvCpuBackend>;
-#ifdef WITH_VPI
-template class Vio<VpiBackend>;
-#endif

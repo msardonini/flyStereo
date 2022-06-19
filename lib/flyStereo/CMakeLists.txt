@@ -31,11 +31,8 @@ endif()
 
 #add_definitions(-march=native)
 add_library(fly_stereo_lib
-  image_processing/image_processor.cc
-  vio.cc
   kalman_filter.cc
   sql_logger.cc
-  sensor_io/sensor_interface.cc
   sensor_io/mavlink_reader.cc
   sensor_io/camera_trigger.cc
   sensor_io/camera.cc

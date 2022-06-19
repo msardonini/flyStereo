@@ -22,4 +22,5 @@ repos:
     hooks:
       - id: clang-format
         args: [-i]
-        files: ^.*\.(|cc|cpp|h|hpp)$
+        files: ^.*\.(|cc|cpp|h|hpp|tpp|tcc)$
+        types_or: [file, c++]

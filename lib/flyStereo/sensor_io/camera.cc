@@ -3,7 +3,6 @@
 #include <iostream>
 #include <thread>
 
-#include "opencv2/cudaarithm.hpp"
 #include "spdlog/spdlog.h"
 
 Camera::Camera(YAML::Node input_params, bool replay_mode) {
@@ -156,37 +155,6 @@ int Camera::RunAutoExposure(const cv::Scalar &mean_pixel_val) {
   return 0;
 }
 
-int Camera::GetFrame(UMat<uint8_t> &frame) {
-  cv::Mat host_frame;
-
-  if (use_gstreamer_pipeline_) {
-    return GetFrameGst(frame);
-  } else {
-    cv::Mat frame_tmp;
-    if (!cam_src_->read(frame_tmp)) {
-      return -1;
-    }
-    frame = frame_tmp;
-  }
-
-  if (enable_videoflip_) {
-    UMat<uint8_t> temp(frame);
-    cv::cuda::flip(temp.d_frame(), frame.d_frame(), flip_method_);
-  }
-
-  if (auto_exposure_) {
-    if (++curr_frame_ == num_frames_to_calc_) {
-      curr_frame_ = 0;
-      cv::Scalar mean, st_dev;
-      cv::cuda::meanStdDev(frame.d_frame(), mean, st_dev);
-
-      // Run and apply the auto exposure if necessary
-      RunAutoExposure(mean);
-    }
-  }
-  return 0;
-}
-
 int Camera::InitGstPipeline() {
   // Initialize GStreamer
   gst_init(nullptr, nullptr);
@@ -239,60 +207,6 @@ int Camera::InitGstPipeline() {
   GstStateChangeReturn ret_state = gst_element_set_state(gst_params_.pipeline, GST_STATE_PLAYING);
   if (ret_state != GST_STATE_CHANGE_SUCCESS && ret_state != GST_STATE_CHANGE_ASYNC) {
     std::cerr << "Error changing gstreamer state! Ret state is " << ret_state << std::endl;
-    return -1;
-  }
-
-  return 0;
-}
-
-int Camera::GetFrameGst(UMat<uint8_t> &frame) {
-  // Pull in the next sample
-  GstAppSink *appsink = reinterpret_cast<GstAppSink *>(gst_params_.appsink);
-
-  GstSample *sample = gst_app_sink_try_pull_sample(appsink, 2.5E7);  // timeout of 0.25 seconds
-  // At EOS or timeout this will return NULL
-  if (sample == NULL) {
-    if (gst_app_sink_is_eos(appsink)) {
-      std::cerr << "Gstreamer End of Stream!" << std::endl;
-      return -1;
-    } else {  // Else this was a timeout
-      std::cerr << "timeout on device: " << device_num_ << std::endl;
-      return 1;
-    }
-  }
-
-  // Take the buffer from the supplied sample
-  GstBuffer *buffer = gst_sample_get_buffer(sample);
-
-  // Get the caps & structure objects from the GstSample
-  GstCaps *caps = gst_sample_get_caps(sample);
-  GstStructure *structure = gst_caps_get_structure(caps, 0);
-
-  // Extract the info we need from this caps object
-  gint width, height, framerate_numerator, framerate_denominator;
-  if (!(gst_structure_get_int(structure, "width", &width) && gst_structure_get_int(structure, "height", &height) &&
-        gst_structure_get_fraction(structure, "framerate", &framerate_numerator, &framerate_denominator))) {
-    std::cerr << "Error getting metadata" << std::endl;
-    return -1;
-  }
-
-  // Check to see if the frame has been initialized
-  if (frame.frame().size() != cv::Size(1280, 720)) {
-    frame = UMat<uint8_t>(cv::Size(1280, 720));
-  }
-
-  // Get the frame from gstreamer
-  GstMapInfo info;
-  if (gst_buffer_map(buffer, &info, GST_MAP_READ)) {
-    // Copy the buffer
-    memcpy(frame.frame().ptr(), info.data, info.size);
-
-    timestamp_ns_ = static_cast<uint64_t>(GST_BUFFER_PTS(buffer));
-
-    gst_buffer_unmap(buffer, &info);
-    gst_sample_unref(sample);
-  } else {
-    std::cerr << "Error getting map" << std::endl;
     return -1;
   }
 

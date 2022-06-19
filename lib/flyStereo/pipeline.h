@@ -34,7 +34,7 @@ class Pipeline {
   const YAML::Node params_;
 
   MavlinkReader mavlink_reader_;
-  SensorInterface sensor_interface_;
+  SensorInterface<IpBackend> sensor_interface_;
   ImageProcessor<IpBackend> image_processor_;
   Vio<IpBackend> vio_;
 

@@ -14,8 +14,8 @@ constexpr bool FLYSTEREO_VISUALIZE_DEBUG_VIDEO_ENABLED = true;
 constexpr bool FLYSTEREO_VISUALIZE_DEBUG_VIDEO_ENABLED = false;
 #endif
 
-std::unique_ptr<cv::VideoWriter> writer;
-std::vector<cv::Scalar> colors{CV_RGB(0, 0, 255), CV_RGB(0, 255, 0), CV_RGB(255, 0, 0), CV_RGB(0, 255, 255)};
+static std::unique_ptr<cv::VideoWriter> writer;
+static std::vector<cv::Scalar> colors{CV_RGB(0, 0, 255), CV_RGB(0, 255, 0), CV_RGB(255, 0, 0), CV_RGB(0, 255, 255)};
 
 /**
  * @brief Draws the points on the image as small circles

@@ -1,23 +1,25 @@
 
 
-#include "flyStereo/sensor_io/sensor_interface.h"
-
 #include <iostream>
 
+#include "flyStereo/sensor_io/sensor_interface.h"
 #include "flyStereo/utility.h"
 #include "opencv2/calib3d.hpp"
 #include "opencv2/imgproc.hpp"
 #include "spdlog/spdlog.h"
 
-SensorInterface::SensorInterface() {}
+template <typename IpBackend>
+SensorInterface<IpBackend>::SensorInterface() {}
 
-SensorInterface::~SensorInterface() {
+template <typename IpBackend>
+SensorInterface<IpBackend>::~SensorInterface() {
   if (camera_trigger_) {
     camera_trigger_->TriggerCamera();
   }
 }
 
-int SensorInterface::Init(YAML::Node input_params) {
+template <typename IpBackend>
+int SensorInterface<IpBackend>::Init(YAML::Node input_params) {
   if (input_params["replay_mode"] && input_params["replay_mode"]["enable"].as<bool>()) {
     replay_speed_multiplier_ = input_params["replay_mode"]["replay_speed_multiplier"].as<float>();
     replay_mode_ = true;
@@ -50,8 +52,11 @@ int SensorInterface::Init(YAML::Node input_params) {
   return 0;
 }
 
-int SensorInterface::GetSynchronizedData(UMat<uint8_t> &d_frame_cam0, UMat<uint8_t> &d_frame_cam1,
-                                         std::vector<mavlink_imu_t> &imu_data, uint64_t &current_frame_time) {
+template <typename IpBackend>
+int SensorInterface<IpBackend>::GetSynchronizedData(IpBackend::image_type &d_frame_cam0,
+                                                    IpBackend::image_type &d_frame_cam1,
+                                                    std::vector<mavlink_imu_t> &imu_data,
+                                                    uint64_t &current_frame_time) {
   // Time checks for performance monitoring
   std::chrono::time_point<std::chrono::system_clock> t_start = std::chrono::system_clock::now();
   std::chrono::time_point<std::chrono::system_clock> t_trig;
@@ -157,12 +162,14 @@ int SensorInterface::GetSynchronizedData(UMat<uint8_t> &d_frame_cam0, UMat<uint8
   return ret;
 }
 
-void SensorInterface::ReceiveImu(mavlink_imu_t imu_msg) {
+template <typename IpBackend>
+void SensorInterface<IpBackend>::ReceiveImu(mavlink_imu_t imu_msg) {
   std::lock_guard<std::mutex> lock(imu_queue_mutex_);
   imu_queue_.push(imu_msg);
 }
 
-int SensorInterface::AssociateImuData(std::vector<mavlink_imu_t> &imu_msgs, uint64_t &current_frame_time) {
+template <typename IpBackend>
+int SensorInterface<IpBackend>::AssociateImuData(std::vector<mavlink_imu_t> &imu_msgs, uint64_t &current_frame_time) {
   // Guard against the imu queue
   std::lock_guard<std::mutex> lock(imu_queue_mutex_);
 
@@ -208,9 +215,11 @@ int SensorInterface::AssociateImuData(std::vector<mavlink_imu_t> &imu_msgs, uint
   return 0;
 }
 
-int SensorInterface::GenerateImuXform(const std::vector<mavlink_imu_t> &imu_msgs, const cv::Matx33f R_imu_cam0,
-                                      const cv::Matx33f R_imu_cam1, cv::Matx33f &rotation_t0_t1_cam0,
-                                      const uint64_t current_frame_time, cv::Matx33f &rotation_t0_t1_cam1) {
+template <typename IpBackend>
+int SensorInterface<IpBackend>::GenerateImuXform(const std::vector<mavlink_imu_t> &imu_msgs,
+                                                 const cv::Matx33f R_imu_cam0, const cv::Matx33f R_imu_cam1,
+                                                 cv::Matx33f &rotation_t0_t1_cam0, const uint64_t current_frame_time,
+                                                 cv::Matx33f &rotation_t0_t1_cam1) {
   // The first image will not have relvant imu data
   if (imu_msgs.size() == 0) {
     rotation_t0_t1_cam0 = cv::Matx33f::eye();

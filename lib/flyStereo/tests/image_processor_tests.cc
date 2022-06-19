@@ -33,7 +33,7 @@ constexpr uint32_t area_height_m = 4;
 constexpr float ground_plane_noise_coeff = 0.01;
 
 constexpr uint32_t num_images = 100;
-constexpr float max_camera_rotation_rad = 0.01;
+constexpr float max_camera_rotation_rad = 0.0;
 
 const uint32_t circle_radius = 2;
 const cv::Size image_size(1280, 780);
@@ -69,12 +69,12 @@ static inline std::vector<cv::Point3f> get_ground_points_vec(const std::vector<s
   return pts;
 }
 
+template <typename IpBackend>
 class ImageProcessingTestFixture : public ::testing::Test {
  public:
   ImageProcessingTestFixture() : my_window_("Test Window") {
-    my_window_.spinOnce(1, true);
-
     cv::viz::Camera cam0(K_cam0, image_size);
+    my_window_.spinOnce(1, false);
     my_window_.setCamera(cam0);
 
     {
@@ -227,14 +227,22 @@ class ImageProcessingTestFixture : public ::testing::Test {
   std::vector<std::vector<std::pair<cv::Point2f, uint8_t>>>
       points_cam0;  //< Ground plane points in each image, in cam0 frame
   std::vector<std::vector<std::pair<cv::Point2f, uint8_t>>>
-      points_cam1;                                  //< Ground plane points in each image, in cam1 frame
-  std::vector<std::pair<cv::Mat, cv::Mat>> images;  //< Images, cam0 and cam1
+      points_cam1;  //< Ground plane points in each image, in cam1 frame
+  std::vector<std::pair<typename IpBackend::image_type, typename IpBackend::image_type>>
+      images;  //< Images, cam0 and cam1
 
   cv::viz::Viz3d my_window_;                           //< Vizualization window
   std::list<cv::viz::WImage3D> ground_plane_widgets_;  //< Vizualization widget
 };
 
-TEST_F(ImageProcessingTestFixture, test2) {
+using ImageProcessorBackends = ::testing::Types<
+#ifdef WITH_VPI
+    VpiBackend,
+#endif
+    CvBackend, CvCpuBackend>;
+TYPED_TEST_SUITE(ImageProcessingTestFixture, ImageProcessorBackends);
+
+TYPED_TEST(ImageProcessingTestFixture, test2) {
   // Convert Images from cv::Mat to UMat
   // std::vector<std::pair<UMat<uint8_t>, UMat<uint8_t>>> images_umat;
   // images_umat.reserve(images.size());
@@ -243,19 +251,19 @@ TEST_F(ImageProcessingTestFixture, test2) {
   //                  return std::make_pair(UMat<uint8_t>(image.first), UMat<uint8_t>(image.second));
   //                });
 
-  StereoCalibration stereo_calibration(K_cam0, K_cam1, {}, {}, R, T);
-  ImageProcessor<CvCpuBackend> image_processor(0, stereo_calibration, cv::Matx33d::eye());
+  StereoCalibration stereo_calibration(this->K_cam0, this->K_cam1, {}, {}, this->R, this->T);
+  ImageProcessor<TypeParam> image_processor(0, stereo_calibration, cv::Matx33d::eye());
   image_processor.Init();
 
   std::list<uint64_t> latencies;
-  Vio<CvCpuBackend> vio(stereo_calibration, cv::Matx33d::eye());
+  Vio<TypeParam> vio(stereo_calibration, cv::Matx33d::eye());
   for (auto frame = 0; frame < num_images; frame++) {
-    TrackedImagePoints<CvCpuBackend> tracked_image_points;
+    TrackedImagePoints<TypeParam> tracked_image_points;
     auto start = std::chrono::high_resolution_clock::now();
-    cv::Mat_<uint8_t> first = images[frame].first;
-    cv::Mat_<uint8_t> second = images[frame].second;
-    image_processor.process_image(first, second, std::vector<mavlink_imu_t>{imu_msgs[frame]}, frame * 1E6,
-                                  tracked_image_points);
+    auto first = this->images[frame].first;
+    auto second = this->images[frame].second;
+    image_processor.process_image(std::move(first), std::move(second),
+                                  std::vector<mavlink_imu_t>{this->imu_msgs[frame]}, frame * 1E6, tracked_image_points);
     auto end = std::chrono::high_resolution_clock::now();
     latencies.push_back(std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
     // image_processor.process_image(cam0_image_d, cam1_image_d, {}, frame * 1E6, output_points);
