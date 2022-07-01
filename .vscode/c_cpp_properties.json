@@ -1,0 +1,19 @@
+{
+    "configurations": [
+        {
+            "name": "Linux",
+            "includePath": [
+                "${workspaceFolder}/**",
+                "/usr/include/",
+                "/usr/local/include"
+            ],
+            "defines": [],
+            "compilerPath": "/usr/bin/gcc-11",
+            "cStandard": "gnu11",
+            "cppStandard": "gnu++20",
+            "intelliSenseMode": "gcc-x64",
+            "compileCommands": "/root/flyStereo/build/compile_commands.json"
+        }
+    ],
+    "version": 4
+}
