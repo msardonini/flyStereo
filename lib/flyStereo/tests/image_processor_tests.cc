@@ -257,6 +257,7 @@ TYPED_TEST(ImageProcessingTestFixture, test2) {
 
   std::list<uint64_t> latencies;
   Vio<TypeParam> vio(stereo_calibration, cv::Matx33d::eye());
+  std::vector<cv::Affine3d> calculated_trajectory;
   for (auto frame = 0; frame < num_images; frame++) {
     TrackedImagePoints<TypeParam> tracked_image_points;
     auto start = std::chrono::high_resolution_clock::now();
@@ -267,15 +268,30 @@ TYPED_TEST(ImageProcessingTestFixture, test2) {
     auto end = std::chrono::high_resolution_clock::now();
     latencies.push_back(std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
     // image_processor.process_image(cam0_image_d, cam1_image_d, {}, frame * 1E6, output_points);
-    std::cout << "num pts " << tracked_image_points.ids.size() << std::endl;
+    // std::cout << "num pts " << tracked_image_points.ids.size() << std::endl;
 
     vio_t vio_output;
     vio.ProcessPoints(tracked_image_points, vio_output);
+    calculated_trajectory.push_back(vio_output.pose_cam0_);
     // std::cout << "position " << vio_output.position << std::endl;
     // std::cout << "gt position " << camera_trajectory[frame].translation() << std::endl;
     // cv::imshow("test.jpg", images[frame].second);
     // cv::waitKey(0);
+
+    cv::viz::WTrajectory calculated_trajectory_widget(calculated_trajectory, cv::viz::WTrajectory::PATH, 1,
+                                                      cv::viz::Color::green());
+    cv::viz::WTrajectory ground_truth_trajectory(
+        std::vector<cv::Affine3f>{this->camera_trajectory.begin(), this->camera_trajectory.begin() + frame + 1},
+        cv::viz::WTrajectory::PATH, 2);
+    this->my_window_.showWidget("ground_truth_trajectory", ground_truth_trajectory);
+    this->my_window_.showWidget("calculcated_trajectory", calculated_trajectory_widget);
+    this->my_window_.setViewerPose(cv::Affine3f(cv::Vec3f{0, 0, 0}, cv::Vec3f{2, 2, -3}));
+    this->my_window_.spinOnce(1, true);
   }
   auto average_fps = 1.0E6 * latencies.size() / std::accumulate(latencies.begin(), latencies.end(), 0ul);
   std::cout << "average fps " << average_fps << std::endl;
+
+  cv::Vec3d output_error;
+  cv::subtract(this->camera_trajectory.back().translation(), calculated_trajectory.back().translation(), output_error);
+  std::cout << "translation error " << output_error << std::endl;
 }

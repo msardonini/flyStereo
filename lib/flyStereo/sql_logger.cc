@@ -106,7 +106,7 @@ void SqlLogger::LogThread() {
   while (is_running_.load()) {
     if (queue_mutex_.try_lock()) {
       // We own the mutex, log the next element in the queue
-      if (log_queue_.size() >= MAX_QUEUE_SIZE) {
+      while (log_queue_.size() > MAX_QUEUE_SIZE) {
         spdlog::error("Can't keep up writing data, dropping a frame!!");
         log_queue_.pop();
       }
@@ -121,7 +121,6 @@ void SqlLogger::LogThread() {
         log_queue_.pop();
       }
       queue_mutex_.unlock();
-    } else {
     }
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
   }
@@ -144,11 +143,11 @@ int SqlLogger::QueueEntry(const LogParams &params) {
 }
 
 int SqlLogger::LogEntry(const LogParams &params) {
-  return LogEntry(params.timestamp_flyms, params.timestamp_flystereo, params.frame0, params.frame1, params.imu_msgs);
+  return LogEntry(params.timestamp_frame, params.frame0, params.frame1, params.imu_msgs);
 }
 
-int SqlLogger::LogEntry(const uint64_t timestamp_flyms, const uint64_t timestamp_flystereo, const cv::Mat &frame0,
-                        const cv::Mat &frame1, const std::vector<mavlink_imu_t> &imu_msgs) {
+int SqlLogger::LogEntry(const uint64_t timestamp_frame, const cv::Mat &frame0, const cv::Mat &frame1,
+                        const std::vector<mavlink_imu_t> &imu_msgs) {
   std::string sql_cmd = std::string("INSERT INTO FLY_STEREO_DATA VALUES (?,?,?,?,?,?)");
 
   int ret = sqlite3_prepare(sql3_->data_base_, sql_cmd.c_str(), -1, &sql3_->sq_stmt, nullptr);
@@ -157,12 +156,12 @@ int SqlLogger::LogEntry(const uint64_t timestamp_flyms, const uint64_t timestamp
     return -1;
   }
 
-  ret = sqlite3_bind_int64(sql3_->sq_stmt, 1, timestamp_flyms);
+  ret = sqlite3_bind_int64(sql3_->sq_stmt, 1, timestamp_frame);
   if (ret != SQLITE_OK) {
     spdlog::error("error in bind, code: {}", ret);
     return -1;
   }
-  ret = sqlite3_bind_int64(sql3_->sq_stmt, 2, timestamp_flystereo);
+  ret = sqlite3_bind_int64(sql3_->sq_stmt, 2, 0);  // This is kept to keep backwards compatibility with previous data
   if (ret != SQLITE_OK) {
     spdlog::error("error in bind, code: {}", ret);
     return -1;
@@ -215,7 +214,7 @@ int SqlLogger::LogEntry(const uint64_t timestamp_flyms, const uint64_t timestamp
   return 0;
 }
 
-int SqlLogger::QueryEntry(uint64_t &timestamp_flyms, uint64_t &timestamp_flystereo, cv::Mat &frame0, cv::Mat &frame1,
+int SqlLogger::QueryEntry(uint64_t &timestamp_frame, cv::Mat &frame0, cv::Mat &frame1,
                           std::vector<mavlink_imu_t> &imu_msgs) {
   if (!replay_mode_) {
     spdlog::error("QueryEntry called when not in replay mode");
@@ -233,8 +232,7 @@ int SqlLogger::QueryEntry(uint64_t &timestamp_flyms, uint64_t &timestamp_flyster
     }
   }
 
-  timestamp_flyms = sqlite3_column_int64(sql3_->sq_stmt, 0);
-  timestamp_flystereo = sqlite3_column_int64(sql3_->sq_stmt, 1);
+  timestamp_frame = sqlite3_column_int64(sql3_->sq_stmt, 0);
   frame0 = cv::Mat(720, 1280, CV_8UC1, const_cast<void *>(sqlite3_column_blob(sql3_->sq_stmt, 2))).clone();
   frame1 = cv::Mat(720, 1280, CV_8UC1, const_cast<void *>(sqlite3_column_blob(sql3_->sq_stmt, 3))).clone();
 

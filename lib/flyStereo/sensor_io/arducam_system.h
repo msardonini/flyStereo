@@ -1,36 +1,32 @@
 #pragma once
 
-// System includes
-
 // Package includes
 #include "flyStereo/interface.h"
 #include "flyStereo/sensor_io/camera.h"
 #include "flyStereo/sensor_io/camera_trigger.h"
 #include "flyStereo/sensor_io/mavlink_reader.h"
-#include "flyStereo/sql_logger.h"
+#include "flyStereo/sensor_io/stereo_system_src_interface.h"
+// #include "flyStereo/sql_logger.h"
+#include "flyStereo/types/umat.h"
 #include "yaml-cpp/yaml.h"
 
-template <typename IpBackend>
-class SensorInterface {
+template <UMatDerivative ImageT>
+class ArducamSystem : public StereoSystemSrcInterface<ImageT> {
  public:
-  SensorInterface();
-  ~SensorInterface();
+  ArducamSystem(const YAML::Node &input_params);
+  ~ArducamSystem();
 
-  SensorInterface(const SensorInterface &) = delete;
-  SensorInterface(SensorInterface &&) = delete;
+  ArducamSystem(const ArducamSystem &) = delete;
+  ArducamSystem(ArducamSystem &&) = delete;
 
-  int GetSynchronizedData(IpBackend::image_type &d_frame_cam0, IpBackend::image_type &d_frame_cam1,
-                          std::vector<mavlink_imu_t> &imu_data, uint64_t &current_frame_time);
+  int GetSynchronizedData(ImageT &d_frame_cam0, ImageT &d_frame_cam1, std::vector<mavlink_imu_t> &imu_data,
+                          uint64_t &current_frame_time) override;
 
-  int Init(YAML::Node input_params);
+  void Init();
 
   void ReceiveImu(mavlink_imu_t imu_msg);
 
   int AssociateImuData(std::vector<mavlink_imu_t> &imu_msgs, uint64_t &current_frame_time);
-
-  static int GenerateImuXform(const std::vector<mavlink_imu_t> &imu_msgs, const cv::Matx33f R_imu_cam0,
-                              const cv::Matx33f R_imu_cam1, cv::Matx33f &rotation_t0_t1_cam0,
-                              const uint64_t current_frame_time, cv::Matx33f &rotation_t0_t1_cam1);
 
   std::unique_ptr<CameraTrigger> camera_trigger_;
   std::unique_ptr<Camera> cam0_;
@@ -39,8 +35,7 @@ class SensorInterface {
  private:
   bool first_iteration_ = true;
 
-  // first value in the pair contains the current value, second is the value from the
-  // previous iteration
+  // first value in the pair contains the current value, second is the value from the previous iteration
   using TrigTimestamp = std::pair<int, uint64_t>;
   std::pair<TrigTimestamp, TrigTimestamp> triggers_;
 
@@ -57,7 +52,9 @@ class SensorInterface {
   // Config params
   bool record_mode_ = false;
   bool replay_mode_ = false;
-  std::unique_ptr<SqlLogger> sql_logger_;
+  // std::unique_ptr<SqlLogger> sql_logger_;
+
+  YAML::Node sensor_params_;
 };
 
-#include "flyStereo/sensor_io/sensor_interface.tpp"
+#include "flyStereo/sensor_io/arducam_system.tpp"

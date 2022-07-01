@@ -7,9 +7,10 @@
 #include <iostream>
 
 #include "flyStereo/image_processing/cv_backend.h"
+#include "flyStereo/sensor_io/arducam_system.h"
 #include "flyStereo/sensor_io/image_sink.h"
 #include "flyStereo/sensor_io/mavlink/fly_stereo/mavlink.h"
-#include "flyStereo/sensor_io/sensor_interface.h"
+#include "flyStereo/sensor_io/oakd.h"
 #include "flyStereo/visualization/draw_to_image.h"
 #include "opencv2/calib3d.hpp"
 #include "opencv2/core/cuda.hpp"
@@ -44,20 +45,20 @@ int UpdatePointsViaImu(const std::vector<cv::Point3d> &current_pts, const cv::Ma
   return 0;
 }
 
-// Thread to collect the imu data and disperse it to all objects that need it
-void imu_thread(YAML::Node imu_reader_params, SensorInterface<CvBackend> *sensor_interface) {
-  MavlinkReader mavlink_reader;
-  mavlink_reader.Init(imu_reader_params);
+// // Thread to collect the imu data and disperse it to all objects that need it
+// void imu_thread(YAML::Node imu_reader_params, ArducamSystem<CvBackend::image_type> *arducam_system) {
+//   MavlinkReader mavlink_reader;
+//   mavlink_reader.Init(imu_reader_params);
 
-  while (is_running.load()) {
-    mavlink_imu_t attitude;
-    // Get the next attitude message, block until we have one
-    if (mavlink_reader.GetAttitudeMsg(&attitude, true)) {
-      // Send the imu message to the image processor
-      sensor_interface->ReceiveImu(attitude);
-    }
-  }
-}
+//   while (is_running.load()) {
+//     mavlink_imu_t attitude;
+//     // Get the next attitude message, block until we have one
+//     if (mavlink_reader.GetAttitudeMsg(&attitude, true)) {
+//       // Send the imu message to the image processor
+//       arducam_system->ReceiveImu(attitude);
+//     }
+//   }
+// }
 
 int main(int argc, char *argv[]) {
   std::cout << "PID of this process: " << getpid() << std::endl;
@@ -85,14 +86,15 @@ int main(int argc, char *argv[]) {
 
   YAML::Node imu_comp_params = YAML::LoadFile(config_file)["flyStereo"];
 
-  SensorInterface<CvBackend> sensor_interface;
-  sensor_interface.Init(imu_comp_params);
+  // ArducamSystem<CvBackend::image_type> arducam_system(imu_comp_params);
+  OakD<CvBackend::image_type> arducam_system;
+  arducam_system.Init();
 
   // Image Sinks
-  ImageSink cam0_sink(imu_comp_params);
-  ImageSink cam1_sink(imu_comp_params);
+  ImageSink cam0_sink(imu_comp_params["ImageSinkCam0"]);
+  ImageSink cam1_sink(imu_comp_params["ImageSinkCam1"]);
 
-  std::thread imu_thread_obj(imu_thread, imu_comp_params["mavlink_reader"], &sensor_interface);
+  // std::thread imu_thread_obj(imu_thread, imu_comp_params["mavlink_reader"], &arducam_system);
 
   // Draw a box of points on the image
   std::vector<cv::Point3d> debug_pts_cam0;
@@ -129,7 +131,7 @@ int main(int argc, char *argv[]) {
   std::vector<double> D_cam1 = stereo_calibration["D1"]["data"].as<std::vector<double>>();
 
   cv::Matx33d R_imu_cam0;
-  std::vector<double> imu_cam0_vec = stereo_calibration["R_imu_cam0"].as<std::vector<double>>();
+  std::vector<double> imu_cam0_vec = imu_comp_params["R_imu_cam0"].as<std::vector<double>>();
   cv::Vec3d angles_imu_cam0 = {imu_cam0_vec[0], imu_cam0_vec[1], imu_cam0_vec[2]};
   cv::Rodrigues(angles_imu_cam0, R_imu_cam0);
   cv::Matx33d R_imu_cam1 = R_imu_cam0 * R_cam0_cam1;
@@ -138,11 +140,11 @@ int main(int argc, char *argv[]) {
   uint64_t current_frame_time;
   while (is_running.load()) {
     imu_msgs.clear();
-    if (sensor_interface.GetSynchronizedData(d_frame_cam0, d_frame_cam1, imu_msgs, current_frame_time) != 0) {
+    if (arducam_system.GetSynchronizedData(d_frame_cam0, d_frame_cam1, imu_msgs, current_frame_time) != 0) {
       continue;
     }
-    if (sensor_interface.GenerateImuXform(imu_msgs, R_imu_cam0, R_imu_cam1, R_t0_t1_cam0, current_frame_time,
-                                          R_t0_t1_cam1) != 0) {
+    if (arducam_system.GenerateImuXform(imu_msgs, R_imu_cam0, R_imu_cam1, R_t0_t1_cam0, current_frame_time,
+                                        R_t0_t1_cam1) != 0) {
       continue;
     }
 
@@ -186,8 +188,8 @@ int main(int argc, char *argv[]) {
     // std::this_thread::sleep_for(std::chrono::microseconds(10000));
   }
 
-  if (imu_thread_obj.joinable()) {
-    imu_thread_obj.join();
-  }
+  // if (imu_thread_obj.joinable()) {
+  //   imu_thread_obj.join();
+  // }
   return 0;
 }

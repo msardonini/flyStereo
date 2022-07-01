@@ -14,6 +14,7 @@ struct vio_t {
   Eigen::Vector3d position;
   Eigen::Vector3d velocity;
   Eigen::Quaterniond quat;
+  cv::Affine3d pose_cam0_;
 };
 
 template <typename IpBackend>
@@ -41,15 +42,6 @@ class Vio {
   // calculation to lower the drift
   Eigen::Matrix<double, 3, 1> vio_calibration_;
 
-  bool first_iteration_save_ = true;
-
-  // Object to hold all of the binned features
-  unsigned int image_width_;
-  unsigned int image_height_;
-  unsigned int bins_width_;
-  unsigned int bins_height_;
-  unsigned int max_pts_in_bin_;
-
   // Stereo camera calibration parameters
   StereoCalibration stereo_cal_;
   Eigen::Matrix3d R_imu_cam0_eigen_;
@@ -61,12 +53,6 @@ class Vio {
   // The estimated pose after VIO is run in the cameara frame
   cv::Affine3d pose_cam0_;
   bool first_iteration_;
-
-  // Output file stream for debugging output
-  std::unique_ptr<std::ofstream> ofs_;
-  std::unique_ptr<std::ofstream> trajecotry_file_;
-  // std::unique_ptr<liblas::Writer> writer_;
-  // std::unique_ptr<liblas::Header> header_;
 
   // std::vector<std::map<unsigned int, opengv::point_t> > point_history_;
   std::vector<Eigen::Matrix4d, Eigen::aligned_allocator<Eigen::Matrix4d> > pose_history_;

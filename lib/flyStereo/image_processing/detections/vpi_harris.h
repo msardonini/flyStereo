@@ -1,3 +1,4 @@
+#pragma once
 
 #include "flyStereo/image_processing/detections/detections_base.h"
 #include "flyStereo/image_processing/streams/vpi_stream.h"
@@ -40,6 +41,8 @@ class VpiHarris : public DetectionsBase<VpiHarris, VpiStream, UMatVpiImage, UMat
     check_status(vpiInitHarrisCornerDetectorParams(&params_));
     params_.blockSize = 7;
     params_.gradientSize = 7;
+    params_.strengthThresh = 0;
+    params_.sensitivity = .01;
 
     check_status(vpiArrayCreate(array_capacity, VPI_ARRAY_TYPE_U32, VPI_BACKEND_CUDA, &out_scores_));
     initialized_ = true;

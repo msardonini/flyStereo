@@ -1,4 +1,5 @@
 #pragma once
+
 #include "flyStereo/types/umat.h"
 
 template <typename E, typename StreamType, UMatDerivative ImageType, UMatDerivative ArrayType>

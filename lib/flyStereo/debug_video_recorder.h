@@ -65,7 +65,7 @@ void export_frame(const cv::Mat& frame, bool write_to_screen = true, std::string
   }
   if (write_to_screen) {
     cv::imshow(name, frame);
-    cv::waitKey(0);
+    cv::waitKey(1);
   } else {
     if (!writer) {
       writer = std::make_unique<cv::VideoWriter>(name + ".avi", cv::VideoWriter::fourcc('M', 'J', 'P', 'G'), 2,

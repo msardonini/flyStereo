@@ -8,8 +8,8 @@
 #include <string>
 
 #include "flyStereo/image_processing/cv_backend.h"
+#include "flyStereo/sensor_io/arducam_system.h"
 #include "flyStereo/sensor_io/image_sink.h"
-#include "flyStereo/sensor_io/sensor_interface.h"
 #include "opencv2/core.hpp"
 #include "opencv2/core/cuda.hpp"
 #include "opencv2/highgui.hpp"
@@ -79,8 +79,9 @@ int main(int argc, char *argv[]) {
 
   YAML::Node params = YAML::LoadFile(config_file)["flyStereo"];
 
-  std::unique_ptr<SensorInterface<CvBackend>> sensor_interface = std::make_unique<SensorInterface<CvBackend>>();
-  sensor_interface->Init(params);
+  std::unique_ptr<ArducamSystem<CvBackend::image_type>> arducam_system =
+      std::make_unique<ArducamSystem<CvBackend::image_type>>(params);
+  arducam_system->Init();
   ImageSink cam0_sink(params);
   ImageSink cam1_sink(params);
 
@@ -91,7 +92,7 @@ int main(int argc, char *argv[]) {
   while (true) {
     std::vector<mavlink_imu_t> imu_data;
     uint64_t current_frame_time;
-    int ret = sensor_interface->GetSynchronizedData(d_frame_cam0, d_frame_cam1, imu_data, current_frame_time);
+    int ret = arducam_system->GetSynchronizedData(d_frame_cam0, d_frame_cam1, imu_data, current_frame_time);
     if (ret < 0) {
       std::cerr << "Error reading frame!" << std::endl;
       return -1;

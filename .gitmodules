@@ -4,3 +4,6 @@
 [submodule "external/thread-pool"]
 	path = external/thread-pool
 	url = git@github.com:bshoshany/thread-pool.git
+[submodule "external/depthai-core"]
+	path = external/depthai-core
+	url = git@github.com:luxonis/depthai-core.git

@@ -1,9 +1,14 @@
 
-#include "flyStereo/image_processing/opt_flow_cv_gpu.h"
-#include "flyStereo/image_processing/opt_flow_vpi_gpu.h"
+#ifdef WITH_VPI
+#include "flyStereo/image_processing/vpi_backend.h"
+#endif
+
+#include "flyStereo/image_processing/cv_backend.h"
+#include "flyStereo/image_processing/cv_cpu_backend.h"
 #include "flyStereo/tests/generators.h"
 #include "flyStereo/types/umat.h"
 #include "gtest/gtest.h"
+#include "opencv2/highgui.hpp"
 
 constexpr int num_pts = 500;
 const cv::Size imsize(1280, 720);
@@ -12,39 +17,32 @@ constexpr int max_pyramid_level = 3;
 constexpr int max_iters = 30;
 constexpr bool use_initial_flow = false;
 
-template <typename T>
+template <typename IpBackend>
 class OptFlowTestFixture : public ::testing::Test {
  public:
   OptFlowTestFixture() {
     std::tie(prev_frame, curr_frame, prev_pts, curr_pts_gt) = generate_image_points(imsize, num_pts);
-
-    // Set the current points to the previous points, so the optical flow alg can update them
-    curr_pts = UMat<cv::Vec2f>(prev_pts);
   }
 
-  UMat<uint8_t> prev_frame;
-  UMat<uint8_t> curr_frame;
-  UMat<cv::Vec2f> prev_pts;
-  UMat<cv::Vec2f> curr_pts;
-  UMat<cv::Vec2f> curr_pts_gt;
+  IpBackend::image_type prev_frame;
+  IpBackend::image_type curr_frame;
+  IpBackend::array_type prev_pts;
+  IpBackend::array_type curr_pts;
+  IpBackend::array_type curr_pts_gt;
 };
 
+using OptFlowTypes = ::testing::Types<CvBackend,
 #ifdef WITH_VPI
-using OptFlowTypes = ::testing::Types<PyrLkVpiGpu, PyrLkCvGpu>;
-#else
-using OptFlowTypes = ::testing::Types<PyrLkCvGpu>;
+                                      VpiBackend
 #endif
+                                      >;
+
 TYPED_TEST_SUITE(OptFlowTestFixture, OptFlowTypes);
 
-#include "opencv2/highgui.hpp"
-
 TYPED_TEST(OptFlowTestFixture, TestOptFlow) {
-  std::cout << "adress_prev: " << (void*)this->prev_frame.d_frame().data << std::endl;
-  std::cout << "address_curr " << (void*)this->curr_frame.d_frame().data << std::endl;
   // Initialize the optical flow object
-  TypeParam optflow(window_size, max_pyramid_level, max_iters, use_initial_flow);
-
-  UMat<uint8_t> status(cv::Size(num_pts, 1));
+  typename TypeParam::flow_type optflow(window_size, max_pyramid_level, max_iters, use_initial_flow);
+  typename TypeParam::status_type status(cv::Size(num_pts, 1));
 
   optflow.calc(this->prev_frame, this->curr_frame, this->prev_pts, this->curr_pts, status);
 
@@ -55,7 +53,7 @@ TYPED_TEST(OptFlowTestFixture, TestOptFlow) {
 
   auto fail_count = 0;
   for (int i = 0; i < num_pts; i++) {
-    if (status.frame()(i) == TypeParam::success_value) {
+    if (status.frame()(i) == TypeParam::flow_type::success_value) {
       EXPECT_NEAR(this->curr_pts.frame()(i)[0], this->curr_pts_gt.frame()(i)[0], 1e-1);
       EXPECT_NEAR(this->curr_pts.frame()(i)[1], this->curr_pts_gt.frame()(i)[1], 1e-1);
     } else {

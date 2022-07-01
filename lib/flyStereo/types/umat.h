@@ -232,7 +232,7 @@ class UMat {
    *
    * @param num_rows The number of rows to decrease the UMat to
    */
-  void decrease_num_rows(int num_rows) {
+  virtual void decrease_num_rows(int num_rows) {
     // Check to make sure the requested num rows is less than the current
     if (num_rows > frame_.rows) {
       throw std::runtime_error("Requested num rows is greater than the current num rows");
@@ -250,7 +250,7 @@ class UMat {
    *
    * @param num_cols The number of rows to decrease the UMat to
    */
-  void decrease_num_cols(int num_cols) {
+  virtual void decrease_num_cols(int num_cols) {
     // Check to make sure the requested num rows is less than the current
     if (frame_.rows != 1) {
       throw std::runtime_error("Requested num rows is not 1");

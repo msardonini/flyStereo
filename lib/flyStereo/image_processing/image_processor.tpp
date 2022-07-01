@@ -3,6 +3,7 @@
 
 #include "Eigen/Dense"
 #include "flyStereo/image_processing/image_processor.h"
+#include "flyStereo/sensor_io/arducam_system.h"
 #include "flyStereo/utility.h"
 #include "opencv2/calib3d.hpp"
 #include "opencv2/core/cuda.hpp"
@@ -28,7 +29,7 @@ double print_percent_status(typename IpBackend::image_type &status) {
 }
 
 // Compile-time constants
-struct ImageProcessorConstants {
+struct IpConstants {
   static constexpr bool write_to_debug = false;
 
   // calcOptFlowPryLK
@@ -71,27 +72,23 @@ ImageProcessor<IpBackend>::ImageProcessor(float rate_limit_fps, StereoCalibratio
   // cv::Matx33f stereo_cal_.R_cam0_cam1 = stereo_cal_.R_cam0_cam1;
   R_imu_cam1_ = R_imu_cam0_ * cv::Matx33f(stereo_cal_.R_cam0_cam1);
 
-  const auto max_pts = ImageProcessorConstants::bins_width * ImageProcessorConstants::bins_height *
-                       ImageProcessorConstants::max_pts_in_bin;
+  const auto max_pts = IpConstants::bins_width * IpConstants::bins_height * IpConstants::max_pts_in_bin;
   ids_pts_tracked_.reserve(max_pts);
   ids_pts_detected_.reserve(max_pts);
 }
 
 template <typename IpBackend>
 void ImageProcessor<IpBackend>::Init() {
-  // detector_ptr_ = cv::cuda::createGoodFeaturesToTrackDetector(CV_8U, ImageProcessorConstants::max_corners,
-  //                                                             ImageProcessorConstants::quality_level,
-  //                                                             ImageProcessorConstants::min_dist);
+  // detector_ptr_ = cv::cuda::createGoodFeaturesToTrackDetector(CV_8U, IpConstants::max_corners,
+  //                                                             IpConstants::quality_level,
+  //                                                             IpConstants::min_dist);
 
-  d_opt_flow_cam0_ =
-      typename IpBackend::flow_type(ImageProcessorConstants::window_size, ImageProcessorConstants::max_pyramid_level,
-                                    ImageProcessorConstants::max_iters, ImageProcessorConstants::use_initial_flow);
-  d_opt_flow_stereo_t0_ =
-      typename IpBackend::flow_type(ImageProcessorConstants::window_size, ImageProcessorConstants::max_pyramid_level,
-                                    ImageProcessorConstants::max_iters, ImageProcessorConstants::use_initial_flow);
-  d_opt_flow_stereo_t1_ =
-      typename IpBackend::flow_type(ImageProcessorConstants::window_size, ImageProcessorConstants::max_pyramid_level,
-                                    ImageProcessorConstants::max_iters, ImageProcessorConstants::use_initial_flow);
+  d_opt_flow_cam0_ = typename IpBackend::flow_type(IpConstants::window_size, IpConstants::max_pyramid_level,
+                                                   IpConstants::max_iters, IpConstants::use_initial_flow);
+  d_opt_flow_stereo_t0_ = typename IpBackend::flow_type(IpConstants::window_size, IpConstants::max_pyramid_level,
+                                                        IpConstants::max_iters, IpConstants::use_initial_flow);
+  d_opt_flow_stereo_t1_ = typename IpBackend::flow_type(IpConstants::window_size, IpConstants::max_pyramid_level,
+                                                        IpConstants::max_iters, IpConstants::use_initial_flow);
   fps_limit_inv_ =
       std::chrono::round<std::chrono::system_clock::duration>(std::chrono::duration<double>(1. / rate_limit_fps_));
 }
@@ -115,16 +112,15 @@ void ImageProcessor<IpBackend>::UpdatePointsViaImu(const IpBackend::array_type &
 
   cv::Mat updated_pts_mat;
   cv::convertPointsFromHomogeneous(interface_pts, updated_pts_mat);
-  updated_pts = std::move(updated_pts_mat.t());
+  updated_pts = updated_pts_mat.t();
 }
 
 template <typename IpBackend>
 TrackedImagePoints<IpBackend> ImageProcessor<IpBackend>::OuputTrackedPoints(const std::vector<mavlink_imu_t> &imu_msgs,
                                                                             const cv::Matx33f &rotation_t0_t1_cam0) {
-  const cv::Size pts_size = pts_t_c0_t0_.frame().size();
-  if (pts_size != pts_t_c0_t1_.frame().size() || pts_size != pts_t_c1_t0_.frame().size() ||
-      pts_size != pts_t_c1_t1_.frame().size() || pts_size.height != 1 ||
-      pts_size.width != static_cast<int>(ids_pts_tracked_.size())) {
+  const cv::Size pts_size = pts_t_c0_t0_.size();
+  if (pts_size != pts_t_c0_t1_.size() || pts_size != pts_t_c1_t0_.size() || pts_size != pts_t_c1_t1_.size() ||
+      pts_size.height != 1 || pts_size.width != static_cast<int>(ids_pts_tracked_.size())) {
     throw std::runtime_error("Error! Vectors do not match in OutputTrackedPoints");
   }
 
@@ -142,10 +138,10 @@ TrackedImagePoints<IpBackend> ImageProcessor<IpBackend>::OuputTrackedPoints(cons
 template <typename IpBackend>
 void ImageProcessor<IpBackend>::detect(const IpBackend::image_type &mask) {
   // Detect new features to match for the next iteration
-  detector_.detect(frame_cam0_t1_, mask, pts_d_c0_t1_, &detector_stream_);
+  detector_.detect(frame_cam0_t1_, mask, pts_d_c0_t1_);
 
   // Match the detected features in the second camera
-  typename IpBackend::status_type status(pts_d_c0_t1_.frame().size());
+  typename IpBackend::status_type status(pts_d_c0_t1_.size());
   StereoMatch(d_opt_flow_stereo_t1_, frame_cam0_t1_, frame_cam1_t1_, pts_d_c0_t1_, pts_d_c1_t1_, status,
               detector_stream_);
   detector_stream_.sync();
@@ -182,8 +178,12 @@ int ImageProcessor<IpBackend>::process_image(IpBackend::image_type &&frame_cam0_
 
   cv::Matx33f rotation_t0_t1_cam0;
   cv::Matx33f rotation_t0_t1_cam1;
-  int retval = SensorInterface<IpBackend>::GenerateImuXform(imu_msgs, R_imu_cam0_, R_imu_cam1_, rotation_t0_t1_cam0,
-                                                            current_frame_time, rotation_t0_t1_cam1);
+  int retval = ArducamSystem<typename IpBackend::image_type>::GenerateImuXform(
+      imu_msgs, R_imu_cam0_, R_imu_cam1_, rotation_t0_t1_cam0, current_frame_time, rotation_t0_t1_cam1);
+
+  if (pts_t_c0_t0_.size() != pts_t_c1_t0_.size()) {
+    throw std::runtime_error("points do not match across cameras! 0");
+  }
 
   // Append the kepypoints from the previous iteration to the tracked points of the current
   // iteration. Points that pass through all the outlier checks will remain as tracked points
@@ -191,18 +191,23 @@ int ImageProcessor<IpBackend>::process_image(IpBackend::image_type &&frame_cam0_
   pts_t_c1_t0_ = AppendUMatColwise(pts_t_c1_t0_, pts_d_c1_t1_);
   ids_pts_tracked_.insert(std::end(ids_pts_tracked_), std::begin(ids_pts_detected_), std::end(ids_pts_detected_));
 
+  if (pts_t_c0_t0_.size() != pts_t_c1_t0_.size()) {
+    throw std::runtime_error("points do not match across cameras!");
+  }
+
   // Remove the points the exceed the binning threshold
-  if (pts_t_c0_t0_.frame().cols > 2) {
+  if (pts_t_c0_t0_.frame().cols > 1) {
     // Vector to indicate whether a point should be deleted or kept after binning
     typename IpBackend::status_type bin_status;
     BinAndMarkPoints(pts_t_c0_t0_, ids_pts_tracked_, frame_cam0_t1_.size(),
-                     cv::Size(ImageProcessorConstants::bins_width, ImageProcessorConstants::bins_height),
-                     ImageProcessorConstants::max_pts_in_bin, bin_status, IpBackend::flow_type::success_value);
+                     cv::Size(IpConstants::bins_width, IpConstants::bins_height), IpConstants::max_pts_in_bin,
+                     bin_status, IpBackend::flow_type::success_value);
 
-    auto tmp_pts = pts_t_c0_t0_.frame().cols;
+    if (pts_t_c0_t0_.size() != pts_t_c1_t0_.size()) {
+      throw std::runtime_error("points do not match across cameras!  1");
+    }
+
     RemovePoints(bin_status, IpBackend::flow_type::success_value, pts_t_c0_t0_, pts_t_c1_t0_, ids_pts_tracked_);
-    std::cout << "Num pts before binning " << tmp_pts << " num pts after binning " << pts_t_c0_t0_.frame().cols
-              << std::endl;
   }
 
   // Make a prediction of where the points will be in the current image given the IMU data
@@ -217,7 +222,7 @@ int ImageProcessor<IpBackend>::process_image(IpBackend::image_type &&frame_cam0_
 
   // Apply the optical flow from the previous frame to the current frame
   if (!pts_t_c0_t0_.frame().empty()) {
-    typename IpBackend::status_type status(pts_t_c0_t0_.frame().size());
+    typename IpBackend::status_type status(pts_t_c0_t0_.size());
 
     // auto copy_1 = pts_t_c0_t0_.clone();
     d_opt_flow_cam0_.calc(frame_cam0_t0_, frame_cam0_t1_, pts_t_c0_t0_, pts_t_c0_t1_, status, &tracker_stream_);
@@ -227,11 +232,12 @@ int ImageProcessor<IpBackend>::process_image(IpBackend::image_type &&frame_cam0_
     {
       MarkPointsOutOfFrame(status, pts_t_c0_t1_, frame_cam0_t1_.size(), IpBackend::flow_type::success_value);
 
-      RemovePoints(status, IpBackend::flow_type::success_value, pts_t_c0_t0_, pts_t_c0_t1_, pts_t_c1_t0_,
+      RemovePoints(status, IpBackend::flow_type::success_value, pts_t_c0_t0_, pts_t_c0_t1_, pts_t_c1_t0_, pts_t_c1_t1_,
                    ids_pts_tracked_);
     }
 
     // Match the points from camera 0 to camera 1
+    status = typename IpBackend::status_type(pts_t_c0_t1_.size());
     int ret_val = StereoMatch(d_opt_flow_stereo_t0_, frame_cam0_t1_, frame_cam1_t1_, pts_t_c0_t1_, pts_t_c1_t1_, status,
                               tracker_stream_);
 
@@ -241,7 +247,7 @@ int ImageProcessor<IpBackend>::process_image(IpBackend::image_type &&frame_cam0_
       // std::cout << "t pts after " << pts_t_c0_t1_.frame().cols << std::endl;
       RemovePoints(status, IpBackend::flow_type::success_value, pts_t_c0_t0_, pts_t_c0_t1_, pts_t_c1_t0_, pts_t_c1_t1_,
                    ids_pts_tracked_);
-    } else {
+    } else if (ret_val < 0) {
       throw std::runtime_error("Error in stereo matching");
     }
 
@@ -258,7 +264,6 @@ int ImageProcessor<IpBackend>::process_image(IpBackend::image_type &&frame_cam0_
   auto mask = GetInputMaskFromPoints(pts_t_c0_t1_, frame_cam0_t1_.size());
 
   detect(mask);
-  std::cout << "points detected " << pts_d_c0_t1_.size() << std::endl;
 
   if (pts_t_c0_t1_.frame().cols > 1 && pts_t_c1_t1_.frame().cols > 1) {
     tracked_points = OuputTrackedPoints(imu_msgs, rotation_t0_t1_cam0);
@@ -269,11 +274,18 @@ int ImageProcessor<IpBackend>::process_image(IpBackend::image_type &&frame_cam0_
     plot_points_overlay_2x1(frame_cam0_t1_, {pts_d_c0_t1_}, frame_cam1_t1_, {pts_d_c1_t1_});
     plot_points_overlay_2x2(frame_cam0_t0_, {pts_t_c0_t0_}, frame_cam1_t0_, {pts_t_c1_t0_}, frame_cam0_t1_,
                             {pts_t_c0_t1_}, frame_cam1_t1_, {pts_t_c1_t1_});
+
+    // cv::imwrite("left.png", frame_cam0_t1_.frame());
+    // cv::imwrite("right.png", frame_cam1_t1_.frame());
   }
 
   // Set the current t1 values to t0 for the next iteration
   std::swap(frame_cam0_t1_, frame_cam0_t0_);
   std::swap(frame_cam1_t1_, frame_cam1_t0_);
+
+  if (pts_t_c0_t1_.size() != pts_t_c1_t1_.size()) {
+    throw std::runtime_error("points do not match across cameras! 3");
+  }
 
   pts_t_c0_t0_ = std::move(pts_t_c0_t1_);
   pts_t_c0_t1_ = typename IpBackend::array_type(cv::Size(0, 1));
@@ -298,7 +310,7 @@ int ImageProcessor<IpBackend>::StereoMatch(IpBackend::flow_type &opt, const IpBa
                                            const IpBackend::array_type &pts_cam0, IpBackend::array_type &pts_cam1,
                                            IpBackend::status_type &status, IpBackend::stream_type &stream) {
   if (pts_cam0.frame().empty()) {
-    return -1;
+    return 1;
   }
 
   // Using the stereo calibration, project points from one camera onto the other
@@ -323,8 +335,7 @@ int ImageProcessor<IpBackend>::StereoMatch(IpBackend::flow_type &opt, const IpBa
 
   stream.sync();
 
-  // Check if we have zero tracked points, this is a corner case and these variables need
-  // to be reset to prevent errors in sizing, calc() does not return all zero length vectors
+  // Check the make sure our output vector was populated as expected
   if (pts_cam1.frame().empty()) {
     return -1;
   }
@@ -361,7 +372,7 @@ int ImageProcessor<IpBackend>::StereoMatch(IpBackend::flow_type &opt, const IpBa
     // Calculates the distance from the point to the epipolar line (in pixels)
     double error = fabs(pt1.dot(epilines[i]));
 
-    if (error > ImageProcessorConstants::stereo_threshold) {
+    if (error > IpConstants::stereo_threshold) {
       status_f(0, i) = !IpBackend::flow_type::success_value;
     }
   }

@@ -186,6 +186,11 @@ class UMatVpiArray : public UMat<T> {
     }
   }
 
+  virtual void decrease_num_cols(int num_cols) override {
+    UMat<T>::decrease_num_cols(num_cols);
+    *cols_ = num_cols;
+  }
+
   /**
    * @brief Synchronize the opencv wrapper objects. This is required after a VPI call has changed the underlying size of
    * the array
@@ -252,7 +257,8 @@ class UMatVpiArray : public UMat<T> {
     if (vpi_array_) {
       check_status(vpiArraySetWrapper(vpi_array_, &array_data));
     } else {
-      check_status(vpiArrayCreateWrapper(&array_data, VPI_BACKEND_CUDA | VPI_EXCLUSIVE_STREAM_ACCESS, &vpi_array_));
+      check_status(vpiArrayCreateWrapper(&array_data, VPI_BACKEND_CUDA, &vpi_array_));
+      // check_status(vpiArrayCreateWrapper(&array_data, VPI_BACKEND_CUDA | VPI_EXCLUSIVE_STREAM_ACCESS, &vpi_array_));
       lock();
     }
   }

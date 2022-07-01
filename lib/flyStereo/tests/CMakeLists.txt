@@ -1,7 +1,7 @@
 
 # Build Tests
 add_executable(fly_stereo_tests
-  # opt_flow_tests.cc
+  opt_flow_tests.cc
   image_processor_tests.cc
 )
 
@@ -27,6 +27,18 @@ endif()
 
 target_link_libraries(fly_stereo_umat_tests
   fly_stereo_lib
+  gtest
+  gtest_main
+)
+
+ # IO tests
+ add_executable(fly_stereo_io_tests
+ oakd_tests.cc
+ )
+
+target_link_libraries(fly_stereo_io_tests
+  fly_stereo_lib
+  depthai::opencv
   gtest
   gtest_main
 )

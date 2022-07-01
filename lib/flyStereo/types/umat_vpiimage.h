@@ -200,8 +200,9 @@ class UMatVpiImage : public UMat<uint8_t> {
       }
     }
 
-    check_status(
-        vpiImageCreateWrapper(&img_data, nullptr, VPI_BACKEND_CUDA | VPI_EXCLUSIVE_STREAM_ACCESS, &vpi_frame_));
+    // check_status(vpiImageCreateWrapper(&img_data, nullptr, VPI_BACKEND_CUDA | VPI_EXCLUSIVE_STREAM_ACCESS,
+    // &vpi_frame_));
+    check_status(vpiImageCreateWrapper(&img_data, nullptr, VPI_BACKEND_CUDA, &vpi_frame_));
     lock();
   }
 

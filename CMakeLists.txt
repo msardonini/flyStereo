@@ -1,5 +1,10 @@
 cmake_minimum_required(VERSION 3.10.2)
 
+
+# Need to include depth-ai before 'project' because it uses Hunter to manage it's packages
+add_subdirectory(external/depthai-core EXCLUDE_FROM_ALL)
+
+
 project(flyStereo VERSION 0.1.0 LANGUAGES CXX)
 
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
@@ -27,12 +32,7 @@ if (COVERAGE)
 	SET(CMAKE_C_FLAGS "-g -O0 -fprofile-arcs -ftest-coverage ${CMAKE_C_FLAGS}")
 endif()
 
-
-
 add_subdirectory(external)
-
-
-
 
 add_subdirectory(lib)
 

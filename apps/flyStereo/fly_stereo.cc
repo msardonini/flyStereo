@@ -11,13 +11,11 @@
 #include <iostream>
 #include <thread>
 
-#include "flyStereo/image_processing/image_processor.h"
 #include "flyStereo/image_processing/cv_backend.h"
+#include "flyStereo/image_processing/image_processor.h"
 #include "flyStereo/pipeline.h"
 #include "flyStereo/sensor_io/mavlink_reader.h"
 #include "flyStereo/vio.h"
-#include "spdlog/sinks/rotating_file_sink.h"
-#include "spdlog/sinks/stdout_color_sinks.h"
 #include "spdlog/spdlog.h"
 #include "yaml-cpp/yaml.h"
 
@@ -31,49 +29,6 @@ void SignalHandler(int signal_num) {
   } else {
     std::cerr << "Error! No pipeline to shutdown" << std::endl;
   }
-}
-
-void UpdateLogDirectory(YAML::Node &node) {
-  std::string log_location = node["record_mode"]["log_root_dir"].as<std::string>();
-  // First make sure our logging directory exists
-  int run_number = 1;
-  std::stringstream run_str;
-  run_str << std::internal << std::setfill('0') << std::setw(3) << run_number;
-
-  std::string log_dir(log_location + std::string("/run") + run_str.str());
-
-  // Find the next run number folder that isn't in use
-  struct stat st = {0};
-  while (!stat(log_dir.c_str(), &st)) {
-    run_str.str(std::string());
-    run_str << std::internal << std::setfill('0') << std::setw(3) << ++run_number;
-    log_dir = (log_location + std::string("/run") + run_str.str());
-  }
-  // Make a new folder to hold the logged data
-  mkdir(log_dir.c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
-
-  // Save the run folder to our YAML params
-  node["record_mode"]["log_dir"] = log_dir;
-}
-
-void InitializeSpdLog(const std::string &log_dir) {
-  int max_bytes = 1048576 * 20;  // Max 20 MB
-  int max_files = 20;
-
-  std::vector<spdlog::sink_ptr> sinks;
-  // Only use the console sink if we are in debug mode
-
-  sinks.push_back(std::make_shared<spdlog::sinks::stdout_color_sink_mt>());
-  sinks.back()->set_level(spdlog::level::info);
-  sinks.push_back(
-      std::make_shared<spdlog::sinks::rotating_file_sink_mt>(log_dir + "/console_log.txt", max_bytes, max_files));
-  sinks.back()->set_level(spdlog::level::trace);
-  auto flyMS_log = std::make_shared<spdlog::logger>("flyStereo_log", std::begin(sinks), std::end(sinks));
-
-  // Register the logger to the global level
-  flyMS_log->set_level(spdlog::level::trace);
-  spdlog::register_logger(flyMS_log);
-  spdlog::set_default_logger(flyMS_log);
 }
 
 // Application Entry Point
@@ -115,13 +70,8 @@ int main(int argc, char *argv[]) {
   // Parse the yaml file with our configuration parameters
   YAML::Node fly_stereo_params = YAML::LoadFile(config_file)["flyStereo"];
 
-  // If we are running in logging mode, change the log directory in the config file
-  if (fly_stereo_params["record_mode"] && fly_stereo_params["record_mode"]["enable"].as<bool>()) {
-    UpdateLogDirectory(fly_stereo_params);
-    InitializeSpdLog(fly_stereo_params["record_mode"]["log_dir"].as<std::string>());
-  }
-
   // Initialize the pipeline
+  // Pipeline<CvBackend> pipeline(fly_stereo_params, fly_stereo_params["stereo_calibration"]);
   Pipeline<CvBackend> pipeline(fly_stereo_params, fly_stereo_params["stereo_calibration"]);
   pipeline.Init();
   pipeline_global = &pipeline;

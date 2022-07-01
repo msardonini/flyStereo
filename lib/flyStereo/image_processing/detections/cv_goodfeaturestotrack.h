@@ -1,3 +1,4 @@
+#pragma once
 
 #include "flyStereo/image_processing/detections/detections_base.h"
 #include "flyStereo/image_processing/streams/cv_stream.h"
@@ -10,7 +11,8 @@ class CvGoodFeaturesToTrack : public DetectionsBase<CvGoodFeaturesToTrack, CvStr
  public:
   CvGoodFeaturesToTrack() = default;
 
-  void impl(const UMat<uint8_t>& image, const UMat<uint8_t>& mask, UMat<cv::Vec2f>& detections, CvStream* stream) {
+  void impl(const UMat<uint8_t>& image, const UMat<uint8_t>& mask, UMat<cv::Vec2f>& detections,
+            CvStream* stream = nullptr) {
     if (!initialized_) {
       init(image.size());
     }

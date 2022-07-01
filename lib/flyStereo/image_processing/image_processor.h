@@ -7,7 +7,6 @@
 #include "flyStereo/image_processing/point_ops.h"
 #include "flyStereo/interface.h"
 #include "flyStereo/sensor_io/mavlink/fly_stereo/mavlink.h"
-#include "flyStereo/sensor_io/sensor_interface.h"
 #include "flyStereo/stereo_calibration.h"
 #include "flyStereo/timed_logger.hpp"
 #include "yaml-cpp/yaml.h"
