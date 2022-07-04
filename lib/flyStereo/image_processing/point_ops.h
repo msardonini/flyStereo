@@ -54,7 +54,7 @@ inline void RemovePointsImpl(const StatusType &status, const uint8_t success_val
 }
 
 template <UMatDerivative StatusType, typename... Args>
-inline void RemovePoints(const StatusType &status, const uint8_t success_value, Args &...args) {
+inline void RemovePoints(const StatusType &status, const uint8_t success_value, Args &... args) {
   (RemovePointsImpl(status, success_value, args), ...);
 }
 

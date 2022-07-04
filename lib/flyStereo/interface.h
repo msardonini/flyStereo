@@ -90,8 +90,9 @@ struct TrackedImagePoints {
    * @param R_t0_t1_cam0 The rotation matrix between the timestamps as measured by the IMU
    */
   TrackedImagePoints(uint64_t timestamp_us, const std::vector<unsigned int> &ids, const IpBackend::array_type &cam0_t0,
-                     const IpBackend::array_type &cam0_t1, const IpBackend::array_type &cam1_t0, const IpBackend::array_type &cam1_t1,
-                     const std::vector<mavlink_imu_t> &imu_pts, const Eigen::Matrix3f &R_t0_t1_cam0)
+                     const IpBackend::array_type &cam0_t1, const IpBackend::array_type &cam1_t0,
+                     const IpBackend::array_type &cam1_t1, const std::vector<mavlink_imu_t> &imu_pts,
+                     const Eigen::Matrix3f &R_t0_t1_cam0)
       : timestamp_us(timestamp_us),
         ids(ids),
         cam0_t0(cam0_t0),
@@ -122,10 +123,10 @@ struct TrackedImagePoints {
 
   uint64_t timestamp_us;               //< The timestamp of the image in microseconds
   std::vector<unsigned int> ids;       //< The IDs of the tracked features
-  IpBackend::array_type cam0_t0;             //< The points from cam0 in the previous frame
-  IpBackend::array_type cam0_t1;             //< The points from cam0 in the current frame
-  IpBackend::array_type cam1_t0;             //< The points from cam1 in the previous frame
-  IpBackend::array_type cam1_t1;             //< The points from cam1 in the current frame
+  IpBackend::array_type cam0_t0;       //< The points from cam0 in the previous frame
+  IpBackend::array_type cam0_t1;       //< The points from cam0 in the current frame
+  IpBackend::array_type cam1_t0;       //< The points from cam1 in the previous frame
+  IpBackend::array_type cam1_t1;       //< The points from cam1 in the current frame
   std::vector<mavlink_imu_t> imu_pts;  //< The imu measurements associated with the tracked features
   Eigen::Matrix3f R_t0_t1_cam0;        //< The rotation matrix between the timestamps as measured by the IMU
 };

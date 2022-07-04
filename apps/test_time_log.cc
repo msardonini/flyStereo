@@ -11,6 +11,5 @@ int main() {
   logger.timed_log(1, "hello");
   logger.timed_log(3, "hello");
 
-
   return 0;
 }

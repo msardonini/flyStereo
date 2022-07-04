@@ -26,7 +26,6 @@ struct CudaMemAllocator {
     return ptr;
   }
 
-
   static void free(void *ptr) {
     auto status = cudaFree(ptr);
     if (status != cudaSuccess) {
