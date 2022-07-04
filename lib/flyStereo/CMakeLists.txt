@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.10.2)
 
-find_package(SQLite3)
 find_package(OpenCV REQUIRED)
+find_package(SQLite3)
 
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 
@@ -20,7 +20,6 @@ if (${FLYSTEREO_WITH_VIZ})
 endif()
 
 
-#add_definitions(-march=native)list
 add_library(fly_stereo_lib
   kalman_filter.cc
   # sql_logger.cc
