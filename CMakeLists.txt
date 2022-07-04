@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.10.2)
 
 
+
 # Need to include depth-ai before 'project' because it uses Hunter to manage it's packages
 add_subdirectory(external/depthai-core EXCLUDE_FROM_ALL)
 

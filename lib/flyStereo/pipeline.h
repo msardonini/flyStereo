@@ -4,11 +4,7 @@
 #include <filesystem>
 #include <thread>
 
-#include "flyStereo/image_processing/cv_backend.h"
 #include "flyStereo/image_processing/image_processor.h"
-#include "flyStereo/image_processing/vpi_backend.h"
-// #include "flyStereo/sensor_io/arducam_system.h"
-
 #include "flyStereo/sensor_io/mavlink_reader.h"
 #include "flyStereo/sensor_io/oakd.h"
 #include "flyStereo/sensor_io/sql_sink.h"

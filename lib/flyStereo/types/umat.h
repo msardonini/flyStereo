@@ -5,7 +5,6 @@
 #include <iostream>
 
 #include "cuda_runtime.h"
-#include "flyStereo/types/vpi_check.h"
 #include "opencv2/core/core.hpp"
 #include "opencv2/core/cuda.hpp"
 
@@ -20,11 +19,20 @@ concept MemoryHandler = requires(T t) {
 struct CudaMemAllocator {
   static void *malloc(std::size_t size) {
     void *ptr;
-    check_status(cudaMallocManaged(&ptr, size));
+    auto status = cudaMallocManaged(&ptr, size);
+    if (status != cudaSuccess) {
+      throw std::runtime_error(cudaGetErrorString(status));
+    }
     return ptr;
   }
 
-  static void free(void *ptr) { check_status(cudaFree(ptr)); }
+
+  static void free(void *ptr) {
+    auto status = cudaFree(ptr);
+    if (status != cudaSuccess) {
+      throw std::runtime_error(cudaGetErrorString(status));
+    }
+  }
 };
 
 struct MemAllocator {
@@ -280,9 +288,12 @@ class UMat {
    */
   void init(const cv::Size2i frame_size) {
     // Unified memory
-    unified_ptr_ = MemoryHandlerT::malloc(frame_size.area() * sizeof(T));
-    frame_ = cv::Mat_<T>(frame_size.height, frame_size.width, static_cast<T *>(unified_ptr_));
-    d_frame_ = cv::cuda::GpuMat(frame_size.height, frame_size.width, get_type(), static_cast<T *>(unified_ptr_));
+    auto num_pxls = frame_size.area();
+    if (num_pxls != 0) {
+      unified_ptr_ = MemoryHandlerT::malloc(num_pxls * sizeof(T));
+      frame_ = cv::Mat_<T>(frame_size.height, frame_size.width, static_cast<T *>(unified_ptr_));
+      d_frame_ = cv::cuda::GpuMat(frame_size.height, frame_size.width, get_type(), static_cast<T *>(unified_ptr_));
+    }
   }
 
   /**

@@ -11,7 +11,7 @@ flyStereo:
 
   record_mode:
     enable: true  # Enables logging
-    log_root_dir: /root/flyStereo/build_docker/replay
+    log_root_dir: /tmp
     outputs:
       SQL_database: false
       trajectory: true

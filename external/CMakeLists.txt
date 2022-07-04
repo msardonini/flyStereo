@@ -1,4 +1,8 @@
 
+
+add_subdirectory(eigen)
+add_subdirectory(yaml-cpp)
+
 # Thread pool does not have support for cmake, add it here
 add_library(thread_pool INTERFACE)
 target_include_directories(thread_pool

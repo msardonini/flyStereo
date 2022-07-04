@@ -1,27 +1,18 @@
 cmake_minimum_required(VERSION 3.10.2)
 
+find_package(SQLite3)
 find_package(OpenCV REQUIRED)
 
-
-find_package(yaml-cpp REQUIRED)
-find_package(Eigen3 3.3.7 REQUIRED NO_MODULE)
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 
 if (${WITH_VPI})
   find_package(vpi REQUIRED)
 endif()
 
-find_package(PkgConfig)
-pkg_check_modules(GST gstreamer-1.0>=1.4
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(GST REQUIRED gstreamer-1.0>=1.4
   gstreamer-video-1.0>=1.4
   gstreamer-app-1.0>=1.4)
-
-if(NOT GST_FOUND)
-  message(FATAL_ERROR "Did not find gstreamer libraries, try: \n
-  ' $ sudo apt-get install libgstreamer-plugins-base1.0-dev' ")
-endif()
-
-find_package(benchmark REQUIRED)
 
 if (${FLYSTEREO_WITH_VIZ})
   # TODO make this it's own module
@@ -29,7 +20,7 @@ if (${FLYSTEREO_WITH_VIZ})
 endif()
 
 
-#add_definitions(-march=native)
+#add_definitions(-march=native)list
 add_library(fly_stereo_lib
   kalman_filter.cc
   # sql_logger.cc
@@ -45,7 +36,6 @@ add_library(fly_stereo_lib
 target_include_directories(fly_stereo_lib
   PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/include
-    ${SPQR_INCLUDES}
     ${GST_INCLUDE_DIRS}
     ${CUDA_INCLUDE_DIRS}
     ${flyStereoRootDir}
@@ -57,7 +47,6 @@ target_link_libraries(fly_stereo_lib
     pthread
   PUBLIC
     Eigen3::Eigen
-    ${SPQR_LIBRARIES}
     ${OpenCV_LIBS}
     ${libLAS_LIBRARIES}
     yaml-cpp
@@ -101,5 +90,6 @@ SET(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -pg")
 
 set_property(TARGET fly_stereo_lib PROPERTY CXX_STANDARD 20)
 
-
-add_subdirectory(tests)
+if (ENABLE_TESTING)
+  add_subdirectory(tests)
+endif()

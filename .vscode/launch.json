@@ -130,7 +130,7 @@
       "type": "cppdbg",
       "request": "launch",
       "program": "${workspaceFolder}/build/bin/fly_stereo",
-      "args": ["-c", "${workspaceFolder}/config/flight/oakd.yaml"],
+      "args": ["-c", "${workspaceFolder}/config/flight/oakd_record.yaml"],
       "stopAtEntry": false,
       "cwd": "${fileDirname}",
       "environment": [],

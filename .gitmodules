@@ -7,3 +7,9 @@
 [submodule "external/depthai-core"]
 	path = external/depthai-core
 	url = git@github.com:luxonis/depthai-core.git
+[submodule "external/yaml-cpp"]
+	path = external/yaml-cpp
+	url = git@github.com:jbeder/yaml-cpp.git
+[submodule "external/eigen"]
+	path = external/eigen
+	url = git@gitlab.com:libeigen/eigen.git

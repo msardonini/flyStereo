@@ -1,4 +1,7 @@
 
+find_package(benchmark REQUIRED)
+
+
 # Build Tests
 add_executable(fly_stereo_tests
   opt_flow_tests.cc
