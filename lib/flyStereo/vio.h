@@ -65,4 +65,4 @@ class Vio {
   std::unordered_map<unsigned int, cv::Point3f> global_cloud_;
 };
 
-#include "flyStereo/vio.tpp"
+// #include "flyStereo/vio.tpp"

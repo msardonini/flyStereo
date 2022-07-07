@@ -306,3 +306,10 @@ std::tuple<cv::Affine3d, std::vector<cv::Point3f>> Vio<IpBackend>::CalculatePose
   // }
   // return std::make_tuple(pose_update, output_pts);
 }
+
+#include "flyStereo/image_processing/cv_backend.h"
+template class Vio<CvBackend>;
+#ifdef WITH_VPI
+#include "flyStereo/image_processing/vpi_backend.h"
+template class Vio<VpiBackend>;
+#endif

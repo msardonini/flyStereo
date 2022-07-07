@@ -25,6 +25,7 @@ add_library(fly_stereo_lib
   image_processing/image_processor.cc
   visualization/draw_to_image.cc
   pipeline.cc
+  vio.cc
   ${FLY_STEREO_VIZ_SRC}
 )
 
