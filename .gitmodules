@@ -1,0 +1,15 @@
+[submodule "external/cmake-gtest-coverage-example"]
+	path = external/cmake-gtest-coverage-example
+	url = git@github.com:pyarmak/cmake-gtest-coverage-example.git
+[submodule "external/thread-pool"]
+	path = external/thread-pool
+	url = git@github.com:bshoshany/thread-pool.git
+[submodule "external/depthai-core"]
+	path = external/depthai-core
+	url = git@github.com:luxonis/depthai-core.git
+[submodule "external/yaml-cpp"]
+	path = external/yaml-cpp
+	url = git@github.com:jbeder/yaml-cpp.git
+[submodule "external/eigen"]
+	path = external/eigen
+	url = git@gitlab.com:libeigen/eigen.git

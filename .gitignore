@@ -3,6 +3,10 @@ replay_data**
 scripts/*.yaml
 matlab/*m~
 **.img
+**.mjpg
 .gnupg
-.vscode**
 .devcontainer**
+**gmon.out
+**.jpg
+**.avi
+**.png

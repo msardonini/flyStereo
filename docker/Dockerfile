@@ -1,10 +1,12 @@
-FROM nvidia/cuda:11.2.1-cudnn8-devel-ubuntu20.04
-
-RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y cmake vim xz-utils git libgstreamer1.0-dev gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly gstreamer1.0-plugins-base gstreamer1.0-tools gstreamer1.0-libav libgstreamer-plugins-base1.0-dev python3-dev python3-pip gdb libsqlite3-dev
-RUN pip3 install numpy
+# FROM nvidia/cuda:11.4.3-cudnn8-devel-ubuntu20.04
+FROM nvidia/cuda:11.6.2-cudnn8-devel-ubuntu20.04
 
 
-# Build and install Eigen
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y cmake vim xz-utils git libgstreamer1.0-dev gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly gstreamer1.0-plugins-base gstreamer1.0-tools gstreamer1.0-libav libgstreamer-plugins-base1.0-dev python3-dev python3-pip gdb libsqlite3-dev libgtk2.0-dev clang-format libgtest-dev libbenchmark-dev lcov
+RUN pip3 install numpy pre-commit
+RUN ln -sf /usr/bin/gcov-11 /usr/bin/gcov
+
+# Build and install Yaml-Cpp
 RUN cd /opt && \
   git clone https://github.com/jbeder/yaml-cpp.git && \
   cd yaml-cpp && \
@@ -69,17 +71,7 @@ RUN cd /opt && \
   make -j$('nproc') && \
   make install
 
-# Build and install OpenGV
-RUN cd /opt && \
-  git clone https://github.com/laurentkneip/opengv.git && \
-  cd opengv && \
-  mkdir build && \
-  cd build && \
-  cmake -D CMAKE_BUILD_TYPE=RELEASE .. && \
-  make -j$('nproc') && \
-  make install
-
-# Build and install Eigen
+# Build and install Spdlog
 RUN cd /opt && \
   git clone https://github.com/gabime/spdlog.git && \
   cd spdlog && \
@@ -90,5 +82,23 @@ RUN cd /opt && \
   make install
 
 # Install the python script that will show eigen matrices when running gdb
-COPY printers /opt/printers
+COPY docker/printers /opt/printers
 RUN mv /opt/printers/.gdbinit /root
+
+
+# Install VPI
+RUN apt-get install -y gnupg && \
+  apt-key adv --fetch-key https://repo.download.nvidia.com/jetson/jetson-ota-public.asc && \
+  apt-get install -y software-properties-common && \
+  add-apt-repository 'deb https://repo.download.nvidia.com/jetson/x86_64/focal r34.1 main' && \
+  apt-get update && \
+  apt-get install -y libnvvpi2 vpi2-dev
+
+# Install NSight
+RUN apt-get install -y qt5-default cuda-nsight-systems-11-6 nsight-systems-2021.3.2  ca-certificates         dbus         fontconfig         gnupg         libasound2         libfreetype6         libglib2.0-0         libnss3         libsqlite3-0         libx11-xcb1         libxcb-glx0         libxcb-xkb1         libxcomposite1         libxcursor1         libxdamage1         libxi6         libxml2         libxrandr2         libxrender1         libxtst6         openssh-client         wget         xcb         xkb-data
+
+
+#Install g++11 TODO move to top
+RUN add-apt-repository -y ppa:ubuntu-toolchain-r/test && \
+  apt-get update && \
+  apt-get install -y gcc-11 g++-11
