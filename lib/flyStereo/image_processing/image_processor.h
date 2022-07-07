@@ -221,4 +221,4 @@ class ImageProcessor {
   TimedLogger &logger_ = TimedLogger::get_instance();
 };
 
-#include "flyStereo/image_processing/image_processor.tpp"
+// #include "flyStereo/image_processing/image_processor.tpp"

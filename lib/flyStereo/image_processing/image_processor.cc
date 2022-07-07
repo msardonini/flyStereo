@@ -1,8 +1,9 @@
+#include "flyStereo/image_processing/image_processor.h"
+
 #include <fstream>
 #include <random>
 
 #include "Eigen/Dense"
-#include "flyStereo/image_processing/image_processor.h"
 #include "flyStereo/sensor_io/arducam_system.h"
 #include "flyStereo/utility.h"
 #include "opencv2/calib3d.hpp"
@@ -434,3 +435,10 @@ void ImageProcessor<IpBackend>::DetectNewFeatures(const cv::Ptr<T> &detector_ptr
 
   d_output = tmp_output;
 }
+
+#include "flyStereo/image_processing/cv_backend.h"
+template class ImageProcessor<CvBackend>;
+#ifdef WITH_VPI
+#include "flyStereo/image_processing/vpi_backend.h"
+template class ImageProcessor<VpiBackend>;
+#endif

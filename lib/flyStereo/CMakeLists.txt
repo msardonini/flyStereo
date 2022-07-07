@@ -22,6 +22,7 @@ add_library(fly_stereo_lib
   sensor_io/camera_trigger.cc
   sensor_io/camera.cc
   sensor_io/image_sink.cc
+  image_processing/image_processor.cc
   visualization/draw_to_image.cc
   pipeline.cc
   ${FLY_STEREO_VIZ_SRC}
