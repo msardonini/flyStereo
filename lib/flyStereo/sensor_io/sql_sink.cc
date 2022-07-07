@@ -93,8 +93,9 @@ void SqlSink<ImageT>::LogThread() {
         log_queue_.pop();
         queue_mutex_.unlock();
         LogEntry(params);
+      } else {
+        queue_mutex_.unlock();
       }
-      queue_mutex_.unlock();
     }
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
   }
