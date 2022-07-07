@@ -15,13 +15,10 @@ if (${FLYSTEREO_WITH_VIZ})
 endif()
 
 
+add_subdirectory(sensor_io)
+
 add_library(fly_stereo_lib
   kalman_filter.cc
-  # sql_logger.cc
-  sensor_io/mavlink_reader.cc
-  sensor_io/camera_trigger.cc
-  sensor_io/camera.cc
-  sensor_io/image_sink.cc
   image_processing/image_processor.cc
   visualization/draw_to_image.cc
   pipeline.cc
@@ -50,6 +47,7 @@ target_link_libraries(fly_stereo_lib
     ${CUDA_LIBRARIES}
     thread_pool
     depthai::opencv
+    fly_stereo_sensor_io
 )
 
 if (${WITH_VPI})

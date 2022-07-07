@@ -2,6 +2,8 @@
 
 #include <atomic>
 #include <filesystem>
+#include <queue>
+#include <thread>
 
 #include "flyStereo/sensor_io/sqlite3_params.h"
 #include "flyStereo/sensor_io/stereo_sytem_sink_interface.h"
@@ -32,5 +34,3 @@ class SqlSink : StereoSystemSinkInterface<ImageT> {
   std::thread queue_thread_;
   std::queue<LogParams<ImageT>> log_queue_;
 };
-
-#include "flyStereo/sensor_io/sql_sink.tpp"

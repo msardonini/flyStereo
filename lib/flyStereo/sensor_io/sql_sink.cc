@@ -1,6 +1,8 @@
+#include "flyStereo/sensor_io/sql_sink.h"
+
 #include <filesystem>
 
-#include "flyStereo/sensor_io/sql_sink.h"
+#include "spdlog/spdlog.h"
 
 constexpr size_t MAX_QUEUE_SIZE = 1000;
 constexpr uint32_t MAX_WAIT_TIME_FLUSH_BUFFERS_ON_EXIT_SECONDS = 10;
@@ -181,3 +183,10 @@ int SqlSink<ImageT>::LogEntry(const LogParams<ImageT> &params) {
   sqlite3_reset(sql3_.sq_stmt);
   return 0;
 }
+
+#include "flyStereo/types/umat.h"
+template class SqlSink<UMat<uint8_t>>;
+#ifdef WITH_VPI
+#include "flyStereo/types/umat_vpiimage.h"
+template class SqlSink<UMatVpiImage>;
+#endif

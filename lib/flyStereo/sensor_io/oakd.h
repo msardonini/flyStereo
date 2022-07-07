@@ -33,5 +33,3 @@ class OakD : public StereoSystemSrcInterface<ImageT> {
 
   std::chrono::time_point<std::chrono::steady_clock> start_time_;
 };
-
-#include "flyStereo/sensor_io/oakd.tpp"

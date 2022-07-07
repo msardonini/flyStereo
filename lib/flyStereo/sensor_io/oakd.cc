@@ -1,3 +1,5 @@
+#include "flyStereo/sensor_io/oakd.h"
+
 #include "Eigen/Dense"
 #include "depthai/device/CalibrationHandler.hpp"
 #include "flyStereo/types/umat.h"
@@ -119,3 +121,10 @@ int OakD<ImageT>::GetSynchronizedData(ImageT &d_frame_cam0, ImageT &d_frame_cam1
 
   return 0;
 }
+
+#include "flyStereo/types/umat.h"
+template class OakD<UMat<uint8_t>>;
+#ifdef WITH_VPI
+#include "flyStereo/types/umat_vpiimage.h"
+template class OakD<UMatVpiImage>;
+#endif

@@ -1,8 +1,9 @@
 
 
+#include "flyStereo/sensor_io/arducam_system.h"
+
 #include <iostream>
 
-#include "flyStereo/sensor_io/arducam_system.h"
 #include "flyStereo/utility.h"
 #include "opencv2/calib3d.hpp"
 #include "opencv2/imgproc.hpp"
@@ -206,3 +207,10 @@ int ArducamSystem<ImageType>::AssociateImuData(std::vector<mavlink_imu_t> &imu_m
   }
   return 0;
 }
+
+#include "flyStereo/types/umat.h"
+template class ArducamSystem<UMat<uint8_t>>;
+#ifdef WITH_VPI
+#include "flyStereo/types/umat_vpiimage.h"
+template class ArducamSystem<UMatVpiImage>;
+#endif

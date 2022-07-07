@@ -1,6 +1,8 @@
+#include "flyStereo/sensor_io/sql_src.h"
+
 #include <filesystem>
 
-#include "flyStereo/sensor_io/sql_src.h"
+#include "spdlog/spdlog.h"
 
 namespace fs = std::filesystem;
 
@@ -77,3 +79,10 @@ int SqlSrc<ImageT>::GetSynchronizedData(ImageT &frame_cam0, ImageT &frame_cam1, 
   }
   return 0;
 }
+
+#include "flyStereo/types/umat.h"
+template class SqlSrc<UMat<uint8_t>>;
+#ifdef WITH_VPI
+#include "flyStereo/types/umat_vpiimage.h"
+template class SqlSrc<UMatVpiImage>;
+#endif

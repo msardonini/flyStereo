@@ -23,5 +23,3 @@ class SqlSrc : public StereoSystemSrcInterface<ImageT> {
  private:
   Sqlite3Params sql3_;
 };
-
-#include "flyStereo/sensor_io/sql_src.tpp"

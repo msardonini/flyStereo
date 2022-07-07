@@ -56,5 +56,3 @@ class ArducamSystem : public StereoSystemSrcInterface<ImageT> {
 
   YAML::Node sensor_params_;
 };
-
-#include "flyStereo/sensor_io/arducam_system.tpp"
