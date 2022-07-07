@@ -90,7 +90,7 @@ inline MatType AppendUMatColwise(const MatType &mat1, const MatType &mat2) {
 
   // Check edge cases where one of the UMats is empty
   if (mat1_f.cols == 0) {
-    return mat2;
+    return mat2.clone();
   } else if (mat2_f.cols == 0) {
     return mat1;
   }

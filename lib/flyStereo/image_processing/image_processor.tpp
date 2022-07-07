@@ -41,7 +41,7 @@ struct IpConstants {
   // Binning
   static constexpr unsigned int bins_width = 20;
   static constexpr unsigned int bins_height = 15;
-  static constexpr unsigned int max_pts_in_bin = 1;
+  static constexpr unsigned int max_pts_in_bin = 3;
 
   // Thresholds
   static constexpr double stereo_threshold = 45.0;
@@ -131,8 +131,8 @@ TrackedImagePoints<IpBackend> ImageProcessor<IpBackend>::OuputTrackedPoints(cons
   Eigen::Matrix3f rotation_t0_t1_cam0_eigen;
   cv::cv2eigen(rotation_t0_t1_cam0, rotation_t0_t1_cam0_eigen);
 
-  return TrackedImagePoints<IpBackend>(timestamp_us, ids_pts_tracked_, pts_t_c0_t0_.frame(), pts_t_c0_t1_.frame(),
-                                       pts_t_c1_t0_.frame(), pts_t_c1_t1_.frame(), imu_msgs, rotation_t0_t1_cam0_eigen);
+  return TrackedImagePoints<IpBackend>(timestamp_us, ids_pts_tracked_, pts_t_c0_t0_, pts_t_c0_t1_, pts_t_c1_t0_,
+                                       pts_t_c1_t1_, imu_msgs, rotation_t0_t1_cam0_eigen);
 }
 
 template <typename IpBackend>
@@ -164,15 +164,25 @@ void ImageProcessor<IpBackend>::detect(const IpBackend::image_type &mask) {
     for (int i = 0; i < pts_d_c0_t1_.frame().cols; i++) {
       ids_pts_detected_.push_back(current_id_++);
     }
+  } else {
+    // No new detections
+    ids_pts_detected_.clear();
+    pts_d_c0_t1_ = typename IpBackend::array_type(cv::Size(0, 1));
+    pts_d_c1_t1_ = typename IpBackend::array_type(cv::Size(0, 1));
+  }
+
+  if (pts_d_c0_t1_.size() != pts_d_c1_t1_.size() ||
+      pts_d_c1_t1_.size().width != static_cast<int>(ids_pts_detected_.size())) {
+    throw std::runtime_error("sizes do not match in detect");
   }
 }
 
 // TODO make a check that the object is initialized before starting
 template <typename IpBackend>
-int ImageProcessor<IpBackend>::process_image(IpBackend::image_type &&frame_cam0_t1_umat,
-                                             IpBackend::image_type &&frame_cam1_t1_umat,
-                                             const std::vector<mavlink_imu_t> &imu_msgs, uint64_t current_frame_time,
-                                             TrackedImagePoints<IpBackend> &tracked_points) {
+TrackedImagePoints<IpBackend> ImageProcessor<IpBackend>::process_image(IpBackend::image_type &&frame_cam0_t1_umat,
+                                                                       IpBackend::image_type &&frame_cam1_t1_umat,
+                                                                       const std::vector<mavlink_imu_t> &imu_msgs,
+                                                                       uint64_t current_frame_time) {
   frame_cam0_t1_ = frame_cam0_t1_umat;
   frame_cam1_t1_ = frame_cam1_t1_umat;
 
@@ -187,8 +197,10 @@ int ImageProcessor<IpBackend>::process_image(IpBackend::image_type &&frame_cam0_
 
   // Append the kepypoints from the previous iteration to the tracked points of the current
   // iteration. Points that pass through all the outlier checks will remain as tracked points
+
   pts_t_c0_t0_ = AppendUMatColwise(pts_t_c0_t0_, pts_d_c0_t1_);
   pts_t_c1_t0_ = AppendUMatColwise(pts_t_c1_t0_, pts_d_c1_t1_);
+
   ids_pts_tracked_.insert(std::end(ids_pts_tracked_), std::begin(ids_pts_detected_), std::end(ids_pts_detected_));
 
   if (pts_t_c0_t0_.size() != pts_t_c1_t0_.size()) {
@@ -212,12 +224,10 @@ int ImageProcessor<IpBackend>::process_image(IpBackend::image_type &&frame_cam0_
 
   // Make a prediction of where the points will be in the current image given the IMU data
   if (retval == 0) {
-    // TODO Implement these functions for imu
     UpdatePointsViaImu(pts_t_c0_t0_, rotation_t0_t1_cam0, stereo_cal_.K_cam0, pts_t_c0_t1_);
     UpdatePointsViaImu(pts_t_c1_t0_, rotation_t0_t1_cam1, stereo_cal_.K_cam1, pts_t_c1_t1_);
   } else {
-    spdlog::error("Error receiving IMU transform");
-    return -1;
+    throw std::runtime_error("Error receiving IMU transform");
   }
 
   // Apply the optical flow from the previous frame to the current frame
@@ -228,7 +238,6 @@ int ImageProcessor<IpBackend>::process_image(IpBackend::image_type &&frame_cam0_
     d_opt_flow_cam0_.calc(frame_cam0_t0_, frame_cam0_t1_, pts_t_c0_t0_, pts_t_c0_t1_, status, &tracker_stream_);
     // d_opt_flow_cam0_.calc(frame_cam0_t0_, frame_cam0_t1, pts_t_c0_t0_, pts_t_c0_t1_, status, tracker_stream_);
     tracker_stream_.sync();
-
     {
       MarkPointsOutOfFrame(status, pts_t_c0_t1_, frame_cam0_t1_.size(), IpBackend::flow_type::success_value);
 
@@ -247,6 +256,7 @@ int ImageProcessor<IpBackend>::process_image(IpBackend::image_type &&frame_cam0_
       // std::cout << "t pts after " << pts_t_c0_t1_.frame().cols << std::endl;
       RemovePoints(status, IpBackend::flow_type::success_value, pts_t_c0_t0_, pts_t_c0_t1_, pts_t_c1_t0_, pts_t_c1_t1_,
                    ids_pts_tracked_);
+
     } else if (ret_val < 0) {
       throw std::runtime_error("Error in stereo matching");
     }
@@ -256,8 +266,7 @@ int ImageProcessor<IpBackend>::process_image(IpBackend::image_type &&frame_cam0_
     int tracked_pts = pts_t_c0_t0_.frame().cols;
     if (tracked_pts != pts_t_c0_t1_.frame().cols || tracked_pts != pts_t_c1_t0_.frame().cols ||
         tracked_pts != pts_t_c1_t1_.frame().cols) {
-      spdlog::error("ERROR! There are differences in the numbers of tracked points ");
-      return -1;
+      throw std::runtime_error("ERROR! There are differences in the numbers of tracked points ");
     }
   }
 
@@ -265,6 +274,7 @@ int ImageProcessor<IpBackend>::process_image(IpBackend::image_type &&frame_cam0_
 
   detect(mask);
 
+  TrackedImagePoints<IpBackend> tracked_points;
   if (pts_t_c0_t1_.frame().cols > 1 && pts_t_c1_t1_.frame().cols > 1) {
     tracked_points = OuputTrackedPoints(imu_msgs, rotation_t0_t1_cam0);
   }
@@ -301,7 +311,7 @@ int ImageProcessor<IpBackend>::process_image(IpBackend::image_type &&frame_cam0_
       "fps: {}",
       1.0 / static_cast<std::chrono::duration<double>>((std::chrono::system_clock::now() - prev_time_end_)).count());
   prev_time_end_ = std::chrono::system_clock::now();
-  return 0;
+  return tracked_points;
 }
 
 template <typename IpBackend>

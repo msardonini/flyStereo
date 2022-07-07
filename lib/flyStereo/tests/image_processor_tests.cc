@@ -270,9 +270,8 @@ TYPED_TEST(ImageProcessingTestFixture, test2) {
     // image_processor.process_image(cam0_image_d, cam1_image_d, {}, frame * 1E6, output_points);
     // std::cout << "num pts " << tracked_image_points.ids.size() << std::endl;
 
-    vio_t vio_output;
-    vio.ProcessPoints(tracked_image_points, vio_output);
-    calculated_trajectory.push_back(vio_output.pose_cam0_);
+    auto [camera_pose, inliers] = vio.ProcessPoints(tracked_image_points);
+    calculated_trajectory.push_back(camera_pose);
     // std::cout << "position " << vio_output.position << std::endl;
     // std::cout << "gt position " << camera_trajectory[frame].translation() << std::endl;
     // cv::imshow("test.jpg", images[frame].second);

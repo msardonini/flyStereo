@@ -10,6 +10,9 @@
 #include "flyStereo/sensor_io/sql_sink.h"
 #include "flyStereo/sensor_io/sql_src.h"
 #include "flyStereo/vio.h"
+#ifdef WITH_VIZ
+#include "flyStereo/visualization/visualization.h"
+#endif
 #include "yaml-cpp/yaml.h"
 
 namespace fs = std::filesystem;
@@ -62,6 +65,9 @@ class Pipeline {
   SqlSrc<typename IpBackend::image_type> sql_src_;
   SqlSink<typename IpBackend::image_type> sql_sink_;
 
+#ifdef WITH_VIZ
+  Visualization visualization_;
+#endif
   bool draw_points_to_frame_ = true;
 
   bool record_mode_ = false;

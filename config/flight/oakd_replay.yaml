@@ -3,9 +3,13 @@ flyStereo:
   wait_for_start_command: false
   R_imu_cam0: [0.0, 0.0, 0.0]
 
+  vio_calibration_rvec: [0.000443016, -0.000008938, -0.000000009]
+  vio_calibration_tvec: [-0.000098998, -0.00195377, -0.000001954]
+
+
   replay_mode:
     enable: true
-    replay_dir: /root/flyStereo/build_docker/replay/run005
+    replay_dir: /tmp/run077
     replay_speed_multiplier: 1
     enable_serial_replay: false
 

@@ -31,12 +31,16 @@ struct CudaMemAllocator {
     if (status != cudaSuccess) {
       throw std::runtime_error(cudaGetErrorString(status));
     }
+    ptr = nullptr;
   }
 };
 
 struct MemAllocator {
   static void *malloc(std::size_t size) { return std::malloc(size); }
-  static void free(void *ptr) { std::free(ptr); }
+  static void free(void *ptr) {
+    std::free(ptr);
+    ptr = nullptr;
+  }
 };
 
 /**
@@ -87,7 +91,7 @@ class UMat {
    * @param umat UMat to copy from
    * @return UMat New UMat with the same data as the old one
    */
-  UMat operator=(const UMat &umat) {
+  UMat &operator=(const UMat &umat) {
     if (unified_ptr_) {
       MemoryHandlerT::free(unified_ptr_);
     }
@@ -104,7 +108,7 @@ class UMat {
    * @param umat The UMat to move. UMat's cannot share data, this will no longer be valid after the move.
    * @return UMat New UMat
    */
-  UMat operator=(UMat &&umat) {
+  UMat &operator=(UMat &&umat) {
     if (unified_ptr_) {
       MemoryHandlerT::free(unified_ptr_);
     }
@@ -118,7 +122,7 @@ class UMat {
   }
 
   /**
-   * @brief Construct a new UMat object with unallocated memory
+   * @brief Construct a new UMat object with allocated memory
    *
    * @param frame_size The size of the frame
    */
@@ -154,7 +158,7 @@ class UMat {
    * @param frame The frame to copy data from
    * @return UMat The UMat object
    */
-  UMat operator=(const cv::Mat &frame) {
+  UMat &operator=(const cv::Mat &frame) {
     // Resize the frame if it is not the same size, reallocate memory if needed
     if (frame.size() != frame_.size()) {
       if (unified_ptr_ != nullptr) {
@@ -174,7 +178,7 @@ class UMat {
    * @param frame The frame to copy data from
    * @return UMat The UMat object
    */
-  UMat operator=(const cv::cuda::GpuMat &frame) {
+  UMat &operator=(const cv::cuda::GpuMat &frame) {
     // Resize the frame if it is not the same size, reallocate memory if needed
     if (frame.size() != frame_.size()) {
       if (unified_ptr_ != nullptr) {
@@ -292,6 +296,10 @@ class UMat {
       unified_ptr_ = MemoryHandlerT::malloc(num_pxls * sizeof(T));
       frame_ = cv::Mat_<T>(frame_size.height, frame_size.width, static_cast<T *>(unified_ptr_));
       d_frame_ = cv::cuda::GpuMat(frame_size.height, frame_size.width, get_type(), static_cast<T *>(unified_ptr_));
+    } else {
+      unified_ptr_ = nullptr;
+      frame_ = cv::Mat_<T>();
+      d_frame_ = cv::cuda::GpuMat();
     }
   }
 
@@ -348,8 +356,9 @@ class UMat {
     }
   }
 
-  cv::cuda::GpuMat d_frame_;     //< d_frame_, non-owning matrix
-  cv::Mat_<T> frame_;            //< The frame_, non-ownding matrix
+  cv::cuda::GpuMat d_frame_;  //< d_frame_, non-owning matrix
+  cv::Mat_<T> frame_;         //< The frame_, non-ownding matrix
+ public:
   void *unified_ptr_ = nullptr;  //< Pointer to the unified memory
 };
 

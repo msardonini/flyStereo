@@ -3,9 +3,12 @@ flyStereo:
   wait_for_start_command: false
   R_imu_cam0: [0.0, 0.0, 0.0]
 
+  vio_calibration_rvec: [0.000443016, -0.000008938, -0.000000009]
+  vio_calibration_tvec: [-0.000098998, -0.00195377, -0.000001954]
+
   replay_mode:
     enable: false
-    replay_dir: /root/flyStereo/build_docker/replay/run084
+    replay_dir: /tmp/run062
     replay_speed_multiplier: 1
     enable_serial_replay: false
 
@@ -20,7 +23,7 @@ flyStereo:
     # device: /root/flyStereo/replay_data/flight/8_15_20/run005/imu.dat
 
   vio:
-    vio_calibration: [-0.0021, 0.0004, -0.0012]
+
     kalman_filter:
       dt: 0.2
       sigma_a: 1.0
@@ -64,10 +67,17 @@ flyStereo:
               0.000000, 798.849792, 375.421753,
               0.000000, 0.000000, 1.000000]
     D0:
-       rows: 0
+       rows: 8
        cols: 1
        dt: d
-       data: [  ]
+       data: [     -9.378694534301758,
+                    97.73828125,
+                    -0.0001613613567315042,
+                    0.0009019290446303785,
+                    -54.73212432861328,
+                    -9.426899909973145,
+                    97.14865112304688,
+                    -53.132266998291016]
     K1:
        rows: 3
        cols: 3
@@ -77,10 +87,17 @@ flyStereo:
               0.000000, 0.000000, 1.000000]
 
     D1:
-       rows: 0
+       rows: 8
        cols: 1
        dt: d
-       data: []
+       data: [      -9.535727500915527,
+                    101.45219421386719,
+                    -0.0005904081626795232,
+                    0.0012537626316770911,
+                    -56.149658203125,
+                    -9.580544471740723,
+                    100.81672668457031,
+                    -54.362125396728516]
     R:
        rows: 3
        cols: 3

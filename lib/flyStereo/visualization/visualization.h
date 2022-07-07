@@ -13,7 +13,7 @@ class Visualization {
   Visualization(const cv::Matx33d &R_imu_cam0);
   ~Visualization();
 
-  int ReceiveData(const Eigen::Matrix4d &body_pose, const std::vector<cv::Point3d> &inliers);
+  int ReceiveData(const cv::Affine3d &body_pose, const std::vector<cv::Point3f> &inliers);
 
  private:
   cv::viz::Viz3d my_window_;

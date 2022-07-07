@@ -1,4 +1,5 @@
 #pragma once
+#include <chrono>
 #include <memory>
 #include <queue>
 
@@ -29,6 +30,8 @@ class OakD : public StereoSystemSrcInterface<ImageT> {
   std::shared_ptr<dai::node::XLinkOut> xout_imu_;
   std::shared_ptr<dai::DataOutputQueue> queue_imu_;
   std::queue<dai::IMUPacket> local_queue_imu_;
+
+  std::chrono::time_point<std::chrono::steady_clock> start_time_;
 };
 
 #include "flyStereo/sensor_io/oakd.tpp"

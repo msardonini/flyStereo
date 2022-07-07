@@ -31,8 +31,9 @@ class OptFlowTestFixture : public ::testing::Test {
   IpBackend::array_type curr_pts_gt;
 };
 
-using OptFlowTypes = ::testing::Types<CvBackend,
+using OptFlowTypes = ::testing::Types<CvBackend
 #ifdef WITH_VPI
+                                      ,
                                       VpiBackend
 #endif
                                       >;

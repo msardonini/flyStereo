@@ -21,7 +21,15 @@ Pipeline<IpBackend>::Pipeline(const YAML::Node &params, const YAML::Node &stereo
       image_processor_(15, stereo_calibration,
                        utility::eulerAnglesToRotationMatrix(params["R_imu_cam0"].as<std::vector<double>>())),
       vio_(StereoCalibration(stereo_calibration),
-           utility::eulerAnglesToRotationMatrix(params["R_imu_cam0"].as<std::vector<double>>())) {}
+           utility::eulerAnglesToRotationMatrix(params["R_imu_cam0"].as<std::vector<double>>()),
+           cv::Vec3d{params["vio_calibration_rvec"].as<std::array<double, 3>>().data()},
+           cv::Vec3d{params["vio_calibration_tvec"].as<std::array<double, 3>>().data()})
+#ifdef WITH_VIZ
+      ,
+      visualization_(utility::eulerAnglesToRotationMatrix(params["R_imu_cam0"].as<std::vector<double>>()))
+#endif
+{
+}
 
 template <typename IpBackend>
 Pipeline<IpBackend>::~Pipeline() {
@@ -169,20 +177,6 @@ void Pipeline<IpBackend>::run() {
     // Reset the Error Counter
     consecutive_missed_frames = 0;
 
-    // Process the frames
-    TrackedImagePoints<IpBackend> tracked_image_points;
-    if (image_processor_.process_image(std::move(d_frame_cam0_t1), std::move(d_frame_cam1_t1), imu_msgs, current_time,
-                                       tracked_image_points)) {
-      spdlog::warn("error in image processor");
-      continue;
-    }
-
-    vio_t vio_data;
-    // Send the features to the vio object
-    vio_.ProcessPoints(tracked_image_points, vio_data);
-
-    mavlink_reader_.SendVioMsg(vio_data);
-
     if (record_mode_) {
       LogParams<typename IpBackend::image_type> log_params;
 
@@ -193,6 +187,16 @@ void Pipeline<IpBackend>::run() {
 
       sql_sink_.ProcessFrame(log_params);
     }
+    // Process the frames
+    TrackedImagePoints<IpBackend> tracked_image_points =
+        image_processor_.process_image(std::move(d_frame_cam0_t1), std::move(d_frame_cam1_t1), imu_msgs, current_time);
+
+    auto [body_pose, inliers] = vio_.ProcessPoints(tracked_image_points);
+
+#ifdef WITH_VIZ
+    visualization_.ReceiveData(body_pose, inliers);
+#endif
+    // // mavlink_reader_.SendVioMsg(vio_data);
 
     /*********************************************************************
      * Output Images to the sink, if requested

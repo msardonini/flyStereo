@@ -143,6 +143,7 @@ int main(int argc, char *argv[]) {
     if (arducam_system.GetSynchronizedData(d_frame_cam0, d_frame_cam1, imu_msgs, current_frame_time) != 0) {
       continue;
     }
+    current_frame_time = 0;
     if (arducam_system.GenerateImuXform(imu_msgs, R_imu_cam0, R_imu_cam1, R_t0_t1_cam0, current_frame_time,
                                         R_t0_t1_cam1) != 0) {
       continue;

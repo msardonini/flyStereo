@@ -21,35 +21,39 @@ Visualization::Visualization(const cv::Matx33d &R_imu_cam0)
   // float translation_phase = 0.0, translation = 0.0;
 
   // Set the pose of the viz camera
-  cv::Vec3f cam_pos(10.0f, -20.0f, 5.0f), cam_focal_point(9.9f, -19.0f, 4.75f), cam_y_dir(0.0f, 0.0f, -1.0f);
+  cv::Vec3f cam_pos(10.f, 10.0f, 10.0f), cam_focal_point(9.5f, 9.5f, 9.5f), cam_y_dir(0.0f, 0.0f, -1.0f);
   cam_pose_ = cv::viz::makeCameraPose(cam_pos, cam_focal_point, cam_y_dir);
 }
 Visualization::~Visualization() {}
 
-int Visualization::ReceiveData(const Eigen::Matrix4d &body_pose, const std::vector<cv::Point3d> &inliers) {
-  cv::Matx33d rot_mat;
-  cv::Vec3d trans_vec;
-  Eigen::Matrix3d body_rot_eigen = body_pose.block<3, 3>(0, 0);
-  Eigen::Vector3d body_trans_eigen = body_pose.block<3, 1>(0, 3);
-
-  cv::eigen2cv(body_rot_eigen, rot_mat);
-  cv::eigen2cv(body_trans_eigen, trans_vec);
-
-  cv::Affine3d body_pose_cv(rot_mat, trans_vec);
-  trajectory_.push_back(body_pose_cv);
-
-  for (size_t i = 0; i < inliers.size(); i++) {
-    cv::Point3d point_body_frame = R_imu_cam0_ * inliers[i];
-    inliers_global_.push_back(body_pose_cv * point_body_frame);
+int Visualization::ReceiveData(const cv::Affine3d &body_pose, const std::vector<cv::Point3f> &inliers) {
+  if (inliers.size() == 0) {
+    return 0;
   }
 
-  my_window_.setWidgetPose("Cube Widget", body_pose_cv.translate(cv::Vec3d(-.25, -.25, -.25)));
+  trajectory_.push_back(body_pose);
+
+  if (trajectory_.size() % 100 == 0) {
+    std::cout << "trajectory size: " << trajectory_.size() << std::endl;
+    std::cout << "rvec " << trajectory_.back().rvec() << std::endl;
+    std::cout << "tvec " << trajectory_.back().translation() << std::endl;
+  }
+
+  for (size_t i = 0; i < inliers.size(); i++) {
+    cv::Point3d point_body_frame = R_imu_cam0_ * cv::Point3d(inliers[i]);
+    inliers_global_.push_back(body_pose * point_body_frame);
+
+    // inliers_global_.push_back(cv::Point3d(inliers[i]));
+  }
+
+  // my_window_.setWidgetPose("Cube Widget", body_pose.translate(cv::Vec3d(-.25, -.25, -.25)));
+  my_window_.setWidgetPose("Coordinate Widget", body_pose);
   my_window_.showWidget("trajectory", cv::viz::WTrajectory(trajectory_));
   my_window_.showWidget("points", cv::viz::WCloud(inliers_global_, cv::viz::Color::green()));
 
   cv::Size win_size(1280, 540);
   my_window_.setWindowSize(win_size);
-  my_window_.setViewerPose(cam_pose_);
+  // my_window_.setViewerPose(cam_pose_);
 
   my_window_.spinOnce(1, true);
 

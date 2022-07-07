@@ -62,8 +62,8 @@ class ImageProcessor {
    * @return int
    */
   auto process_image(IpBackend::image_type &&frame_cam0, IpBackend::image_type &&frame_cam1,
-                     const std::vector<mavlink_imu_t> &imu_data, uint64_t current_frame_time,
-                     TrackedImagePoints<IpBackend> &points) -> int;
+                     const std::vector<mavlink_imu_t> &imu_data, uint64_t current_frame_time)
+      -> TrackedImagePoints<IpBackend>;
 
   /**
    * @brief Get the image from camera 0 and timestamp 0 (the previous frame)

@@ -87,12 +87,10 @@ void SqlSink<ImageT>::LogThread() {
       if (!log_queue_.empty()) {
         // "LogEntry" can take some time and it will lock the main processing thread if we own the
         // mutex. Make a local copy and log outside of the mutex
-        auto &params = log_queue_.front();
-        // queue_mutex_.unlock();
-        LogEntry(params);
-
-        // queue_mutex_.lock();
+        auto params = std::move(log_queue_.front());
         log_queue_.pop();
+        queue_mutex_.unlock();
+        LogEntry(params);
       }
       queue_mutex_.unlock();
     }

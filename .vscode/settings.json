@@ -98,6 +98,7 @@
     "__preprocessor": "cpp",
     "ios": "cpp",
     "__functional_base": "cpp",
-    "locale": "cpp"
+    "locale": "cpp",
+    "core": "cpp"
   }
 }

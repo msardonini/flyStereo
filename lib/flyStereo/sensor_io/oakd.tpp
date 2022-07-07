@@ -54,6 +54,8 @@ void OakD<ImageT>::Init() {
   queue_left_ = device_->getOutputQueue("left", 1, false);
   queue_right_ = device_->getOutputQueue("right", 1, false);
   queue_imu_ = device_->getOutputQueue("imu", 1, false);
+
+  start_time_ = std::chrono::steady_clock::now();
 }
 
 template <UMatDerivative ImageT>
@@ -69,7 +71,7 @@ int OakD<ImageT>::GetSynchronizedData(ImageT &d_frame_cam0, ImageT &d_frame_cam1
 
   auto imu_data = queue_imu_->get<dai::IMUData>();
 
-  std::cout << imu_data->packets.size() << "     " << sizeof(imu_data->packets.front()) << std::endl;
+  // std::cout << imu_data->packets.size() << "     " << sizeof(imu_data->packets.front()) << std::endl;
 
   std::for_each(imu_data->packets.begin(), imu_data->packets.end(),
                 [&](auto &val) { local_queue_imu_.push(std::move(val)); });
@@ -79,7 +81,7 @@ int OakD<ImageT>::GetSynchronizedData(ImageT &d_frame_cam0, ImageT &d_frame_cam1
   while (!local_queue_imu_.empty()) {
     // auto &imu_vals = local_queue_imu_.front().rotationVector;
     auto &gyro_vals = local_queue_imu_.front().gyroscope;
-
+    auto &accel_vals = local_queue_imu_.front().acceleroMeter;
     auto imu_time = gyro_vals.timestamp.get();
 
     if (imu_time > left_cam_time) {
@@ -88,10 +90,13 @@ int OakD<ImageT>::GetSynchronizedData(ImageT &d_frame_cam0, ImageT &d_frame_cam1
 
     mavlink_imu_t imu_msg;
     imu_msg.time_since_trigger_us = 0;
-    imu_msg.timestamp_us = gyro_vals.timestamp.sec * 1E6f + gyro_vals.timestamp.nsec / 1E3f;
+    imu_msg.timestamp_us = std::chrono::duration_cast<std::chrono::microseconds>(imu_time - start_time_).count();
     imu_msg.gyroXYZ[0] = gyro_vals.y;
     imu_msg.gyroXYZ[1] = gyro_vals.x;
     imu_msg.gyroXYZ[2] = -gyro_vals.z;
+    imu_msg.accelXYZ[0] = accel_vals.y;
+    imu_msg.accelXYZ[1] = accel_vals.x;
+    imu_msg.accelXYZ[2] = -accel_vals.z;
     imu_data_a.emplace_back(imu_msg);
     local_queue_imu_.pop();
 
@@ -102,7 +107,7 @@ int OakD<ImageT>::GetSynchronizedData(ImageT &d_frame_cam0, ImageT &d_frame_cam1
     // }
   }
 
-  current_frame_time = 0;
+  current_frame_time = std::chrono::duration_cast<std::chrono::microseconds>(left_cam_time - start_time_).count();
 
   // auto handler = dai::CalibrationHandler();
   // auto left_d = handler.getDistortionCoefficients(dai::CameraBoardSocket::LEFT);
