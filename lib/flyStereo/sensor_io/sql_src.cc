@@ -47,7 +47,7 @@ int SqlSrc<ImageT>::GetSynchronizedData(ImageT &frame_cam0, ImageT &frame_cam1, 
   if (ret != SQLITE_ROW) {
     if (ret == SQLITE_DONE) {
       spdlog::info("Finished Replay");
-      return -2;
+      return 1;
     } else {
       spdlog::error("Failed Query, val: {}", ret);
       return -1;

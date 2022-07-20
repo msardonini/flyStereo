@@ -42,7 +42,7 @@ struct IpConstants {
   // Binning
   static constexpr unsigned int bins_width = 20;
   static constexpr unsigned int bins_height = 15;
-  static constexpr unsigned int max_pts_in_bin = 3;
+  static constexpr unsigned int max_pts_in_bin = 1;
 
   // Thresholds
   static constexpr double stereo_threshold = 45.0;
@@ -384,7 +384,7 @@ int ImageProcessor<IpBackend>::StereoMatch(IpBackend::flow_type &opt, const IpBa
     double error = fabs(pt1.dot(epilines[i]));
 
     if (error > IpConstants::stereo_threshold) {
-      status_f(0, i) = !IpBackend::flow_type::success_value;
+      // status_f(0, i) = !IpBackend::flow_type::success_value;
     }
   }
   return 0;

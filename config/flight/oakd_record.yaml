@@ -1,10 +1,16 @@
 flyStereo:
   # Global Commands
   wait_for_start_command: false
-  R_imu_cam0: [0.0, 0.0, 0.0]
+  R_imu_cam0: [0.0, 0.0, -1.57]
 
   vio_calibration_rvec: [0.000443016, -0.000008938, -0.000000009]
   vio_calibration_tvec: [-0.000098998, -0.00195377, -0.000001954]
+  # vio_calibration_rvec: [0.0, 0.0, 0.0]
+  # vio_calibration_tvec: [0.0, 0.0, 0.0]
+
+
+
+
 
   replay_mode:
     enable: false
@@ -13,7 +19,7 @@ flyStereo:
     enable_serial_replay: false
 
   record_mode:
-    enable: true  # Enables logging
+    enable: false  # Enables logging
     log_root_dir: /tmp
     outputs:
       SQL_database: false
@@ -58,7 +64,53 @@ flyStereo:
     # sink_pipeline: "appsrc ! videoconvert ! queue ! videoconvert ! x264enc tune=zerolatency ! qtmux ! filesink location=/root/flyStereo/build_docker/replay/run023/cam1_annotated.mp4"
 
   stereo_calibration:
-    # Calibration after remounting Camera
+    # kalibr calibration
+    # K0:
+    #   rows: 3
+    #   cols: 3
+    #   dt: d
+    #   data: [811.8507869484671, 0, 811.0515736697479,
+    #         0.00000, 657.7768180034532, 372.4887145654688,
+    #         0.0, 0.0, 1.0]
+
+    # D0:
+    #   rows: 4
+    #   cols: 1
+    #   dt: d
+    #   data: [-0.012184730764681757, -0.02412622346357368, -0.0011163758125549645, 5.938941022725496e-05]
+
+    # K1:
+    #   rows: 3
+    #   cols: 3
+    #   dt: d
+    #   data: [813.9282740815736, 0.0, 813.2425999501481,
+    #         0.00000, 638.5446353138325, 374.3345056799147,
+    #         0.0, 0.0, 1.0]
+    # D1:
+    #   rows: 4
+    #   cols: 1
+    #   dt: d
+    #   data: [-0.012184730764681757, -0.02412622346357368, -0.0011163758125549645, 5.938941022725496e-05]
+
+    # R:
+    #   rows: 3
+    #   cols: 3
+    #   dt: d
+    #   data: [0.9999530691465137, -0.0016058488696015151, -0.00955409618340817, -0.07485347087831569,
+    #         0.0015851846794514947, 0.9999963890481111, -0.0021700415380950786, -0.0002583373844725259,
+    #         0.009557546442777417, 0.0021547946892976435, 0.9999520039311124, -5.923167211252233e-05]
+
+    # T:
+    #   rows: 3
+    #   cols: 1
+    #   dt: d
+    #   data: [-0.07485347087831569, -0.0002583373844725259, -5.923167211252233e-05]
+
+
+
+
+
+    # calibration from oakd factory
     K0:
        rows: 3
        cols: 3

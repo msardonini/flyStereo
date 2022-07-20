@@ -1,2 +1,3 @@
 replay_data
-build*
+build**
+external

@@ -172,7 +172,7 @@
       "type": "cppdbg",
       "request": "launch",
       "program": "${workspaceFolder}/build/bin/oakd_orb3",
-      "args": ["/root/flyStereo/external/ORB_SLAM3/Examples/Stereo/oak.yaml"],
+      "args": [],
       "stopAtEntry": false,
       "cwd": "${fileDirname}",
       "environment": [],

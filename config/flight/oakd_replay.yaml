@@ -9,13 +9,13 @@ flyStereo:
 
   replay_mode:
     enable: true
-    replay_dir: /tmp/run077
+    replay_dir: /root/flyStereo/replay_data/oakd_s2/2022-07-07/run008
     replay_speed_multiplier: 1
     enable_serial_replay: false
 
   record_mode:
     enable: false  # Enables logging
-    log_root_dir: /root/flyStereo/build_docker/replay
+    log_root_dir: /tmp
     outputs:
       SQL_database: false
       trajectory: true

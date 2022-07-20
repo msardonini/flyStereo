@@ -144,7 +144,6 @@ std::tuple<cv::Affine3d, std::vector<cv::Point3f>> Vio<IpBackend>::CalculatePose
     spdlog::warn("Not enough points for algorithm!");
     return {};
   }
-
   // Containers for the undistorted points
   // std::vector<cv::Point2f> pts_cam0_t0_ud;
   std::vector<cv::Point2f> pts_cam0_t1_ud;
@@ -183,6 +182,11 @@ std::tuple<cv::Affine3d, std::vector<cv::Point3f>> Vio<IpBackend>::CalculatePose
 
   std::erase_if(triangulation_output_pts_t1, thresh_lambda);
 
+  if (triangulation_output_pts_t1.size() <= 6ul || pts_cam0_t0.size() != triangulation_output_pts_t1.size()) {
+    spdlog::warn("Not enough points for algorithm after depth filtering!");
+    return {};
+  }
+
   // cv::Mat triangulation_output_pts_t0;
   // cv::convertPointsFromHomogeneous(triangulation_output_pts_homo_t0.t(), triangulation_output_pts_t0);
   // triangulation_output_pts_t0 = triangulation_output_pts_t0.reshape(1);
@@ -191,7 +195,7 @@ std::tuple<cv::Affine3d, std::vector<cv::Point3f>> Vio<IpBackend>::CalculatePose
   cv::Vec3d rvec, tvec;
 
   cv::solvePnPRansac(triangulation_output_pts_t1, pts_cam0_t0, stereo_cal_.K_cam0, stereo_cal_.D_cam0, rvec, tvec,
-                     false, 500, 1, 0.99, inliers, cv::SOLVEPNP_P3P);
+                     false, 500, 2, 0.99, inliers, cv::SOLVEPNP_AP3P);
 
   // std::vector<cv::Point3f> tri_pts_t1_refine;
   // tri_pts_t1_refine.reserve(inliers.size());

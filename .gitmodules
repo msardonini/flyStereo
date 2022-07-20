@@ -13,3 +13,6 @@
 [submodule "external/eigen"]
 	path = external/eigen
 	url = git@gitlab.com:libeigen/eigen.git
+[submodule "external/ORB_SLAM3"]
+	path = external/ORB_SLAM3
+	url = git@github.com:UZ-SLAMLab/ORB_SLAM3.git

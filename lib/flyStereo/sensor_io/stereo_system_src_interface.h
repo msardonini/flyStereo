@@ -8,10 +8,10 @@
 
 template <UMatDerivative ImageT>
 class StereoSystemSrcInterface {
+ public:
   virtual int GetSynchronizedData(ImageT &d_frame_cam0, ImageT &d_frame_cam1, std::vector<mavlink_imu_t> &imu_data,
                                   uint64_t &current_frame_time) = 0;
 
- public:
   static int GenerateImuXform(const std::vector<mavlink_imu_t> &imu_msgs, const cv::Matx33f R_imu_cam0,
                               const cv::Matx33f R_imu_cam1, cv::Matx33f &rotation_t0_t1_cam0,
                               const uint64_t current_frame_time, cv::Matx33f &rotation_t0_t1_cam1) {

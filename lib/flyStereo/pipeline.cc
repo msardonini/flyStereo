@@ -102,7 +102,7 @@ void Pipeline<IpBackend>::Init() {
   } else {
     // Initialize the sensor suite
     // mavlink_reader_.Init(params_);
-    arducam_system_.Init();
+    // arducam_system_.Init();
   }
 
   image_processor_.Init();

@@ -88,7 +88,6 @@ int main(int argc, char *argv[]) {
 
   // ArducamSystem<CvBackend::image_type> arducam_system(imu_comp_params);
   OakD<CvBackend::image_type> arducam_system;
-  arducam_system.Init();
 
   // Image Sinks
   ImageSink cam0_sink(imu_comp_params["ImageSinkCam0"]);

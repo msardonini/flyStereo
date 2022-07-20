@@ -99,6 +99,7 @@
     "ios": "cpp",
     "__functional_base": "cpp",
     "locale": "cpp",
-    "core": "cpp"
+    "core": "cpp",
+    "__locale": "cpp"
   }
 }

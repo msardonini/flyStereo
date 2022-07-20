@@ -89,26 +89,26 @@ if (${ENABLE_TESTING})
   add_subdirectory(tests)
 endif()
 
-# add_executable(oakd_orb3
-#   oakd_orb3.cc
-# )
+add_executable(oakd_orb3
+  oakd_orb3.cc
+)
 
-# find_package(Pangolin REQUIRED)
+find_package(Pangolin REQUIRED)
 
-# target_link_libraries(oakd_orb3
-#   PUBLIC
-#     fly_stereo_lib
-#     depthai::opencv
-#     ${OpenCV_LIBS}
-#     ${PROJECT_SOURCE_DIR}/external/ORB_SLAM3/lib/libORB_SLAM3.so
-#     Eigen3::Eigen
-#     ${Pangolin_LIBRARIES}
-# )
+target_link_libraries(oakd_orb3
+  PUBLIC
+    fly_stereo_lib
+    depthai::opencv
+    ${OpenCV_LIBS}
+    ${PROJECT_SOURCE_DIR}/external/ORB_SLAM3/lib/libORB_SLAM3.so
+    Eigen3::Eigen
+    ${Pangolin_LIBRARIES}
+)
 
-# target_include_directories(oakd_orb3
-#   PUBLIC
-#     ${PROJECT_SOURCE_DIR}/external/ORB_SLAM3/include
-#     ${PROJECT_SOURCE_DIR}/external/ORB_SLAM3
-#     ${PROJECT_SOURCE_DIR}/external/ORB_SLAM3/Thirdparty/Sophus
-#     ${PROJECT_SOURCE_DIR}/external/ORB_SLAM3/include/CameraModels
-# )
+target_include_directories(oakd_orb3
+  PUBLIC
+    ${PROJECT_SOURCE_DIR}/external/ORB_SLAM3/include
+    ${PROJECT_SOURCE_DIR}/external/ORB_SLAM3
+    ${PROJECT_SOURCE_DIR}/external/ORB_SLAM3/Thirdparty/Sophus
+    ${PROJECT_SOURCE_DIR}/external/ORB_SLAM3/include/CameraModels
+)
