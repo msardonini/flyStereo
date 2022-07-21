@@ -16,18 +16,21 @@ class ImageSink {
 
   operator bool() { return !sink_pipeline_.empty(); }
 
-  int operator<<(UMat<uint8_t>& frame) { return SendFrame(frame); }
+  template <typename T>
+  int operator<<(cv::Mat_<T>& frame) {
+    return SendFrame(frame);
+  }
 
   bool Init(bool is_color);
 
   template <typename T>
-  int SendFrame(UMat<T>& frame) {
+  int SendFrame(cv::Mat_<T>& frame) {
     if (!cam_sink_) {
-      if (Init(frame.frame().channels() > 1)) {
+      if (Init(frame.channels() > 1)) {
         return -1;
       }
     }
-    cam_sink_->write(frame.frame());
+    cam_sink_->write(frame);
     return 0;
   }
 

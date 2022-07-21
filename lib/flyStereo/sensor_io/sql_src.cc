@@ -6,13 +6,9 @@
 
 namespace fs = std::filesystem;
 
-template <UMatDerivative ImageT>
-SqlSrc<ImageT>::SqlSrc(fs::path &replay_data_dir) {
-  Init(replay_data_dir);
-}
+SqlSrc::SqlSrc(fs::path &replay_data_dir) { Init(replay_data_dir); }
 
-template <UMatDerivative ImageT>
-SqlSrc<ImageT>::~SqlSrc() {
+SqlSrc::~SqlSrc() {
   if (sql3_.sq_stmt) {
     sqlite3_finalize(sql3_.sq_stmt);
   }
@@ -21,8 +17,7 @@ SqlSrc<ImageT>::~SqlSrc() {
   }
 }
 
-template <UMatDerivative ImageT>
-void SqlSrc<ImageT>::Init(const fs::path &replay_data_dir) {
+void SqlSrc::Init(const fs::path &replay_data_dir) {
   auto replay_db_filepath = replay_data_dir / "database.dat";
 
   // Open the database
@@ -40,9 +35,8 @@ void SqlSrc<ImageT>::Init(const fs::path &replay_data_dir) {
   }
 }
 
-template <UMatDerivative ImageT>
-int SqlSrc<ImageT>::GetSynchronizedData(ImageT &frame_cam0, ImageT &frame_cam1, std::vector<mavlink_imu_t> &imu_msgs,
-                                        uint64_t &timestamp_frame) {
+int SqlSrc::GetSynchronizedData(cv::Mat_<uint8_t> &frame_cam0, cv::Mat_<uint8_t> &frame_cam1,
+                                std::vector<mavlink_imu_t> &imu_msgs, uint64_t &timestamp_frame) {
   int ret = sqlite3_step(sql3_.sq_stmt);
   if (ret != SQLITE_ROW) {
     if (ret == SQLITE_DONE) {
@@ -79,10 +73,3 @@ int SqlSrc<ImageT>::GetSynchronizedData(ImageT &frame_cam0, ImageT &frame_cam1, 
   }
   return 0;
 }
-
-#include "flyStereo/types/umat.h"
-template class SqlSrc<UMat<uint8_t>>;
-#ifdef WITH_VPI
-#include "flyStereo/types/umat_vpiimage.h"
-template class SqlSrc<UMatVpiImage>;
-#endif

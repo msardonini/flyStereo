@@ -10,8 +10,7 @@
 #include "flyStereo/types/umat.h"
 #include "yaml-cpp/yaml.h"
 
-template <UMatDerivative ImageT>
-class ArducamSystem : public StereoSystemSrcInterface<ImageT> {
+class ArducamSystem : public StereoSystemSrcInterface {
  public:
   ArducamSystem(const YAML::Node &input_params);
   ~ArducamSystem();
@@ -19,8 +18,8 @@ class ArducamSystem : public StereoSystemSrcInterface<ImageT> {
   ArducamSystem(const ArducamSystem &) = delete;
   ArducamSystem(ArducamSystem &&) = delete;
 
-  int GetSynchronizedData(ImageT &d_frame_cam0, ImageT &d_frame_cam1, std::vector<mavlink_imu_t> &imu_data,
-                          uint64_t &current_frame_time) override;
+  int GetSynchronizedData(cv::Mat_<uint8_t> &d_frame_cam0, cv::Mat_<uint8_t> &d_frame_cam1,
+                          std::vector<mavlink_imu_t> &imu_data, uint64_t &current_frame_time) override;
 
   void Init();
 

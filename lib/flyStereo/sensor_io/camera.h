@@ -37,8 +37,7 @@ class Camera {
 
   int Init();
 
-  template <UMatDerivative UMatType>
-  int GetFrame(UMatType &frame) {
+  int GetFrame(cv::Mat_<uint8_t> &frame) {
     if (use_gstreamer_pipeline_) {
       return GetFrameGst(frame);
     } else {
@@ -50,15 +49,15 @@ class Camera {
     }
 
     if (enable_videoflip_) {
-      UMatType temp(frame);
-      cv::cuda::flip(temp.d_frame(), frame.d_frame(), flip_method_);
+      cv::Mat_<uint8_t> temp(frame);
+      cv::flip(temp, frame, flip_method_);
     }
 
     if (auto_exposure_) {
       if (++curr_frame_ == num_frames_to_calc_) {
         curr_frame_ = 0;
         cv::Scalar mean, st_dev;
-        cv::cuda::meanStdDev(frame.d_frame(), mean, st_dev);
+        cv::meanStdDev(frame, mean, st_dev);
 
         // Run and apply the auto exposure if necessary
         RunAutoExposure(mean);
@@ -79,8 +78,7 @@ class Camera {
   int UpdateExposure();
   int InitGstPipeline();
 
-  template <UMatDerivative UMatType>
-  int GetFrameGst(UMatType &frame) {
+  int GetFrameGst(cv::Mat_<uint8_t> &frame) {
     // Pull in the next sample
     GstAppSink *appsink = reinterpret_cast<GstAppSink *>(gst_params_.appsink);
 
@@ -112,15 +110,15 @@ class Camera {
     }
 
     // Check to see if the frame has been initialized
-    if (frame.frame().size() != cv::Size(1280, 720)) {
-      frame = UMatType(cv::Size(1280, 720));
+    if (frame.size() != cv::Size(1280, 720)) {
+      frame = cv::Mat_<uint8_t>(cv::Size(1280, 720));
     }
 
     // Get the frame from gstreamer
     GstMapInfo info;
     if (gst_buffer_map(buffer, &info, GST_MAP_READ)) {
       // Copy the buffer
-      memcpy(frame.frame().ptr(), info.data, info.size);
+      memcpy(frame.data, info.data, info.size);
 
       timestamp_ns_ = static_cast<uint64_t>(GST_BUFFER_PTS(buffer));
 

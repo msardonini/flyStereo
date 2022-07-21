@@ -57,12 +57,13 @@ class Pipeline {
   const YAML::Node params_;
 
   MavlinkReader mavlink_reader_;
-  // ArducamSystem<typename IpBackend::image_type> arducam_system_;
-  OakD<typename IpBackend::image_type> arducam_system_;
+  // ArducamSystem<typename IpBackend::image_type> camera_src_;
+
   ImageProcessor<IpBackend> image_processor_;
   Vio<IpBackend> vio_;
 
-  SqlSrc<typename IpBackend::image_type> sql_src_;
+  std::unique_ptr<StereoSystemSrcInterface> data_src_;
+
   SqlSink<typename IpBackend::image_type> sql_sink_;
 
 #ifdef WITH_VIZ

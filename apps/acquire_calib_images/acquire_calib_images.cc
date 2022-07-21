@@ -10,6 +10,7 @@
 #include "flyStereo/image_processing/cv_backend.h"
 #include "flyStereo/sensor_io/arducam_system.h"
 #include "flyStereo/sensor_io/image_sink.h"
+#include "flyStereo/sensor_io/oakd.h"
 #include "opencv2/core.hpp"
 #include "opencv2/core/cuda.hpp"
 #include "opencv2/highgui.hpp"
@@ -79,13 +80,12 @@ int main(int argc, char *argv[]) {
 
   YAML::Node params = YAML::LoadFile(config_file)["flyStereo"];
 
-  std::unique_ptr<ArducamSystem<CvBackend::image_type>> arducam_system =
-      std::make_unique<ArducamSystem<CvBackend::image_type>>(params);
-  arducam_system->Init();
-  ImageSink cam0_sink(params);
-  ImageSink cam1_sink(params);
+  std::unique_ptr<StereoSystemSrcInterface> arducam_system = std::make_unique<OakD>(20, false);
+  // arducam_system->Init();
+  ImageSink cam0_sink(params["ImageSinkCam0"]);
+  ImageSink cam1_sink(params["ImageSinkCam1"]);
 
-  UMat<uint8_t> d_frame_cam0, d_frame_cam1;
+  cv::Mat_<uint8_t> d_frame_cam0, d_frame_cam1;
   std::experimental::filesystem::path save_dir_fp(save_dir);
   std::experimental::filesystem::create_directory(save_dir_fp);
   int counter = 1;
@@ -121,8 +121,8 @@ int main(int argc, char *argv[]) {
       std::experimental::filesystem::path save_path_0 = save_dir / file0;
       std::experimental::filesystem::path save_path_1 = save_dir / file1;
 
-      cv::imwrite(save_path_0.c_str(), d_frame_cam0.frame());
-      cv::imwrite(save_path_1.c_str(), d_frame_cam1.frame());
+      cv::imwrite(save_path_0.c_str(), d_frame_cam0);
+      cv::imwrite(save_path_1.c_str(), d_frame_cam1);
     }
     counter++;
   }

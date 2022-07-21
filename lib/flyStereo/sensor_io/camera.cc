@@ -70,7 +70,7 @@ int Camera::Init() {
 
     // Get all of the non-triggered frames out of the pipeline
     if (use_gstreamer_pipeline_) {
-      UMat<uint8_t> not_used;
+      cv::Mat_<uint8_t> not_used;
       while (GetFrameGst(not_used) != 1) {
       }
     }

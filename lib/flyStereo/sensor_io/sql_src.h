@@ -8,8 +8,7 @@
 
 namespace fs = std::filesystem;
 
-template <UMatDerivative ImageT>
-class SqlSrc : public StereoSystemSrcInterface<ImageT> {
+class SqlSrc : public StereoSystemSrcInterface {
  public:
   SqlSrc() = default;
   ~SqlSrc();
@@ -17,8 +16,8 @@ class SqlSrc : public StereoSystemSrcInterface<ImageT> {
 
   void Init(const fs::path &replay_data_dir);
 
-  int GetSynchronizedData(ImageT &d_frame_cam0, ImageT &d_frame_cam1, std::vector<mavlink_imu_t> &imu_data,
-                          uint64_t &current_frame_time) override;
+  int GetSynchronizedData(cv::Mat_<uint8_t> &d_frame_cam0, cv::Mat_<uint8_t> &d_frame_cam1,
+                          std::vector<mavlink_imu_t> &imu_data, uint64_t &current_frame_time) override;
 
  private:
   Sqlite3Params sql3_;

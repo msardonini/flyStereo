@@ -16,8 +16,6 @@ static constexpr unsigned int max_consecutive_missed_frames = 10;
 template <typename IpBackend>
 Pipeline<IpBackend>::Pipeline(const YAML::Node &params, const YAML::Node &stereo_calibration)
     : params_(params),
-      // arducam_system_(params),
-      arducam_system_(),
       image_processor_(15, stereo_calibration,
                        utility::eulerAnglesToRotationMatrix(params["R_imu_cam0"].as<std::vector<double>>())),
       vio_(StereoCalibration(stereo_calibration),
@@ -97,12 +95,16 @@ void Pipeline<IpBackend>::Init() {
     record_mode_ = true;
   }
   if (params_["replay_mode"] && params_["replay_mode"]["enable"].as<bool>()) {
-    sql_src_.Init(params_["replay_mode"]["replay_dir"].as<std::string>());
-    replay_mode_ = true;
+    auto tmp_src = std::make_unique<SqlSrc>();
+    tmp_src->Init(params_["replay_mode"]["replay_dir"].as<std::string>());
+
+    data_src_ = std::move(tmp_src);
   } else {
     // Initialize the sensor suite
     // mavlink_reader_.Init(params_);
-    // arducam_system_.Init();
+    // camera_src_.Init();
+
+    data_src_ = std::make_unique<OakD>(30, false);
   }
 
   image_processor_.Init();
@@ -126,7 +128,7 @@ void Pipeline<IpBackend>::shutdown() {
 //     // Get the next attitude message, block until we have one
 //     if (mavlink_reader_.GetAttitudeMsg(&attitude, true)) {
 //       // Send the imu message to the image processor
-//       arducam_system_.ReceiveImu(attitude);
+//       camera_src_.ReceiveImu(attitude);
 //     }
 
 //     // Check if we have been given the shutdown command
@@ -145,17 +147,14 @@ void Pipeline<IpBackend>::run() {
 
   while (is_running_.load()) {
     // Read the frames and check for errors
-    typename IpBackend::image_type d_frame_cam0_t1;
-    typename IpBackend::image_type d_frame_cam1_t1;
+    cv::Mat_<uint8_t> raw_frame_cam0_t1, raw_frame_cam1_t1;
     std::vector<mavlink_imu_t> imu_msgs;
     uint64_t current_time;
 
-    int ret_val;
-    if (replay_mode_) {
-      ret_val = sql_src_.GetSynchronizedData(d_frame_cam0_t1, d_frame_cam1_t1, imu_msgs, current_time);
-    } else {
-      ret_val = arducam_system_.GetSynchronizedData(d_frame_cam0_t1, d_frame_cam1_t1, imu_msgs, current_time);
-    }
+    int ret_val = data_src_->GetSynchronizedData(raw_frame_cam0_t1, raw_frame_cam1_t1, imu_msgs, current_time);
+
+    typename IpBackend::image_type d_frame_cam0_t1 = raw_frame_cam0_t1;
+    typename IpBackend::image_type d_frame_cam1_t1 = raw_frame_cam1_t1;
 
     if (ret_val == -1) {
       if (++consecutive_missed_frames >= max_consecutive_missed_frames) {

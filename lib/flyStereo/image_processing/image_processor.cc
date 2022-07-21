@@ -189,8 +189,8 @@ TrackedImagePoints<IpBackend> ImageProcessor<IpBackend>::process_image(IpBackend
 
   cv::Matx33f rotation_t0_t1_cam0;
   cv::Matx33f rotation_t0_t1_cam1;
-  int retval = ArducamSystem<typename IpBackend::image_type>::GenerateImuXform(
-      imu_msgs, R_imu_cam0_, R_imu_cam1_, rotation_t0_t1_cam0, current_frame_time, rotation_t0_t1_cam1);
+  int retval = ArducamSystem::GenerateImuXform(imu_msgs, R_imu_cam0_, R_imu_cam1_, rotation_t0_t1_cam0,
+                                               current_frame_time, rotation_t0_t1_cam1);
 
   if (pts_t_c0_t0_.size() != pts_t_c1_t0_.size()) {
     throw std::runtime_error("points do not match across cameras! 0");

@@ -9,8 +9,7 @@
 #include "opencv2/imgproc.hpp"
 #include "spdlog/spdlog.h"
 
-template <UMatDerivative ImageType>
-ArducamSystem<ImageType>::ArducamSystem(const YAML::Node &input_params) {
+ArducamSystem::ArducamSystem(const YAML::Node &input_params) {
   replay_mode_ = input_params["replay_mode"] && input_params["replay_mode"]["enable"].as<bool>();
   if (replay_mode_) {
     replay_speed_multiplier_ = input_params["replay_mode"]["replay_speed_multiplier"].as<float>();
@@ -21,15 +20,13 @@ ArducamSystem<ImageType>::ArducamSystem(const YAML::Node &input_params) {
   sensor_params_ = input_params["sensor_interface"];
 }
 
-template <UMatDerivative ImageType>
-ArducamSystem<ImageType>::~ArducamSystem() {
+ArducamSystem::~ArducamSystem() {
   if (camera_trigger_) {
     camera_trigger_->TriggerCamera();
   }
 }
 
-template <UMatDerivative ImageType>
-void ArducamSystem<ImageType>::Init() {
+void ArducamSystem::Init() {
   cam0_ = std::make_unique<Camera>(sensor_params_["Camera0"], replay_mode_);
   if (cam0_->Init()) {
     throw std::runtime_error("Error Initializing Camera0");
@@ -47,9 +44,8 @@ void ArducamSystem<ImageType>::Init() {
   min_camera_dt_ms_ = sensor_params_["min_camera_dt_ms"].as<uint64_t>();
 }
 
-template <UMatDerivative ImageType>
-int ArducamSystem<ImageType>::GetSynchronizedData(ImageType &d_frame_cam0, ImageType &d_frame_cam1,
-                                                  std::vector<mavlink_imu_t> &imu_data, uint64_t &current_frame_time) {
+int ArducamSystem::GetSynchronizedData(cv::Mat_<uint8_t> &d_frame_cam0, cv::Mat_<uint8_t> &d_frame_cam1,
+                                       std::vector<mavlink_imu_t> &imu_data, uint64_t &current_frame_time) {
   // Time checks for performance monitoring
   std::chrono::time_point<std::chrono::system_clock> t_start = std::chrono::system_clock::now();
   std::chrono::time_point<std::chrono::system_clock> t_trig;
@@ -155,14 +151,12 @@ int ArducamSystem<ImageType>::GetSynchronizedData(ImageType &d_frame_cam0, Image
   return ret;
 }
 
-template <UMatDerivative ImageType>
-void ArducamSystem<ImageType>::ReceiveImu(mavlink_imu_t imu_msg) {
+void ArducamSystem::ReceiveImu(mavlink_imu_t imu_msg) {
   std::lock_guard<std::mutex> lock(imu_queue_mutex_);
   imu_queue_.push(imu_msg);
 }
 
-template <UMatDerivative ImageType>
-int ArducamSystem<ImageType>::AssociateImuData(std::vector<mavlink_imu_t> &imu_msgs, uint64_t &current_frame_time) {
+int ArducamSystem::AssociateImuData(std::vector<mavlink_imu_t> &imu_msgs, uint64_t &current_frame_time) {
   // Guard against the imu queue
   std::lock_guard<std::mutex> lock(imu_queue_mutex_);
 
@@ -207,10 +201,3 @@ int ArducamSystem<ImageType>::AssociateImuData(std::vector<mavlink_imu_t> &imu_m
   }
   return 0;
 }
-
-#include "flyStereo/types/umat.h"
-template class ArducamSystem<UMat<uint8_t>>;
-#ifdef WITH_VPI
-#include "flyStereo/types/umat_vpiimage.h"
-template class ArducamSystem<UMatVpiImage>;
-#endif

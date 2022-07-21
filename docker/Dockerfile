@@ -105,7 +105,7 @@ RUN add-apt-repository -y ppa:ubuntu-toolchain-r/test && \
   apt-get install -y gcc-11 g++-11
 
 RUN apt-get install -y libglew-dev libboost-serialization1.71-dev
-# Install Pangolin for ORM_SLAM3
+# Install Pangolin for ORB_SLAM3
 RUN cd /opt && \
   git clone https://github.com/stevenlovegrove/Pangolin.git && \
   cd Pangolin && \
@@ -116,21 +116,14 @@ RUN cd /opt && \
   make -j$('nproc') && \
   make install
 
-
-# # Install depthai-camera
-# RUN cd /opt && \
-#   git clone git@github.com:luxonis/depthai-core.git && \
-#   cd depthai-core && \
-#   git checkout v2.17.1 && \
-#   mkdir build && \
-#   cd build && \
-#   cmake .. && \
-#   make -j$('nproc') && \
-#   make install
+# TODO: compile ORB_SLAM3
 
 
-RUN wget -qO- https://raw.githubusercontent.com/luxonis/depthai-docs-website/master/source/_static/install_dependencies.sh | bash && \
-cd /opt && \
-git clone --recursive https://github.com/luxonis/depthai-core.git --branch main && \
-cmake -Hdepthai-core -Bdepthai-core/build -DBUILD_SHARED_LIBS=ON -DCMAKE_INSTALL_PREFIX=/usr/local && \
-cmake --build depthai-core/build --target install
+ENV CXX=/usr/bin/g++-11
+ENV CC=/usr/bin/gcc-11
+
+RUN cd /opt && \
+  git clone --recursive https://github.com/luxonis/depthai-core.git --branch v2.17.1 && \
+  cd depthai-core && \
+  cmake -S. -Bbuild -D'CMAKE_INSTALL_PREFIX=/usr/local' && \
+  cmake --build build --target install --parallel $('nproc')

@@ -207,5 +207,26 @@
     ]
   },
 
+
+  {
+    "name": "acquire_calib_images",
+    "type": "cppdbg",
+    "request": "launch",
+    "program": "${workspaceFolder}/build/bin/acquire_calib_images",
+    "args": ["-c", "${workspaceFolder}/config/flight/oakd_record.yaml", "-s", "/tmp"],
+    "stopAtEntry": false,
+    "cwd": "${fileDirname}",
+    "environment": [],
+    "externalConsole": false,
+    "MIMode": "gdb",
+    "setupCommands": [
+      {
+        "description": "Enable pretty-printing for gdb",
+        "text": "-enable-pretty-printing",
+        "ignoreFailures": true
+      }
+    ]
+  },
+
   ]
 }

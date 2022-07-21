@@ -11,7 +11,8 @@ docker run \
   --device /dev/dri \
   --env XAUTHORITY=$XAUTHORITY \
   --env DISPLAY=$DISPLAY \
-  -e NVIDIA_DRIVER_CAPABILITIES=all --privileged \
+  -e NVIDIA_DRIVER_CAPABILITIES=all \
+  --privileged \
   -it \
   --rm \
   --env DDS_DOMAIN_ID=$DDS_DOMAIN_ID \

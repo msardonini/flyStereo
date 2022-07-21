@@ -87,13 +87,13 @@ int main(int argc, char *argv[]) {
   YAML::Node imu_comp_params = YAML::LoadFile(config_file)["flyStereo"];
 
   // ArducamSystem<CvBackend::image_type> arducam_system(imu_comp_params);
-  OakD<CvBackend::image_type> arducam_system;
+  OakD camera_src(30, false);
 
   // Image Sinks
   ImageSink cam0_sink(imu_comp_params["ImageSinkCam0"]);
   ImageSink cam1_sink(imu_comp_params["ImageSinkCam1"]);
 
-  // std::thread imu_thread_obj(imu_thread, imu_comp_params["mavlink_reader"], &arducam_system);
+  // std::thread imu_thread_obj(imu_thread, imu_comp_params["mavlink_reader"], &camera_src);
 
   // Draw a box of points on the image
   std::vector<cv::Point3d> debug_pts_cam0;
@@ -114,7 +114,7 @@ int main(int argc, char *argv[]) {
   // cv::cuda::GpuMat d_debug_pts; d_debug_pts.upload(debug_pts);
   //   d_debug_pts.download(debug_pts);
 
-  UMat<uint8_t> d_frame_cam0, d_frame_cam1;
+  cv::Mat_<uint8_t> d_frame_cam0, d_frame_cam1;
   std::vector<mavlink_imu_t> imu_msgs;
 
   // Get the config params for the rotation of IMU to cameras
@@ -139,12 +139,12 @@ int main(int argc, char *argv[]) {
   uint64_t current_frame_time;
   while (is_running.load()) {
     imu_msgs.clear();
-    if (arducam_system.GetSynchronizedData(d_frame_cam0, d_frame_cam1, imu_msgs, current_frame_time) != 0) {
+    if (camera_src.GetSynchronizedData(d_frame_cam0, d_frame_cam1, imu_msgs, current_frame_time) != 0) {
       continue;
     }
     current_frame_time = 0;
-    if (arducam_system.GenerateImuXform(imu_msgs, R_imu_cam0, R_imu_cam1, R_t0_t1_cam0, current_frame_time,
-                                        R_t0_t1_cam1) != 0) {
+    if (camera_src.GenerateImuXform(imu_msgs, R_imu_cam0, R_imu_cam1, R_t0_t1_cam0, current_frame_time, R_t0_t1_cam1) !=
+        0) {
       continue;
     }
 
@@ -167,10 +167,10 @@ int main(int argc, char *argv[]) {
       cv::projectPoints(debug_pts_cam0, rvec, tvec, K_cam0, D_cam0, show_pts);
       std::vector<cv::Point2f> show_pts_f(show_pts.begin(), show_pts.end());
       UMat<cv::Vec3b> show_frame_color;
-      UMat<uint8_t> show_frame = d_frame_cam0.frame().clone();
+      UMat<uint8_t> show_frame = d_frame_cam0.clone();
       cv::cvtColor(show_frame.frame(), show_frame_color.frame(), cv::COLOR_GRAY2BGR);
       DrawPoints(show_pts_f, show_frame_color.frame());
-      cam0_sink.SendFrame(show_frame_color);
+      cam0_sink.SendFrame(show_frame_color.frame());
     }
 
     if (cam1_sink) {
@@ -178,10 +178,10 @@ int main(int argc, char *argv[]) {
       cv::projectPoints(debug_pts_cam1, rvec, tvec, K_cam1, D_cam1, show_pts);
       std::vector<cv::Point2f> show_pts_f(show_pts.begin(), show_pts.end());
       UMat<cv::Vec3b> show_frame_color;
-      UMat<uint8_t> show_frame = d_frame_cam1.frame().clone();
+      UMat<uint8_t> show_frame = d_frame_cam1.clone();
       cv::cvtColor(show_frame.frame(), show_frame_color.frame(), cv::COLOR_GRAY2BGR);
       DrawPoints(show_pts_f, show_frame_color.frame());
-      cam1_sink.SendFrame(show_frame_color);
+      cam1_sink.SendFrame(show_frame_color.frame());
     }
 
     // Sleep to limit the FPS
