@@ -384,7 +384,7 @@ int ImageProcessor<IpBackend>::StereoMatch(IpBackend::flow_type &opt, const IpBa
     double error = fabs(pt1.dot(epilines[i]));
 
     if (error > IpConstants::stereo_threshold) {
-      // status_f(0, i) = !IpBackend::flow_type::success_value;
+      status_f(0, i) = !IpBackend::flow_type::success_value;
     }
   }
   return 0;
