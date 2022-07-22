@@ -19,8 +19,6 @@ class OakD : public StereoSystemSrcInterface {
   int GetSynchronizedData(cv::Mat_<uint8_t> &left_image, cv::Mat_<uint8_t> &right_image,
                           std::vector<mavlink_imu_t> &imu_data_a, uint64_t &current_frame_time) override;
 
-  void spin();
-
  private:
   void Init(int fps = 30, bool rectify = true);
 

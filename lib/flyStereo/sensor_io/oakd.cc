@@ -16,8 +16,6 @@ OakD::OakD(int fps, bool rectify) { Init(fps, rectify); }
 
 OakD::~OakD() {}
 
-void OakD::spin() {}
-
 void OakD::Init(int fps, bool rectify) {
   // Define sources and outputs
   mono_left_ = pipeline_.create<dai::node::MonoCamera>();
@@ -44,7 +42,7 @@ void OakD::Init(int fps, bool rectify) {
   // to 20 when integrating in a pipeline with a lot of input/output connections
   // above this threshold packets will be sent in batch of X, if the host is not
   // blocked and USB bandwidth is available
-  imu_->setBatchReportThreshold(5);
+  imu_->setBatchReportThreshold(1);
   // maximum number of IMU packets in a batch, if it's reached device will block
   // sending until host can receive it if lower or equal to batchReportThreshold
   // then the sending is always blocking on device useful to reduce device's CPU
@@ -153,8 +151,12 @@ int OakD::GetSynchronizedData(cv::Mat_<uint8_t> &left_image, cv::Mat_<uint8_t> &
 
   auto stereo_pair = this->GetStereoImagePair(timeout_period, has_timed_out_check);
   has_timed_out |= has_timed_out_check;
-  auto imu_data = this->GetImuData(timeout_period, has_timed_out_check);
-  has_timed_out |= has_timed_out_check;
+
+  while (this->queue_imu_->has<dai::IMUData>() && !has_timed_out) {
+    auto imu_data = this->GetImuData(timeout_period, has_timed_out_check);
+    std::for_each(imu_data.begin(), imu_data.end(), [&](auto &val) { local_queue_imu_.push(std::move(val)); });
+    has_timed_out |= has_timed_out_check;
+  }
 
   if (has_timed_out) {
     spdlog::warn("Error poll timed out!");
@@ -169,7 +171,6 @@ int OakD::GetSynchronizedData(cv::Mat_<uint8_t> &left_image, cv::Mat_<uint8_t> &
   right_image = stereo_pair.second->getCvFrame();
 
   // Get all the IMU data that is in the time range of the current frame
-  std::for_each(imu_data.begin(), imu_data.end(), [&](auto &val) { local_queue_imu_.push(std::move(val)); });
   imu_data_a.clear();
   while (!local_queue_imu_.empty()) {
     auto imu_time = local_queue_imu_.front().gyroscope.timestamp.get();

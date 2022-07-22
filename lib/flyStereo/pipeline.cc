@@ -16,10 +16,8 @@ static constexpr unsigned int max_consecutive_missed_frames = 10;
 template <typename IpBackend>
 Pipeline<IpBackend>::Pipeline(const YAML::Node &params, const YAML::Node &stereo_calibration)
     : params_(params),
-      image_processor_(15, stereo_calibration,
-                       utility::eulerAnglesToRotationMatrix(params["R_imu_cam0"].as<std::vector<double>>())),
-      vio_(StereoCalibration(stereo_calibration),
-           utility::eulerAnglesToRotationMatrix(params["R_imu_cam0"].as<std::vector<double>>()),
+      image_processor_(15, stereo_calibration, cv::Matx33d(params["R_imu_cam0"].as<std::vector<double>>().data())),
+      vio_(StereoCalibration(stereo_calibration), cv::Matx33d(params["R_imu_cam0"].as<std::vector<double>>().data()),
            cv::Vec3d{params["vio_calibration_rvec"].as<std::array<double, 3>>().data()},
            cv::Vec3d{params["vio_calibration_tvec"].as<std::array<double, 3>>().data()})
 #ifdef WITH_VIZ

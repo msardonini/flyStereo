@@ -129,10 +129,8 @@ int main(int argc, char *argv[]) {
   std::vector<double> D_cam0 = stereo_calibration["D0"]["data"].as<std::vector<double>>();
   std::vector<double> D_cam1 = stereo_calibration["D1"]["data"].as<std::vector<double>>();
 
-  cv::Matx33d R_imu_cam0;
-  std::vector<double> imu_cam0_vec = imu_comp_params["R_imu_cam0"].as<std::vector<double>>();
-  cv::Vec3d angles_imu_cam0 = {imu_cam0_vec[0], imu_cam0_vec[1], imu_cam0_vec[2]};
-  cv::Rodrigues(angles_imu_cam0, R_imu_cam0);
+  auto R_imu_cam0_vec = imu_comp_params["R_imu_cam0"].as<std::vector<double>>();
+  cv::Matx33d R_imu_cam0(R_imu_cam0_vec.data());
   cv::Matx33d R_imu_cam1 = R_imu_cam0 * R_cam0_cam1;
 
   cv::Matx33f R_t0_t1_cam0, R_t0_t1_cam1;
