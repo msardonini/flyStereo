@@ -145,22 +145,16 @@ std::tuple<cv::Affine3d, std::vector<cv::Point3f>> Vio<IpBackend>::CalculatePose
     return {};
   }
   // Containers for the undistorted points
-  // std::vector<cv::Point2f> pts_cam0_t0_ud;
   std::vector<cv::Point2f> pts_cam0_t1_ud;
-  // std::vector<cv::Point2f> pts_cam1_t0_ud;
   std::vector<cv::Point2f> pts_cam1_t1_ud;
 
   // Undistort the points using the intrinsic calibration
-  // cv::undistortPoints(pts.cam0_t0.frame(), pts_cam0_t0_ud, stereo_cal_.K_cam0, stereo_cal_.D_cam0);
   cv::undistortPoints(pts.cam0_t1.frame(), pts_cam0_t1_ud, stereo_cal_.K_cam0, stereo_cal_.D_cam0);
-  // cv::undistortPoints(pts.cam1_t0.frame(), pts_cam1_t0_ud, stereo_cal_.K_cam1, stereo_cal_.D_cam1);
   cv::undistortPoints(pts.cam1_t1.frame(), pts_cam1_t1_ud, stereo_cal_.K_cam1, stereo_cal_.D_cam1);
 
   cv::Mat triangulation_output_pts_homo_t1;
-  // cv::Affine3f extrinsic_cal(stereo_cal_.R_cam0_cam1, stereo_cal_.T_cam0_cam1);
-  cv::triangulatePoints(cv::Matx34f::eye(), P1_, pts_cam0_t1_ud, pts_cam1_t1_ud, triangulation_output_pts_homo_t1);
-  // cv::Mat triangulation_output_pts_homo_t0;
-  // cv::triangulatePoints(cv::Matx34f::eye(), P1_, pts_cam0_t0_ud, pts_cam1_t0_ud, triangulation_output_pts_homo_t0);
+
+  cv::triangulatePoints(P0_, P1_, pts_cam0_t1_ud, pts_cam1_t1_ud, triangulation_output_pts_homo_t1);
 
   // Convert points from homogeneous to 3D coords
   std::vector<cv::Point3f> triangulation_output_pts_t1;
@@ -171,6 +165,7 @@ std::tuple<cv::Affine3d, std::vector<cv::Point3f>> Vio<IpBackend>::CalculatePose
 
   std::vector<cv::Point2f> pts_cam0_t0;
   pts_cam0_t0.reserve(triangulation_output_pts_t1.size());
+
   std::vector<int> pts_idx;
   pts_idx.reserve(triangulation_output_pts_t1.size());
   for (auto i = 0ul; i < triangulation_output_pts_t1.size(); i++) {
@@ -179,7 +174,6 @@ std::tuple<cv::Affine3d, std::vector<cv::Point3f>> Vio<IpBackend>::CalculatePose
       pts_idx.emplace_back(pts.ids[i]);
     }
   }
-
   std::erase_if(triangulation_output_pts_t1, thresh_lambda);
 
   if (triangulation_output_pts_t1.size() <= 6ul || pts_cam0_t0.size() != triangulation_output_pts_t1.size()) {
@@ -187,13 +181,8 @@ std::tuple<cv::Affine3d, std::vector<cv::Point3f>> Vio<IpBackend>::CalculatePose
     return {};
   }
 
-  // cv::Mat triangulation_output_pts_t0;
-  // cv::convertPointsFromHomogeneous(triangulation_output_pts_homo_t0.t(), triangulation_output_pts_t0);
-  // triangulation_output_pts_t0 = triangulation_output_pts_t0.reshape(1);
-
   std::vector<int> inliers;
   cv::Vec3d rvec, tvec;
-
   cv::solvePnPRansac(triangulation_output_pts_t1, pts_cam0_t0, stereo_cal_.K_cam0, stereo_cal_.D_cam0, rvec, tvec,
                      false, 500, 2, 0.99, inliers, cv::SOLVEPNP_AP3P);
 

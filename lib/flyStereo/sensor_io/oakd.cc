@@ -193,7 +193,8 @@ int OakD::GetSynchronizedData(cv::Mat_<uint8_t> &left_image, cv::Mat_<uint8_t> &
     local_queue_imu_.pop();
   }
 
-  current_frame_time = std::chrono::duration_cast<std::chrono::microseconds>(left_cam_time - start_time_).count();
+  // current_frame_time = std::chrono::duration_cast<std::chrono::microseconds>(left_cam_time - start_time_).count();
+  current_frame_time = 0;
 
   // auto handler = dai::CalibrationHandler();
   // auto left_d =

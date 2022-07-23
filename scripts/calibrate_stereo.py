@@ -10,9 +10,9 @@ pattern_width = 9
 pattern_height = 6
 square_size = 0.058
 # square_size = 0.028 # square size for the 5x8 board
-folderpath = "/home/msardonini/Pictures/flight_vehicle_cal_imgs/second_attempt/"
-visualize_images = True
-num_images = 239
+folderpath = "/home/msardonini/calibration/"
+visualize_images = False
+num_images = 245
 # num_images = 15
 cam0_prefix = 'cam0_'
 cam1_prefix = 'cam1_'
@@ -112,6 +112,7 @@ def get_single_cam_points(cam_num):
                         objpoints1.append(objp)
                         points_index1.append(i)
                 elif key == ord('n'):
+                    # pass
                     os.remove(img_path)
                 else:
                     print("Error! need to provide 'y' or 'n'")
@@ -125,6 +126,7 @@ def get_single_cam_points(cam_num):
                     objpoints1.append(objp)
                     points_index1.append(i)
         else:
+            # pass
             os.remove(img_path)
 
 
@@ -267,6 +269,10 @@ def save_stereo(cam0, cam1, R, T, E, F):
     fs_write.write("D1", cam1.D)
     fs_write.write("R", R)
     fs_write.write("T", T)
+    fs_write.write("R0", cam0.R)
+    fs_write.write("R1", cam1.R)
+    fs_write.write("P0", cam0.P)
+    fs_write.write("P1", cam1.P)
     fs_write.write("E", E)
     fs_write.write("F", F)
     fs_write.release()
@@ -352,6 +358,9 @@ if __name__ == "__main__":
         cam1.D,
         image_shape,
         flags=cv2.CALIB_RATIONAL_MODEL | cv2.CALIB_FIX_INTRINSIC)
+
+    cam0.R, cam1.R, cam0.P, cam1.P, Q, cam0.roi, cam1.roi = cv2.stereoRectify(
+        cam0.K, cam0.D, cam1.K, cam1.D, image_shape, R, T)
 
     cam0.D.resize(8)
     cam1.D.resize(8)
