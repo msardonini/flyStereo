@@ -3,12 +3,10 @@
 #include <fstream>
 #include <random>
 
-#include "Eigen/Dense"
 #include "flyStereo/sensor_io/arducam_system.h"
 #include "flyStereo/utility.h"
 #include "opencv2/calib3d.hpp"
 #include "opencv2/core/cuda.hpp"
-#include "opencv2/core/eigen.hpp"
 #include "opencv2/imgproc.hpp"
 #include "opencv2/video/tracking.hpp"
 #include "spdlog/spdlog.h"
@@ -129,11 +127,8 @@ TrackedImagePoints<IpBackend> ImageProcessor<IpBackend>::OuputTrackedPoints(cons
       std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now().time_since_epoch())
           .count();
 
-  Eigen::Matrix3f rotation_t0_t1_cam0_eigen;
-  cv::cv2eigen(rotation_t0_t1_cam0, rotation_t0_t1_cam0_eigen);
-
   return TrackedImagePoints<IpBackend>(timestamp_us, ids_pts_tracked_, pts_t_c0_t0_, pts_t_c0_t1_, pts_t_c1_t0_,
-                                       pts_t_c1_t1_, imu_msgs, rotation_t0_t1_cam0_eigen);
+                                       pts_t_c1_t1_, imu_msgs, rotation_t0_t1_cam0);
 }
 
 template <typename IpBackend>

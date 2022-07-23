@@ -1,20 +1,17 @@
 #pragma once
 
 // Package Includes
-#include "Eigen/Dense"
+#include "flyStereo/interface.h"
+#include "flyStereo/stereo_calibration.h"
 #include "opencv2/core.hpp"
 #include "opencv2/core/affine.hpp"
 #include "opencv2/surface_matching/icp.hpp"
 #include "yaml-cpp/yaml.h"
-// #include "liblas/liblas.hpp"
-#include "flyStereo/interface.h"
-#include "flyStereo/kalman_filter.h"
-#include "flyStereo/stereo_calibration.h"
 
 struct vio_t {
-  Eigen::Vector3d position;
-  Eigen::Vector3d velocity;
-  Eigen::Quaterniond quat;
+  cv::Vec3d position;
+  cv::Vec3d velocity;
+  cv::Vec4d quat;
   cv::Affine3d pose_cam0_;
 };
 
@@ -35,12 +32,10 @@ class Vio {
   std::tuple<cv::Affine3d, std::vector<cv::Point3f>> CalculatePoseUpdate(const TrackedImagePoints<IpBackend> &pts);
 
   int ProcessImu(const std::vector<mavlink_imu_t> &imu_pts);
-  int ProcessVio(const cv::Affine3d &pose_body, uint64_t image_timestamp, Eigen::Matrix<double, 6, 1> &output);
-  int Debug_SaveOutput(const Eigen::Matrix4d &pose_update, const Eigen::Matrix3d &R_imu);
+  // int ProcessVio(const cv::Affine3d &pose_body, uint64_t image_timestamp, Eigen::Matrix<double, 6, 1> &output);
 
   // Stereo camera calibration parameters
   StereoCalibration stereo_cal_;
-  Eigen::Matrix3d R_imu_cam0_eigen_;
   cv::Matx33d R_imu_cam0_;
 
   cv::Matx34f P0_;
@@ -52,12 +47,8 @@ class Vio {
   cv::Affine3d pose_cam0_;
   bool first_iteration_;
 
-  // std::vector<std::map<unsigned int, opengv::point_t> > point_history_;
-  std::vector<Eigen::Matrix4d, Eigen::aligned_allocator<Eigen::Matrix4d>> pose_history_;
-  unsigned int point_history_index_;
-
   // Kalman Filter object to fuse imu and visual odom measurmenets
-  KalmanFilter kf_;
+  // KalmanFilter kf_;
   uint64_t last_timestamp_ = 0;
 
   // cv::ppf_match_3d::ICP icp_;

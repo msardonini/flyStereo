@@ -4,12 +4,11 @@
 // System includes
 #include <fstream>
 #include <iostream>
+#include <numeric>
 
 // Package includes
-#include "Eigen/Geometry"
 #include "flyStereo/interface.h"
 #include "opencv2/calib3d.hpp"
-#include "opencv2/core/eigen.hpp"
 #include "opencv2/imgproc.hpp"
 #include "opencv2/surface_matching/ppf_helpers.hpp"
 #include "spdlog/spdlog.h"
@@ -24,11 +23,9 @@ template <typename IpBackend>
 Vio<IpBackend>::Vio(const StereoCalibration &stereo_calibration, const cv::Matx33d &R_imu_cam0,
                     const cv::Vec3d &vio_calibration_rvec, const cv::Vec3d &vio_calibration_tvec)
     : stereo_cal_(stereo_calibration),
+      R_imu_cam0_(R_imu_cam0),
       vio_calibration_rvec_(vio_calibration_rvec),
       vio_calibration_tvec_(vio_calibration_tvec) {
-  cv::cv2eigen(R_imu_cam0, R_imu_cam0_eigen_);
-  R_imu_cam0_ = R_imu_cam0;
-
   // Create the projection matrices such that the output points will be in the coordinate system
   // of cam0
   P0_ = cv::Matx34f::eye();
@@ -43,9 +40,6 @@ Vio<IpBackend>::Vio(const StereoCalibration &stereo_calibration, const cv::Matx3
   // Set the initial pose to identity
   pose_cam0_ = cv::Affine3d::Identity();
   first_iteration_ = true;
-
-  point_history_index_ = 0;
-  pose_history_.resize(history_size);
 }
 
 template <typename IpBackend>
@@ -104,32 +98,32 @@ std::tuple<cv::Affine3d, std::vector<cv::Point3f>> Vio<IpBackend>::ProcessPoints
   // return 0;
 }
 
-template <typename IpBackend>
-int Vio<IpBackend>::ProcessVio(const cv::Affine3d &pose_body, uint64_t image_timestamp,
-                               Eigen::Matrix<double, 6, 1> &output_state) {
-  Eigen::Matrix<double, 3, 1> z;
-  cv::cv2eigen(pose_body.translation(), z);
+// template <typename IpBackend>
+// int Vio<IpBackend>::ProcessVio(const cv::Affine3d &pose_body, uint64_t image_timestamp,
+//                                Eigen::Matrix<double, 6, 1> &output_state) {
+//   Eigen::Matrix<double, 3, 1> z;
+//   cv::cv2eigen(pose_body.translation(), z);
 
-  if (last_timestamp_ == 0) {
-    kf_.Predict();
-  } else {
-    kf_.Predict(static_cast<double>(image_timestamp - last_timestamp_) / 1.0E6);
-  }
-  last_timestamp_ = image_timestamp;
-  kf_.Measure(z);
+//   if (last_timestamp_ == 0) {
+//     kf_.Predict();
+//   } else {
+//     kf_.Predict(static_cast<double>(image_timestamp - last_timestamp_) / 1.0E6);
+//   }
+//   last_timestamp_ = image_timestamp;
+//   kf_.Measure(z);
 
-  output_state = kf_.GetState();
-  return 0;
-}
+//   output_state = kf_.GetState();
+//   return 0;
+// }
 
-template <typename IpBackend>
-inline unsigned int Vio<IpBackend>::Modulo(int value, unsigned m) {
-  int mod = value % (int)m;
-  if (value < 0) {
-    mod += m;
-  }
-  return mod;
-}
+// template <typename IpBackend>
+// inline unsigned int Vio<IpBackend>::Modulo(int value, unsigned m) {
+//   int mod = value % (int)m;
+//   if (value < 0) {
+//     mod += m;
+//   }
+//   return mod;
+// }
 
 inline double get_inlier_pct(const std::vector<int> &inliers) {
   return std::accumulate(inliers.begin(), inliers.end(), 0.,

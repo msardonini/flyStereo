@@ -3,7 +3,7 @@
 #include <iostream>
 
 #include "opencv2/calib3d.hpp"
-#include "opencv2/core/eigen.hpp"
+// #include "opencv2/core/eigen.hpp"
 
 Visualization::Visualization(const cv::Matx33d &R_imu_cam0)
     : my_window_("Coordinate Frame"),

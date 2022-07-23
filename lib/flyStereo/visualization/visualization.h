@@ -2,7 +2,6 @@
 
 #include <vector>
 
-#include "Eigen/Dense"
 #include "opencv2/core.hpp"
 #include "opencv2/videoio.hpp"
 #include "opencv2/viz.hpp"

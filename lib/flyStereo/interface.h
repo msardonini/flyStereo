@@ -3,7 +3,6 @@
 #include <array>
 #include <vector>
 
-#include "Eigen/Dense"
 #include "flyStereo/sensor_io/mavlink/fly_stereo/mavlink.h"
 #include "flyStereo/types/umat.h"
 
@@ -67,7 +66,7 @@ struct TrackedImagePoints {
    */
   TrackedImagePoints(uint64_t timestamp_us, std::vector<unsigned int> &&ids, IpBackend::array_type &&cam0_t0,
                      IpBackend::array_type &&cam0_t1, IpBackend::array_type &&cam1_t0, IpBackend::array_type &&cam1_t1,
-                     std::vector<mavlink_imu_t> &&imu_pts, Eigen::Matrix3f &&R_t0_t1_cam0)
+                     std::vector<mavlink_imu_t> &&imu_pts, cv::Matx33f &&R_t0_t1_cam0)
       : timestamp_us(timestamp_us),
         ids(ids),
         cam0_t0(cam0_t0),
@@ -92,7 +91,7 @@ struct TrackedImagePoints {
   TrackedImagePoints(uint64_t timestamp_us, const std::vector<unsigned int> &ids, const IpBackend::array_type &cam0_t0,
                      const IpBackend::array_type &cam0_t1, const IpBackend::array_type &cam1_t0,
                      const IpBackend::array_type &cam1_t1, const std::vector<mavlink_imu_t> &imu_pts,
-                     const Eigen::Matrix3f &R_t0_t1_cam0)
+                     const cv::Matx33f &R_t0_t1_cam0)
       : timestamp_us(timestamp_us),
         ids(ids),
         cam0_t0(cam0_t0),
@@ -116,13 +115,5 @@ struct TrackedImagePoints {
   IpBackend::array_type cam1_t0;       //< The points from cam1 in the previous frame
   IpBackend::array_type cam1_t1;       //< The points from cam1 in the current frame
   std::vector<mavlink_imu_t> imu_pts;  //< The imu measurements associated with the tracked features
-  Eigen::Matrix3f R_t0_t1_cam0;        //< The rotation matrix between the timestamps as measured by the IMU
-};
-
-struct VisualOdom {
-  double TimestampToSec() const { return static_cast<double>(timestamp_us) / 1.0E6; }
-  uint64_t timestamp_us;
-  Eigen::Vector3d pos;
-  Eigen::Vector4d quat;
-  Eigen::Matrix<double, 6, 6> cov;
+  cv::Matx33f R_t0_t1_cam0;            //< The rotation matrix between the timestamps as measured by the IMU
 };

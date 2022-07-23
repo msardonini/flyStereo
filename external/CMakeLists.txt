@@ -1,6 +1,5 @@
 
 
-add_subdirectory(eigen)
 add_subdirectory(yaml-cpp)
 
 # Thread pool does not have support for cmake, add it here

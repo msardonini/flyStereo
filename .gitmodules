@@ -10,9 +10,6 @@
 [submodule "external/yaml-cpp"]
 	path = external/yaml-cpp
 	url = git@github.com:jbeder/yaml-cpp.git
-[submodule "external/eigen"]
-	path = external/eigen
-	url = git@gitlab.com:libeigen/eigen.git
 [submodule "external/ORB_SLAM3"]
 	path = external/ORB_SLAM3
 	url = git@github.com:UZ-SLAMLab/ORB_SLAM3.git
