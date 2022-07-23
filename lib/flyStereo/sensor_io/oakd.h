@@ -14,12 +14,12 @@ class OakD : public StereoSystemSrcInterface {
  public:
   OakD(int fps, bool rectify);
 
-  ~OakD();
+  virtual ~OakD() override = default;
 
   int GetSynchronizedData(cv::Mat_<uint8_t> &left_image, cv::Mat_<uint8_t> &right_image,
                           std::vector<mavlink_imu_t> &imu_data_a, uint64_t &current_frame_time) override;
 
- private:
+ protected:
   void Init(int fps = 30, bool rectify = true);
 
   std::vector<dai::IMUPacket> GetImuData(std::chrono::milliseconds timeout, bool &has_timed_out);
@@ -27,6 +27,7 @@ class OakD : public StereoSystemSrcInterface {
   std::pair<std::shared_ptr<dai::ImgFrame>, std::shared_ptr<dai::ImgFrame>> GetStereoImagePair(
       std::chrono::milliseconds timeout, bool &has_timed_out);
 
+ private:
   // Objects needed to interface with the dai camera
   dai::Pipeline pipeline_;
   std::unique_ptr<dai::Device> device_;

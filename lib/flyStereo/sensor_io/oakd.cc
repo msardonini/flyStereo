@@ -14,8 +14,6 @@ static constexpr int image_queue_size = 1;
 
 OakD::OakD(int fps, bool rectify) { Init(fps, rectify); }
 
-OakD::~OakD() {}
-
 void OakD::Init(int fps, bool rectify) {
   // Define sources and outputs
   mono_left_ = pipeline_.create<dai::node::MonoCamera>();
