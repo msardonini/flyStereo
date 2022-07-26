@@ -175,11 +175,11 @@ void Pipeline<IpBackend>::run() {
     consecutive_missed_frames = 0;
 
     if (record_mode_) {
-      LogParams<typename IpBackend::image_type> log_params;
+      LogParams log_params;
 
       log_params.timestamp_frame = current_time;
-      log_params.frame0 = d_frame_cam0_t1;
-      log_params.frame1 = d_frame_cam1_t1;
+      log_params.frame0 = d_frame_cam0_t1.frame().clone();
+      log_params.frame1 = d_frame_cam1_t1.frame().clone();
       log_params.imu_msgs = imu_msgs;
 
       sql_sink_.ProcessFrame(log_params);

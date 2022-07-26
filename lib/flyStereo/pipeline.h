@@ -64,7 +64,7 @@ class Pipeline {
 
   std::unique_ptr<StereoSystemSrcInterface> data_src_;
 
-  SqlSink<typename IpBackend::image_type> sql_sink_;
+  SqlSink sql_sink_;
 
 #ifdef WITH_VIZ
   Visualization visualization_;

@@ -20,10 +20,8 @@ if (FLYSTEREO_BUILD_ALGORITHMS)
     set (FLY_STEREO_VIZ_SRC visualization/visualization.cc)
   endif()
 
-
-
   add_library(fly_stereo_lib
-    kalman_filter.cc
+    # kalman_filter.cc
     image_processing/image_processor.cc
     visualization/draw_to_image.cc
     pipeline.cc
