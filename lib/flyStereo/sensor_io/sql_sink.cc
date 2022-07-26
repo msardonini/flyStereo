@@ -9,13 +9,9 @@ constexpr uint32_t MAX_WAIT_TIME_FLUSH_BUFFERS_ON_EXIT_SECONDS = 10;
 
 namespace fs = std::filesystem;
 
-template <UMatDerivative ImageT>
-SqlSink<ImageT>::SqlSink(const fs::path &log_dir) {
-  Init(log_dir);
-}
+SqlSink::SqlSink(const fs::path &log_dir) { Init(log_dir); }
 
-template <UMatDerivative ImageT>
-SqlSink<ImageT>::~SqlSink() {
+SqlSink::~SqlSink() {
   // Allow the rest of the queued buffers to get logged
   std::unique_lock<std::mutex> lock(queue_mutex_);
 
@@ -47,8 +43,7 @@ SqlSink<ImageT>::~SqlSink() {
   }
 }
 
-template <UMatDerivative ImageT>
-void SqlSink<ImageT>::Init(const fs::path &log_dir) {
+void SqlSink::Init(const fs::path &log_dir) {
   auto filepath = log_dir / "database.dat";
 
   // Open the database
@@ -74,11 +69,10 @@ void SqlSink<ImageT>::Init(const fs::path &log_dir) {
   }
 
   is_running_.store(true);
-  queue_thread_ = std::thread(&SqlSink<ImageT>::LogThread, this);
+  queue_thread_ = std::thread(&SqlSink::LogThread, this);
 }
 
-template <UMatDerivative ImageT>
-void SqlSink<ImageT>::LogThread() {
+void SqlSink::LogThread() {
   while (is_running_.load()) {
     if (queue_mutex_.try_lock()) {
       // We own the mutex, log the next element in the queue
@@ -101,8 +95,7 @@ void SqlSink<ImageT>::LogThread() {
   }
 }
 
-template <UMatDerivative ImageT>
-int SqlSink<ImageT>::ProcessFrame(const LogParams<ImageT> &params) {
+int SqlSink::ProcessFrame(const LogParams &params) {
   // Push the data to the logging queue
   std::lock_guard<std::mutex> lock(queue_mutex_);
   if (log_queue_.size() >= MAX_QUEUE_SIZE) {
@@ -113,8 +106,7 @@ int SqlSink<ImageT>::ProcessFrame(const LogParams<ImageT> &params) {
   return 0;
 }
 
-template <UMatDerivative ImageT>
-int SqlSink<ImageT>::LogEntry(const LogParams<ImageT> &params) {
+int SqlSink::LogEntry(const LogParams &params) {
   std::string sql_cmd = std::string("INSERT INTO FLY_STEREO_DATA VALUES (?,?,?,?,?,?)");
 
   int ret = sqlite3_prepare(sql3_.data_base_, sql_cmd.c_str(), -1, &sql3_.sq_stmt, nullptr);
@@ -134,14 +126,14 @@ int SqlSink<ImageT>::LogEntry(const LogParams<ImageT> &params) {
     return -1;
   }
 
-  auto frame0 = params.frame0.frame();
+  auto frame0 = params.frame0;
   ret = sqlite3_bind_blob(sql3_.sq_stmt, 3, frame0.data, frame0.total() * frame0.elemSize(), nullptr);
   if (ret != SQLITE_OK) {
     spdlog::error("error in bind, code: {}", ret);
     return -1;
   }
 
-  auto frame1 = params.frame1.frame();
+  auto frame1 = params.frame1;
   ret = sqlite3_bind_blob(sql3_.sq_stmt, 4, frame1.data, frame1.total() * frame1.elemSize(), nullptr);
   if (ret != SQLITE_OK) {
     spdlog::error("error in bind, code: {}", ret);
@@ -184,10 +176,3 @@ int SqlSink<ImageT>::LogEntry(const LogParams<ImageT> &params) {
   sqlite3_reset(sql3_.sq_stmt);
   return 0;
 }
-
-#include "flyStereo/types/umat.h"
-template class SqlSink<UMat<uint8_t>>;
-#ifdef WITH_VPI
-#include "flyStereo/types/umat_vpiimage.h"
-template class SqlSink<UMatVpiImage>;
-#endif

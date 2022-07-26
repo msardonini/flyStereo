@@ -4,7 +4,6 @@
 
 #include "flyStereo/sensor_io/sqlite3_params.h"
 #include "flyStereo/sensor_io/stereo_system_src_interface.h"
-#include "flyStereo/types/umat.h"
 
 namespace fs = std::filesystem;
 

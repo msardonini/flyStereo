@@ -1,6 +1,12 @@
 
 
-add_subdirectory(yaml-cpp)
+if (NOT TARGET spdlog::spdlog)
+  add_subdirectory(spdlog)
+endif()
+
+if (NOT TARGET yaml-cpp)
+  add_subdirectory(yaml-cpp)
+endif()
 
 # Thread pool does not have support for cmake, add it here
 add_library(thread_pool INTERFACE)

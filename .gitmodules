@@ -13,3 +13,6 @@
 [submodule "external/ORB_SLAM3"]
 	path = external/ORB_SLAM3
 	url = git@github.com:UZ-SLAMLab/ORB_SLAM3.git
+[submodule "external/spdlog"]
+	path = external/spdlog
+	url = https://github.com/gabime/spdlog.git

@@ -3,7 +3,6 @@
 #include <vector>
 
 #include "flyStereo/sensor_io/mavlink/fly_stereo/mavlink.h"
-#include "flyStereo/types/umat.h"
 #include "flyStereo/utility.h"
 
 class StereoSystemSrcInterface {

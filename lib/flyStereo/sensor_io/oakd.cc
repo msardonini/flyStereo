@@ -34,7 +34,7 @@ void OakD::Init(int fps, bool rectify) {
   mono_right_->setFps(fps);
 
   imu_->enableIMUSensor(dai::IMUSensor::GYROSCOPE_CALIBRATED, 200);
-  imu_->enableIMUSensor(dai::IMUSensor::ACCELEROMETER, 200);
+  imu_->enableIMUSensor(dai::IMUSensor::ACCELEROMETER_RAW, 200);
 
   // it's recommended to set both setBatchReportThreshold and setMaxBatchReports
   // to 20 when integrating in a pipeline with a lot of input/output connections
@@ -87,7 +87,7 @@ void OakD::Init(int fps, bool rectify) {
   queue_right_ = device_->getOutputQueue("right", image_queue_size, false);
   queue_imu_ = device_->getOutputQueue("imu", 30, false);
 
-  std::cout << "Device USB status: " << usbStrings[static_cast<int32_t>(device_->getUsbSpeed())] << std::endl;
+  spdlog::info("Device USB status: {}", usbStrings[static_cast<int32_t>(device_->getUsbSpeed())]);
 
   start_time_ = std::chrono::steady_clock::now();
 }

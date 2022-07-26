@@ -1,15 +1,13 @@
 #pragma once
 
+#include <iostream>
 #include <memory>
 #include <string>
 
-#include "flyStereo/types/umat.h"
 #include "gst/app/gstappsink.h"
 #include "gst/gst.h"
 #include "gst/video/video.h"
 #include "opencv2/core.hpp"
-#include "opencv2/core/cuda.hpp"
-#include "opencv2/cudaarithm.hpp"
 #include "opencv2/videoio.hpp"
 #include "yaml-cpp/yaml.h"
 

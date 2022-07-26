@@ -10,8 +10,7 @@
 
 namespace fs = std::filesystem;
 
-template <UMatDerivative ImageT>
-class SqlSink : StereoSystemSinkInterface<ImageT> {
+class SqlSink : StereoSystemSinkInterface {
  public:
   SqlSink() = default;
   ~SqlSink();
@@ -20,10 +19,10 @@ class SqlSink : StereoSystemSinkInterface<ImageT> {
 
   void Init(const fs::path &log_dir);
 
-  int ProcessFrame(const LogParams<ImageT> &params) override;
+  int ProcessFrame(const LogParams &params) override;
 
  private:
-  int LogEntry(const LogParams<ImageT> &params);
+  int LogEntry(const LogParams &params);
 
   void LogThread();
 
@@ -32,5 +31,5 @@ class SqlSink : StereoSystemSinkInterface<ImageT> {
 
   std::mutex queue_mutex_;
   std::thread queue_thread_;
-  std::queue<LogParams<ImageT>> log_queue_;
+  std::queue<LogParams> log_queue_;
 };

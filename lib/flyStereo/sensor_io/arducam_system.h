@@ -7,7 +7,6 @@
 #include "flyStereo/sensor_io/mavlink_reader.h"
 #include "flyStereo/sensor_io/stereo_system_src_interface.h"
 // #include "flyStereo/sql_logger.h"
-#include "flyStereo/types/umat.h"
 #include "yaml-cpp/yaml.h"
 
 class ArducamSystem : public StereoSystemSrcInterface {

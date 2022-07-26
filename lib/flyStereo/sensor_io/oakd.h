@@ -27,7 +27,6 @@ class OakD : public StereoSystemSrcInterface {
   std::pair<std::shared_ptr<dai::ImgFrame>, std::shared_ptr<dai::ImgFrame>> GetStereoImagePair(
       std::chrono::milliseconds timeout, bool &has_timed_out);
 
- private:
   // Objects needed to interface with the dai camera
   dai::Pipeline pipeline_;
   std::unique_ptr<dai::Device> device_;
