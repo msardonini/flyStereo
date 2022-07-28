@@ -66,7 +66,7 @@ flyStereo:
     # sink_pipeline: "appsrc ! videoconvert ! queue ! videoconvert ! x264enc tune=zerolatency ! qtmux ! filesink location=/root/flyStereo/build_docker/replay/run023/cam1_annotated.mp4"
 
   stereo_calibration:
-
+    image_size: [1280, 720]
     # At home calibration
     K0:
       rows: 3
