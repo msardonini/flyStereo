@@ -6,11 +6,9 @@ static std::atomic<bool> lrcheck{true};
 static std::atomic<bool> extended{false};
 static std::atomic<bool> subpixel{false};
 static constexpr auto timeout_period = std::chrono::milliseconds(1000);
-static constexpr auto stereo_sync_time_threshold_us =
-    25;  //< If left/right images have a timestamp difference of more than this, we will
-         // assume that the images are not synchronized.
-std::vector<std::string> usbStrings = {"UNKNOWN", "LOW", "FULL", "HIGH", "SUPER", "SUPER_PLUS"};
+std::vector<std::string> usb_speed_strings = {"UNKNOWN", "LOW", "FULL", "HIGH", "SUPER", "SUPER_PLUS"};
 static constexpr int image_queue_size = 1;
+static constexpr int imu_queue_size = 30;
 
 OakD::OakD(int fps, bool rectify) { Init(fps, rectify); }
 
@@ -85,9 +83,9 @@ void OakD::Init(int fps, bool rectify) {
   // defined above
   queue_left_ = device_->getOutputQueue("left", image_queue_size, false);
   queue_right_ = device_->getOutputQueue("right", image_queue_size, false);
-  queue_imu_ = device_->getOutputQueue("imu", 30, false);
+  queue_imu_ = device_->getOutputQueue("imu", imu_queue_size, false);
 
-  spdlog::info("Device USB status: {}", usbStrings[static_cast<int32_t>(device_->getUsbSpeed())]);
+  spdlog::info("Device USB status: {}", usb_speed_strings[static_cast<int32_t>(device_->getUsbSpeed())]);
 
   start_time_ = std::chrono::steady_clock::now();
 }
@@ -193,15 +191,5 @@ int OakD::GetSynchronizedData(cv::Mat_<uint8_t> &left_image, cv::Mat_<uint8_t> &
 
   // current_frame_time = std::chrono::duration_cast<std::chrono::microseconds>(left_cam_time - start_time_).count();
   current_frame_time = 0;
-
-  // auto handler = dai::CalibrationHandler();
-  // auto left_d =
-  // handler.getDistortionCoefficients(dai::CameraBoardSocket::LEFT); auto right
-  // = handler.getDistortionCoefficients(dai::CameraBoardSocket::RIGHT);
-
-  // std::for_each(left_d.begin(), left_d.end(), [](auto val) {std::cout << ", "
-  // << val;}); std::cout << std::endl; std::for_each(right.begin(),
-  // right.end(), [](auto val) {std::cout << ", " << val;});
-
   return 0;
 }
